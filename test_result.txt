@@ -1,0 +1,9 @@
+Title: Švarus Darbas — CRM
+Text: Švarus Darbas
+
+Prisijunkite prie CRM: užsakymai, klientai, komanda.
+
+Duomenys saugomi Supabase (debesis). Google prisijungimas galimas, jei sukonfigūruota projekte.
+PrisijungtiSukurti paskyrą
+arba
+Prisijungti su Google

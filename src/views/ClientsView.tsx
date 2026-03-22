@@ -1,0 +1,321 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { Client, BuildingType, Order } from '../types';
+import { getData, addData, updateData, deleteData, TABLES } from '../supabase';
+import { Search, Plus, User as UserIcon, Phone, MapPin, Building, MoreVertical, X, Edit, Trash2, History, ChevronRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { formatDate, formatCurrency } from '../utils';
+
+interface LocalUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
+interface ClientsViewProps {
+  clients: Client[];
+  orders: Order[];
+  user: LocalUser;
+}
+
+export default function ClientsView({ clients, orders, user }: ClientsViewProps) {
+  const [search, setSearch] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [viewingHistory, setViewingHistory] = useState<Client | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    buildingType: 'butas' as BuildingType,
+    notes: '',
+  });
+
+  const filteredClients = clients.filter(c =>
+    (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (c.address || "").toLowerCase().includes(search.toLowerCase()) ||
+    (c.phone || "").includes(search)
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingClient) {
+        await updateData(TABLES.CLIENTS, editingClient.id, { ...formData });
+      } else {
+        await addData(TABLES.CLIENTS, user.uid, {
+          ...formData,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      setIsAdding(false);
+      setEditingClient(null);
+      setFormData({ name: '', phone: '', address: '', buildingType: 'butas', notes: '' });
+    } catch (error) {
+      console.error('Error saving client:', error);
+    }
+  };
+
+  const handleEdit = (client: Client) => {
+    setEditingClient(client);
+    setFormData({
+      name: client.name,
+      phone: client.phone,
+      address: client.address,
+      buildingType: client.buildingType,
+      notes: client.notes || '',
+    });
+    setIsAdding(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Ar tikrai norite ištrinti šį klientą?')) {
+      try {
+        deleteData(TABLES.CLIENTS, id);
+      } catch (error) {
+        console.error('Error deleting client:', error);
+      }
+    }
+  };
+
+  const getClientOrders = (clientId: string) => {
+    return orders.filter(o => o.clientId === clientId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold text-slate-900">Klientai</h2>
+        <button
+          onClick={() => setIsAdding(true)}
+          className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input
+          type="text"
+          placeholder="Ieškoti kliento..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full bg-white border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"
+        />
+      </div>
+
+      <div className="space-y-3">
+        {filteredClients.map((client) => (
+          <motion.div
+            layout
+            key={client.id}
+            className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-blue-100 transition-colors"
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100">
+                  <UserIcon size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-900">{client.name}</h3>
+                    {getClientOrders(client.id).length >= 5 && (
+                      <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest border border-amber-200">VIP</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{client.buildingType}</span>
+                    <span className="text-[10px] text-slate-300">•</span>
+                    <span className="text-[10px] font-bold text-blue-600">{getClientOrders(client.id).length} užsakymai</span>
+                    <span className="text-[10px] text-slate-300">•</span>
+                    <span className="text-[10px] font-bold text-emerald-600">{formatCurrency(getClientOrders(client.id).reduce((sum, o) => sum + o.totalPrice, 0))}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => setViewingHistory(client)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                  <History size={18} />
+                </button>
+                <button onClick={() => handleEdit(client)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                  <Edit size={18} />
+                </button>
+                <button onClick={() => handleDelete(client.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                <Phone size={14} className="text-slate-400 shrink-0" />
+                <a href={`tel:${client.phone}`} className="hover:text-blue-600 truncate font-medium">{client.phone}</a>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                <MapPin size={14} className="text-slate-400 shrink-0" />
+                <span className="truncate font-medium">{client.address}</span>
+              </div>
+            </div>
+
+            {client.notes && (
+              <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Pastabos</p>
+                <p className="text-xs text-amber-900/70 italic leading-relaxed">{client.notes}</p>
+              </div>
+            )}
+          </motion.div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {isAdding && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-slate-900">
+                  {editingClient ? 'Redaguoti klientą' : 'Pridėti klientą'}
+                </h3>
+                <button onClick={() => { setIsAdding(false); setEditingClient(null); }} className="p-2 text-slate-400 hover:text-slate-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vardas</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Vardas Pavardė"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Telefonas</label>
+                  <input
+                    required
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="+370 600 00000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Adresas</label>
+                  <input
+                    required
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Gatvė, namas, miestas"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastato tipas</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['butas', 'namas', 'ofisas'] as BuildingType[]).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, buildingType: type })}
+                        className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${formData.buildingType === type
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                          : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200'
+                          }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastabos</label>
+                  <textarea
+                    rows={3}
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Papildoma informacija..."
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors mt-4"
+                >
+                  {editingClient ? 'Išsaugoti pakeitimus' : 'Pridėti klientą'}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {viewingHistory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ y: 100 }}
+              animate={{ y: 0 }}
+              exit={{ y: 100 }}
+              className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Užsakymų istorija</h3>
+                  <p className="text-xs text-slate-400 font-medium">{viewingHistory.name}</p>
+                </div>
+                <button onClick={() => setViewingHistory(null)} className="p-2 text-slate-400 hover:text-slate-600">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {getClientOrders(viewingHistory.id).length > 0 ? (
+                  getClientOrders(viewingHistory.id).map((order) => (
+                    <div key={order.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-bold text-slate-900">{formatDate(order.date)}</p>
+                        <p className="text-[10px] text-slate-400 font-medium">{order.windowCount} langai • {order.status}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-slate-900">{formatCurrency(order.totalPrice)}</p>
+                        <ChevronRight size={14} className="text-slate-300 ml-auto mt-1" />
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10">
+                    <History size={32} className="text-slate-200 mx-auto mb-2" />
+                    <p className="text-slate-400 text-sm italic">Užsakymų dar nebuvo</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "A window cleaning service client",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Client's full name" },
+        "phone": { "type": "string", "description": "Client's phone number" },
+        "address": { "type": "string", "description": "Client's address" },
+        "buildingType": { "type": "string", "enum": ["butas", "namas", "ofisas"], "description": "Type of building" },
+        "notes": { "type": "string", "description": "Additional notes" },
+        "lastCleaningDate": { "type": "string", "format": "date", "description": "Date of last cleaning" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "uid": { "type": "string", "description": "Owner's user ID" }
+      },
+      "required": ["name", "phone", "address", "buildingType", "uid"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A window cleaning service order",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "description": "Reference to client ID" },
+        "clientName": { "type": "string", "description": "Client's name for quick access" },
+        "address": { "type": "string", "description": "Service address" },
+        "lat": { "type": "number", "description": "Latitude for map" },
+        "lng": { "type": "number", "description": "Longitude for map" },
+        "date": { "type": "string", "format": "date", "description": "Service date" },
+        "time": { "type": "string", "format": "time", "description": "Service time" },
+        "windowCount": { "type": "number", "description": "Number of windows" },
+        "floor": { "type": "number", "description": "Floor number" },
+        "additionalServices": {
+          "type": "object",
+          "properties": {
+            "balkonai": { "type": "boolean" },
+            "vitrinos": { "type": "boolean" },
+            "terasa": { "type": "boolean" },
+            "kiti": { "type": "boolean" }
+          }
+        },
+        "totalPrice": { "type": "number", "description": "Calculated total price" },
+        "status": { "type": "string", "enum": ["suplanuota", "vykdoma", "atlikta"], "description": "Order status" },
+        "estimatedDuration": { "type": "number", "description": "Approximate time the work will take in minutes" },
+        "notes": { "type": "string", "description": "Order notes" },
+        "photoBefore": { "type": "string", "description": "URL to photo before cleaning" },
+        "photoAfter": { "type": "string", "description": "URL to photo after cleaning" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "uid": { "type": "string", "description": "Owner's user ID" }
+      },
+      "required": ["clientId", "address", "date", "time", "totalPrice", "status", "uid"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Business expense",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "category": { "type": "string", "enum": ["kuras", "priemonės", "reklama", "kita"] },
+        "notes": { "type": "string", "description": "Additional details about the expense" },
+        "uid": { "type": "string" }
+      },
+      "required": ["title", "amount", "date", "category", "uid"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Application price settings",
+      "type": "object",
+      "properties": {
+        "pricePerWindow": { "type": "number" },
+        "pricePerFloor": { "type": "number" },
+        "priceBalkonai": { "type": "number" },
+        "priceVitrinos": { "type": "number" },
+        "priceTerasa": { "type": "number" },
+        "priceKiti": { "type": "number" },
+        "uid": { "type": "string", "description": "Owner's user ID" }
+      },
+      "required": ["pricePerWindow", "uid"]
+    },
+    "Memory": {
+      "title": "Memory",
+      "description": "Long-term memory for the assistant",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string", "description": "The memory content" },
+        "category": { "type": "string", "enum": ["klientas", "verslas", "procesas", "kita"], "description": "Category of the memory" },
+        "importance": { "type": "number", "description": "Importance level 1-5" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "uid": { "type": "string", "description": "Owner's user ID" }
+      },
+      "required": ["content", "category", "uid"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": { "schema": "Client", "description": "Collection of clients" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Collection of orders" },
+    "/settings/{settingsId}": { "schema": "Settings", "description": "User specific settings" },
+    "/test/{docId}": { "schema": "object", "description": "Collection for connection testing" },
+    "/expenses/{expenseId}": { "schema": "Expense", "description": "Business expenses" },
+    "/memories/{memoryId}": { "schema": "Memory", "description": "Long-term memories for the assistant" }
+  }
+}

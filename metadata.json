@@ -1,0 +1,9 @@
+{
+  "name": "Švarus Darbas CRM",
+  "description": "Specializuota CRM sistema „Švarus darbas“ komandai, skirta langų valymo paslaugų valdymui Klaipėdoje.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation",
+    "microphone"
+  ]
+}
