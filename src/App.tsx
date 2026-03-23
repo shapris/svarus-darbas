@@ -269,7 +269,7 @@ export default function App() {
           {connectionStatus === 'disconnected' && !isDemoMode && (
             <>
               <div className="mb-4 p-3 bg-red-50 rounded-lg text-xs text-red-700 text-left border border-red-100">
-                ⚠️ Nepavyko prisijungti prie duomenų bazės. Įsitikinkite, kad Supabase projektas yra aktyvus (nepristabdytas). Jei naudojate nemokamą planą, projektas gali būti pristabdytas po 7 dienų neaktyvumo.
+                ⚠️ Nepavyko prisijungti prie duomenų bazės. Patikrinkite interneto ryšį arba kreipkitės į administratorių.
               </div>
               <button
                 onClick={() => {
