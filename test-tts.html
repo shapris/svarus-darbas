@@ -1,0 +1,55 @@
+// Test available browser voices
+console.log('🧪 Browser TTS Voice Test');
+console.log('========================\n');
+
+const loadVoices = () => {
+  const voices = window.speechSynthesis.getVoices();
+  console.log(`Total voices: ${voices.length}\n`);
+  
+  // Group by language
+  const byLang: Record<string, typeof voices> = {};
+  voices.forEach(v => {
+    const lang = v.lang.split('-')[0];
+    if (!byLang[lang]) byLang[lang] = [];
+    byLang[lang].push(v);
+  });
+  
+  console.log('Languages with voices:');
+  Object.keys(byLang).sort().forEach(lang => {
+    console.log(`  ${lang}: ${byLang[lang].length} voices`);
+  });
+  
+  // Look for Lithuanian
+  console.log('\n--- Lithuanian (lt) voices ---');
+  const ltVoices = voices.filter(v => v.lang.startsWith('lt'));
+  if (ltVoices.length > 0) {
+    ltVoices.forEach(v => console.log(`  ${v.name} (${v.lang})`));
+  } else {
+    console.log('  ❌ No Lithuanian voices found');
+  }
+  
+  // Look for English
+  console.log('\n--- English (en) voices ---');
+  const enVoices = voices.filter(v => v.lang.startsWith('en'));
+  enVoices.slice(0, 5).forEach(v => console.log(`  ${v.name} (${v.lang})`));
+  
+  // Test Lithuanian speaking
+  console.log('\n--- Testing Lithuanian speech ---');
+  const testText = 'Sveiki! Aš esu jūsų asistentas. Kaip galėčiau jums padėti šiandien?';
+  
+  const testUtterance = new SpeechSynthesisUtterance(testText);
+  testUtterance.lang = 'lt-LT';
+  testUtterance.rate = 0.9;
+  testUtterance.pitch = 1.0;
+  
+  testUtterance.onend = () => console.log('✅ Lithuanian test completed');
+  testUtterance.onerror = (e) => console.log('❌ Lithuanian test failed:', e);
+  
+  window.speechSynthesis.speak(testUtterance);
+};
+
+if (window.speechSynthesis.getVoices().length > 0) {
+  loadVoices();
+} else {
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}

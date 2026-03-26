@@ -38,6 +38,15 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
 
+  // Auto-set OpenRouter API key if not already set
+  useEffect(() => {
+    const OPENROUTER_KEY = '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';
+    if (!localStorage.getItem('custom_api_key')) {
+      localStorage.setItem('custom_api_key', OPENROUTER_KEY);
+      console.log('✅ OpenRouter API key set automatically');
+    }
+  }, []);
+
   // Simple routing for booking page
   const path = window.location.pathname;
   const isBookingPage = path.startsWith('/booking/');

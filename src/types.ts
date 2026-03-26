@@ -53,6 +53,7 @@ export interface Order {
   photoBefore?: string;
   photoAfter?: string;
   evaluation?: 'a1' | 'a2' | 'a3';
+  isPaid?: boolean;
   createdAt: string;
 }
 

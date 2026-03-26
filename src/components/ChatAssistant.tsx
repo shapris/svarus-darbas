@@ -49,6 +49,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string>(localStorage.getItem('selected_voice') || 'Zephyr');
   const [voiceRate, setVoiceRate] = useState<number>(parseFloat(localStorage.getItem('voice_rate') || '1.0'));
+  const [selectedLang, setSelectedLang] = useState<string>(localStorage.getItem('tts_language') || 'lt-LT');
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
 
   // Available voices based on provider
@@ -950,6 +951,25 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                     <option value="Kore">Kore (neutralus)</option>
                                     <option value="Fenrir">Fenrir (stiprus)</option>
                                     <option value="Aoede">Aoede (švelnus)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Kalba</label>
+                                  <select
+                                    value={selectedLang}
+                                    onChange={(e) => {
+                                      setSelectedLang(e.target.value);
+                                      localStorage.setItem('tts_language', e.target.value);
+                                    }}
+                                    className="w-full mt-1 text-xs border border-slate-200 rounded-lg p-2"
+                                  >
+                                    <option value="lt-LT">Lietuvių (Lietuva)</option>
+                                    <option value="en-US">English (US)</option>
+                                    <option value="en-GB">English (UK)</option>
+                                    <option value="de-DE">Deutsch</option>
+                                    <option value="fr-FR">Français</option>
+                                    <option value="pl-PL">Polski</option>
+                                    <option value="ru-RU">Русский</option>
                                   </select>
                                 </div>
                                 <div className="space-y-2">

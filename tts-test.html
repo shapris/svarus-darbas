@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <title>TTS Testas</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    .test-box { border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 8px; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    .success { color: green; }
+    .error { color: red; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🧪 TTS Balsas Testas</h1>
+  
+  <div class="test-box">
+    <h3>1. Patikrinti galimus balsus</h3>
+    <button onclick="checkVoices()">Tikrinti balsus</button>
+    <pre id="voices-output">Spustelėkite mygtuką...</pre>
+  </div>
+
+  <div class="test-box">
+    <h3>2. Testuoti lietuvių kalbą</h3>
+    <button onclick="testLithuanian()">Testuoti LT kalbą</button>
+    <p id="lt-result"></p>
+  </div>
+
+  <div class="test-box">
+    <h3>3. Testuoti su skirtingais balsais</h3>
+    <button onclick="testAllVoices()">Testuoti visus balsus</button>
+    <pre id="voices-test"></pre>
+  </div>
+
+  <script>
+    let availableVoices = [];
+
+    function checkVoices() {
+      availableVoices = window.speechSynthesis.getVoices();
+      const output = document.getElementById('voices-output');
+      
+      let html = `Rasta balsų: ${availableVoices.length}\n\n`;
+      
+      // Lithuanian
+      const lt = availableVoices.filter(v => v.lang.startsWith('lt'));
+      html += `🇱🇹 Lietuvių: ${lt.length}\n`;
+      lt.forEach(v => html += `   - ${v.name} (${v.lang})\n`);
+      
+      // English
+      const en = availableVoices.filter(v => v.lang.startsWith('en'));
+      html += `\n🇬🇧 English: ${en.length}\n`;
+      en.slice(0, 5).forEach(v => html += `   - ${v.name} (${v.lang})\n`);
+      
+      output.textContent = html;
+    }
+
+    function testLithuanian() {
+      const text = 'Sveiki! Aš esu jūsų asistentas. Kaip galėčiau jums padėti?';
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'lt-LT';
+      utterance.rate = 0.9;
+      
+      utterance.onend = () => {
+        document.getElementById('lt-result').innerHTML = '<span class="success">✅ Sėkmingai kalbėjo!</span>';
+      };
+      utterance.onerror = (e) => {
+        document.getElementById('lt-result').innerHTML = `<span class="error">❌ Klaida: ${e.error}</span>`;
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function testAllVoices() {
+      const testText = 'Sveiki! Tai bandomasis tekstas.';
+      const output = document.getElementById('voices-test');
+      output.textContent = 'Testuojama...\n';
+      
+      const voices = [
+        { name: 'Zephyr', lang: 'lt-LT', rate: 1.0, pitch: 1.0 },
+        { name: 'Puck', lang: 'lt-LT', rate: 0.9, pitch: 0.8 },
+        { name: 'Charon', lang: 'lt-LT', rate: 0.85, pitch: 0.7 },
+      ];
+      
+      let index = 0;
+      
+      function testNext() {
+        if (index >= voices.length) {
+          output.textContent += '\n✅ Visi testai baigti!';
+          return;
+        }
+        
+        const v = voices[index];
+        const utterance = new SpeechSynthesisUtterance(testText);
+        utterance.lang = v.lang;
+        utterance.rate = v.rate;
+        utterance.pitch = v.pitch;
+        
+        output.textContent += `\nTestuojamas: ${v.name} (${v.lang})...`;
+        
+        utterance.onend = () => {
+          output.textContent += ' OK';
+          index++;
+          setTimeout(testNext, 500);
+        };
+        utterance.onerror = (e) => {
+          output.textContent += ` Klaida: ${e.error}`;
+          index++;
+          setTimeout(testNext, 500);
+        };
+        
+        window.speechSynthesis.speak(utterance);
+      }
+      
+      testNext();
+    }
+
+    // Load voices on start
+    if (window.speechSynthesis.getVoices().length > 0) {
+      checkVoices();
+    } else {
+      window.speechSynthesis.onvoiceschanged = checkVoices;
+    }
+  </script>
+</body>
+</html>

@@ -5,6 +5,13 @@
 
 import { GoogleGenAI, Type, FunctionDeclaration, GenerateContentResponse, Modality } from "@google/genai";
 import { Order, Client, Expense, Memory } from "../types";
+import { 
+  ModularPromptAssembler, 
+  enrichWithContext,
+  DEFAULT_PROMPT_CONFIG 
+} from './modularPrompt';
+import { classifyIntentHybrid } from './hybridClassifier';
+import { prioritizeMemories, formatMemoriesForContext } from './memoryPriority';
 
 // Helper to check if a key is an OpenRouter key
 export const isOpenRouterKey = (key: string) => key?.startsWith('sk-or-v1-');
@@ -475,6 +482,110 @@ const batchUpdateOrderStatusTool: FunctionDeclaration = {
   },
 };
 
+/**
+ * Build modular system instruction based on current context
+ */
+async function buildModularSystemInstruction(
+  message: string,
+  context: { clients: Client[]; orders: Order[]; expenses: Expense[]; memories: Memory[] },
+  history: any[],
+  businessMetrics: { totalRevenue: number; totalExpenses: number; profit: number }
+): Promise<string> {
+  const assembler = new ModularPromptAssembler({
+    maxTokens: 1500,
+    includeExamples: true,
+    includeDebugInfo: false
+  });
+  
+  // Prioritize memories based on current query
+  const prioritizedMemories = prioritizeMemories(context.memories, {
+    query: message,
+    userId: 'system',
+    conversationHistory: history.map((h: any) => h.parts?.[0]?.text || '').filter(Boolean)
+  });
+  
+  // Create mock classification for prompt assembly
+  const mockClassification = {
+    intention: 'general_chat' as any,
+    confidence: 0.8,
+    method: 'keyword' as const,
+    shouldExecuteTool: false,
+    toolName: null,
+    parameters: {},
+    alternatives: []
+  };
+  
+  // Try to get actual classification if API key is available
+  const apiKey = localStorage.getItem('custom_api_key') || (window as any).aistudio?.getApiKey?.() || import.meta.env.VITE_GEMINI_API_KEY || '';
+  if (apiKey) {
+    try {
+      const classification = await classifyIntentHybrid(message, apiKey);
+      mockClassification.intention = classification.intention;
+      mockClassification.confidence = classification.confidence;
+      mockClassification.shouldExecuteTool = classification.shouldExecuteTool;
+      mockClassification.toolName = classification.toolName;
+    } catch (error) {
+      console.warn('Failed to classify intent for prompt assembly:', error);
+    }
+  }
+  
+  // Assemble the prompt
+  const assemblyResult = assembler.assemble(
+    mockClassification,
+    prioritizedMemories,
+    ['add_client', 'get_business_summary', 'get_unpaid_orders', 'generate_reminder_message'], // Available tools
+    {
+      clientCount: context.clients.length,
+      orderCount: context.orders.length,
+      revenue: businessMetrics.totalRevenue
+    }
+  );
+  
+  let systemPrompt = assembler.formatAsSystemPrompt(assemblyResult);
+  
+  // Add dynamic business context
+  systemPrompt = enrichWithContext(systemPrompt, {
+    currentDate: new Date().toISOString().split('T')[0],
+    recentOrders: context.orders.length,
+    pendingPayments: context.orders.filter(o => !o.isPaid && o.status === 'atlikta').length,
+    memoryCount: prioritizedMemories.length
+  });
+  
+  // Add prioritized memories context
+  if (prioritizedMemories.length > 0) {
+    systemPrompt += '\n\n' + formatMemoriesForContext(prioritizedMemories);
+  }
+  
+  // Add business data context
+  systemPrompt += `
+  
+📊 VERSLO DUOMENYS:
+- Klientai: ${context.clients.length}
+- Užsakymai: ${context.orders.length}
+- Pajamos: ${businessMetrics.totalRevenue}€
+- Išlaidos: ${businessMetrics.totalExpenses}€
+- Pelnas: ${businessMetrics.profit}€
+
+${context.clients.length > 0 ? `Klientų sąrašas: ${JSON.stringify(context.clients.slice(0, 10).map((c: Client) => ({ id: c.id, name: c.name, address: c.address })))}` : ''}
+${context.orders.length > 0 ? `\nPaskutiniai užsakymai: ${JSON.stringify(context.orders.slice(-5).map((o: Order) => ({ id: o.id, client: o.clientName, date: o.date, status: o.status, price: o.totalPrice })))}` : ''}
+${context.expenses.length > 0 ? `\nPaskutinės išlaidos: ${JSON.stringify(context.expenses.slice(-5).map((e: Expense) => ({ id: e.id, title: e.title, amount: e.amount, date: e.date })))}` : ''}
+
+📅 Data: ${new Date().toISOString().split('T')[0]}
+
+Atsakyk lietuvių kalba. Naudok Markdown formatavimą atsakymams.`;
+
+  // Log assembly info for debugging
+  console.log('Modular Prompt Assembly:', {
+    intention: mockClassification.intention,
+    confidence: mockClassification.confidence,
+    tokenCount: assemblyResult.totalTokens,
+    moduleCount: assemblyResult.modules.length,
+    warnings: assemblyResult.warnings
+  });
+  
+  return systemPrompt;
+}
+
 export async function chatWithAssistant(
   message: string,
   history: any[],
@@ -488,60 +599,12 @@ export async function chatWithAssistant(
   const totalExpenses = context.expenses.reduce((sum, e) => sum + e.amount, 0);
   const profit = totalRevenue - totalExpenses;
 
-  const systemInstruction = `
-    Esi "Švarus Darbas" (svarusdarbas.lt) verslo asistentas-darbuotojas. Tavo tikslas - padėti vadovui valdyti duomenis ir teikti ataskaitas.
-    Mes specializuojamės langų valyme Klaipėdoje ir aplinkiniuose rajonuose.
-    Gali pridėti, atnaujinti arba ištrinti klientus, užsakymus ir išlaidas naudodamas įrankius.
-    
-    TURI NAUJAS FUNKCIJAS - naudok jas pagal situaciją:
-    1. PROAKTYVŪS PRIMINIMAI:
-       - get_neglected_clients: Randa klientus, kurie nebuvo aptarnauti X dienų
-       - get_unpaid_orders: Randa neapmokėtus užsakymus
-       - Jei matai, kad klientai seniai nelankyti - pasiūlyk jiems priminti!
-    
-    2. VERSLO ANALITIKA:
-       - get_business_summary(period): Pajamų/islaidų/ pelno suvestinė (week/month/year)
-       - get_top_clients(limit, by): Pelningiausi klientai (by: "orders" arba "revenue")
-       - get_revenue_trends(months): Pajamų tendencijos per X mėnesių
-       
-    3. AUTOMATIZAVIMAS:
-       - create_recurring_order: Sukuria kartotinį užsakymą kas X mėnesių
-       - generate_reminder_message: Sugeneruoja SMS priminimą klientui
-       - batch_update_order_status: Masinis užsakymų statuso keitimas
-    
-    Turi prieigą prie šių verslo duomenų:
-    - Iš viso klientų: ${context.clients.length}
-    - Iš viso užsakymų: ${context.orders.length}
-    - Bendros pajamos (atlikti darbai): ${totalRevenue}€
-    - Bendros išlaidos: ${totalExpenses}€
-    - Grynasis pelnas: ${profit}€
-    
-    Klientų sąrašas: ${JSON.stringify(context.clients.map(c => ({ id: c.id, name: c.name, address: c.address })))}
-    Paskutiniai 5 užsakymai: ${JSON.stringify(context.orders.slice(-5).map(o => ({ id: o.id, client: o.clientName, date: o.date, status: o.status, price: o.totalPrice })))}
-    Paskutinės 5 išlaidos: ${JSON.stringify(context.expenses.slice(-5).map(e => ({ id: e.id, title: e.title, amount: e.amount, date: e.date })))}
-    
-    ASISTENTO ILGALAIKĖ ATMINTIS (SVARBU):
-    ${JSON.stringify(context.memories.map(m => ({ category: m.category, content: m.content })))}
-    
-    Šiandienos data: ${new Date().toISOString().split('T')[0]}
-    
-    Tavo atmintis: Naudok aukščiau pateiktą "ASISTENTO ILGALAIKĖ ATMINTIS" informaciją, kad prisimintum svarbius dalykus apie klientus, verslo procesus ar vadovo pageidavimus.
-    Jei vadovas pasako kažką svarbaus, ką turėtum prisiminti ateityje (pvz. "Jonas visada moka grynais" arba "Mūsų nauja taisyklė - visada fotografuoti po darbo"), naudok add_memory įrankį.
-    
-    Jei vadovas klausia apie pajamas ar ataskaitas, naudok aukščiau pateiktus duomenis atsakymui suformuoti.
-    Gali pateikti detalias ataskaitas:
-    - Pajamos pagal mėnesį ar kategoriją.
-    - Pelno/nuostolio analizę.
-    - Klientų aktyvumą.
-    
-    Jei reikia atnaujinti užsakymą (pvz. pažymėti kaip atliktą), naudok update_order.
-    Jei reikia ištaisyti kliento duomenis, naudok update_client.
-    
-    SVARBU: Jei vadovas prašo "ataskaitos", pateik ją aiškiai, naudodamas Markdown lenteles ar sąrašus.
-    Būk PROAKTYVUS - jei matai, kad yra neaplankytų klientų ar neapmokėtų užsakymų - pats pasiūlyk sprendimą!
-    
-    Atsakyk mandagiai lietuvių kalba.
-  `;
+  // 🧠 MODULAR SYSTEM PROMPT - Dynamic assembly based on context
+  const systemInstruction = await buildModularSystemInstruction(message, context, history, {
+    totalRevenue,
+    totalExpenses,
+    profit
+  });
 
   const tools = [
     addClientTool, addOrderTool, addExpenseTool,
@@ -1101,10 +1164,16 @@ export async function getSpeechAudio(
   voice: string = 'Zephyr',
   provider: VoiceProvider = 'google'
 ): Promise<HTMLAudioElement | null> {
-  const apiKey = localStorage.getItem('custom_api_key') || (window as any).aistudio?.getApiKey?.() || import.meta.env.VITE_GEMINI_API_KEY || '';
+  // Check for dedicated TTS API key first
+  let apiKey = localStorage.getItem('tts_api_key') || '';
+  
+  // Fall back to main API key if no dedicated TTS key
+  if (!apiKey) {
+    apiKey = localStorage.getItem('custom_api_key') || (window as any).aistudio?.getApiKey?.() || import.meta.env.VITE_GEMINI_API_KEY || '';
+  }
 
-  // If using OpenRouter key, skip TTS (endpoint deprecated) - will fall back to browser TTS
-  if (isOpenRouterKey(apiKey)) {
+  // If using OpenRouter key without dedicated TTS key, try browser TTS instead
+  if (isOpenRouterKey(apiKey) && !localStorage.getItem('tts_api_key')) {
     return null;
   }
 
@@ -1157,17 +1226,20 @@ export async function getSpeechAudio(
 export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'Zephyr') {
   // Get voice rate from localStorage or use default
   const rate = parseFloat(localStorage.getItem('voice_rate') || '1.0');
+  const selectedLang = localStorage.getItem('tts_language') || 'lt-LT';
 
+  console.log(`🗣️ TTS Debug: lang=${selectedLang}, voice=${voice}, rate=${rate}`);
+  
   stopAllAudio();
 
-  // Map selected voice to browser voice parameters
+  // Map selected voice to browser voice parameters (with Lithuanian language support)
   const voiceMap: Record<string, { lang: string; rate: number; pitch: number }> = {
-    'Zephyr': { lang: 'en-US', rate: 1.0, pitch: 1.0 },      // warm
-    'Puck': { lang: 'en-US', rate: 0.9, pitch: 0.8 },        // masculine
-    'Charon': { lang: 'en-US', rate: 0.85, pitch: 0.7 },      // deep
-    'Kore': { lang: 'en-US', rate: 1.0, pitch: 1.0 },         // neutral
-    'Fenrir': { lang: 'en-US', rate: 0.95, pitch: 0.9 },      // strong
-    'Aoede': { lang: 'en-US', rate: 1.1, pitch: 1.2 },        // gentle
+    'Zephyr': { lang: selectedLang, rate: 1.0, pitch: 1.0 },      // warm
+    'Puck': { lang: selectedLang, rate: 0.9, pitch: 0.8 },        // masculine
+    'Charon': { lang: selectedLang, rate: 0.85, pitch: 0.7 },      // deep
+    'Kore': { lang: selectedLang, rate: 1.0, pitch: 1.0 },         // neutral
+    'Fenrir': { lang: selectedLang, rate: 0.95, pitch: 0.9 },      // strong
+    'Aoede': { lang: selectedLang, rate: 1.1, pitch: 1.2 },        // gentle
   };
   const voiceSettings = voiceMap[voice] || voiceMap['Zephyr'];
 
@@ -1175,30 +1247,66 @@ export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'K
   if (window.speechSynthesis) {
     return new Promise<void>((resolve) => {
       const utterance = new SpeechSynthesisUtterance(text);
-
-      // Try to find a matching voice based on selected voice
+      
+      // Smart voice selection based on language
       const voices = window.speechSynthesis.getVoices();
+      
+      console.log(`🗣️ TTS Debug: Available voices=${voices.length}`);
+      
+      // Priority: exact language match > broad language match > any available
+      const langCode = selectedLang.split('-')[0]; // e.g., 'lt' from 'lt-LT'
+      
+      // Try exact match first (lt-LT)
+      let selectedVoice = voices.find(v => v.lang === selectedLang);
+      console.log(`🗣️ TTS Debug: Exact match (${selectedLang}): ${selectedVoice?.name || 'none'}`);
+      
+      // Try broad match (lt)
+      if (!selectedVoice) {
+        selectedVoice = voices.find(v => v.lang.startsWith(langCode));
+        console.log(`🗣️ TTS Debug: Broad match (${langCode}): ${selectedVoice?.name || 'none'}`);
+      }
+      
+      // Try any voice that might work for this language
+      if (!selectedVoice) {
+        // For Lithuanian, try Polish or Russian as fallback (similar Slavic)
+        if (langCode === 'lt') {
+          selectedVoice = voices.find(v => v.lang.startsWith('pl') || v.lang.startsWith('ru'));
+          console.log(`🗣️ TTS Debug: Slavic fallback: ${selectedVoice?.name || 'none'}`);
+        }
+      }
+      
+      // Last resort: use default English voice but set language anyway
+      if (!selectedVoice) {
+        selectedVoice = voices[0];
+        console.log(`🗣️ TTS Debug: Using default: ${selectedVoice?.name || 'none'}`);
+      }
+      
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedLang;
+      utterance.rate = rate;
+      utterance.pitch = voiceSettings.pitch;
 
-      // First try Lithuanian, then English, then default
-      const ltVoice = voices.find(v => v.lang.startsWith('lt'));
-      const enVoice = voices.find(v => v.lang.startsWith('en'));
-      const defaultVoice = voices[0];
-
-      utterance.voice = ltVoice || enVoice || defaultVoice;
-      utterance.lang = voiceSettings.lang;
-      utterance.rate = rate; // User-selected rate
-      utterance.pitch = voiceSettings.pitch; // Selected voice pitch
-
-      utterance.onend = () => resolve();
-      utterance.onerror = () => resolve(); // Resolve anyway on error to clear UI state
+      console.log(`🗣️ TTS Debug: Speaking with voice=${selectedVoice?.name}, lang=${selectedLang}`);
+      
+      utterance.onend = () => {
+        console.log(`🗣️ TTS Debug: Finished speaking`);
+        resolve();
+      };
+      utterance.onerror = (e) => {
+        console.warn('🗣️ TTS Debug error:', e);
+        resolve();
+      };
+      
       window.speechSynthesis.speak(utterance);
     });
   }
 
   // Fallback to AI TTS if browser TTS is not available
   try {
+    console.log('🗣️ TTS Debug: Trying AI TTS fallback...');
     const audio = await getSpeechAudio(text, voice);
     if (audio) {
+      console.log('🗣️ TTS Debug: AI TTS audio received');
       currentAudio = audio;
       return new Promise<void>((resolve, reject) => {
         audio.onended = () => {
@@ -1211,8 +1319,10 @@ export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'K
         };
         audio.play().catch(reject);
       });
+    } else {
+      console.log('🗣️ TTS Debug: AI TTS returned null');
     }
   } catch (e) {
-    console.warn("All TTS failed:", e);
+    console.warn("🗣️ TTS Debug: All TTS failed:", e);
   }
 }
