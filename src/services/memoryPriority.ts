@@ -118,9 +118,9 @@ export function extractKeywords(text: string): string[] {
     'turėti', 'galėti', 'norėti', 'reikia', 'daryti', 'būti', 'eiti'
   ]);
   
-  // Clean and split text
+  // Clean and split text (include Lithuanian: ąčęėįšųūž)
   const words = text.toLowerCase()
-    .replace(/[^\w\sàáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿ]/g, ' ')
+    .replace(/[^\w\sàáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿąčęėįšųūž]/g, ' ')
     .split(/\s+/)
     .filter(word => word.length > 2 && !stopWords.has(word));
   
@@ -343,7 +343,7 @@ export function shouldSuggestMemory(
   }
   
   // Check if response contains data worth remembering
-  if (response.length > 100 && (response.includes('svarbu') || response.includes('reikia'))) {
+  if (response.length > 100 && (response.toLowerCase().includes('svarbu') || response.toLowerCase().includes('reikia'))) {
     return {
       shouldRemember: true,
       suggestedContent: summarizeForMemory(query, response),

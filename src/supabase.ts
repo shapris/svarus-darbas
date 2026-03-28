@@ -49,17 +49,7 @@ export const isRemoteBackend = usesFirebase || !!supabase;
 
 export const isDemoMode = forceDemoMode || (!usesFirebase && !isSupabaseConfigured);
 
-if (import.meta.env.DEV) {
-    console.log('[Data] Config:', {
-        usesFirebase,
-        supabaseUrl: supabaseUrl ? 'set' : 'missing',
-        supabaseKey: supabaseAnonKey ? 'set' : 'missing',
-        isValidSupabaseUrl,
-        isSupabaseConfigured,
-        isDemoMode,
-        forceDemoMode,
-    });
-}
+
 
 // Database table names
 export const TABLES = {
@@ -175,17 +165,12 @@ export async function signUp(email: string, password: string, displayName?: stri
 
 // Sign in with email and password
 export async function signIn(email: string, password: string) {
-    if (import.meta.env.DEV) {
-        console.log('[Auth] signIn called, isDemoMode:', isDemoMode, 'usesFirebase:', usesFirebase, 'has supabase:', !!supabase);
-    }
-
     if (usesFirebase) {
         return FirebaseBackend.signIn(email, password);
     }
 
     if (isDemoMode || !supabase) {
         // Demo mode: use localDb
-        if (import.meta.env.DEV) console.log('[Auth] Using local demo mode');
         try {
             const user = localLogin(email, password);
             return {
@@ -203,7 +188,6 @@ export async function signIn(email: string, password: string) {
             throw new Error('Demo režimas: ' + (err.message || 'Neteisingas el. paštas arba slaptažodis'));
         }
     }
-    console.log('[Auth] Using Supabase auth');
     try {
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
@@ -463,12 +447,10 @@ export function subscribeToData<T extends DatabaseRecord>(
             'postgres_changes',
             { event: '*', schema: 'public', table: tableName, filter: `uid=eq.${userId}` },
             (payload) => {
-                console.log(`[Realtime] ${tableName} changed:`, payload);
                 getData<T>(tableName, userId).then(callback).catch(console.error);
             }
         )
         .subscribe((status) => {
-            console.log(`[Realtime] Channel ${channelName} status:`, status);
         });
 
     return () => {
@@ -542,26 +524,12 @@ export async function testConnection() {
         return true;
     }
     try {
-        // First check if we can reach the Supabase API at all
-        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-            method: 'GET',
-            headers: {
-                'apikey': supabaseAnonKey,
-                'Authorization': `Bearer ${supabaseAnonKey}`,
-            },
-        });
-
-        if (!response.ok) {
-            console.error('Supabase connection error:', response.status, response.statusText);
-            return false;
-        }
-
-        // Then check if the clients table exists
+        // Use Supabase client to test connection
         const { data, error } = await supabase.from('clients').select('id').limit(1);
+        
+        // If table doesn't exist (PGRST116), that's OK - the API is reachable
         if (error && error.code !== 'PGRST116') {
-            console.error('Supabase table error:', error);
-            // Table might not exist - still return true if we can reach the API
-            return response.ok;
+            return isSupabaseConfigured;
         }
         return true;
     } catch (err) {

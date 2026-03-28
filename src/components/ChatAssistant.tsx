@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, X, Bot, Loader2, User as UserIcon, Trash2, Mic, MicOff, Volume2, VolumeX, Brain, AlertTriangle, Settings2 } from 'lucide-react';
+import { MessageSquare, Send, X, Bot, User as UserIcon, Trash2, Mic, MicOff, Volume2, VolumeX, Brain, AlertTriangle, Settings2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { chatWithAssistant, getAiInstance, isOpenRouterKey, generateSpeech, stopAllAudio } from '../services/aiService';
+import { shouldSuggestMemory } from '../services/memoryPriority';
 import { Client, Order, Expense, AppSettings, Memory } from '../types';
 import { addData, updateData, deleteData, subscribeToData, getData, TABLES } from '../supabase';
 import { calculateOrderPrice } from '../utils';
@@ -30,13 +31,18 @@ interface ChatAssistantProps {
 interface Message {
   role: 'user' | 'model';
   text: string;
+  timestamp?: number;
+  failed?: boolean;
 }
 
 export default function ChatAssistant({ user, clients, orders, expenses, settings }: ChatAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>(() => {
+    const saved = localStorage.getItem('chat_history_' + user.uid);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,6 +57,8 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   const [voiceRate, setVoiceRate] = useState<number>(parseFloat(localStorage.getItem('voice_rate') || '1.0'));
   const [selectedLang, setSelectedLang] = useState<string>(localStorage.getItem('tts_language') || 'lt-LT');
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const lastUserMessageRef = useRef<string>('');
 
   // Available voices based on provider
   const availableVoices = {
@@ -63,6 +71,20 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     setSelectedVoice(voice);
     localStorage.setItem('selected_voice', voice);
     setShowVoiceSelector(false);
+  };
+
+  const detectMemoryCategory = (query: string, response: string): 'klientas' | 'verslas' | 'procesas' | 'kita' => {
+    const combined = (query + ' ' + response).toLowerCase();
+    if (combined.includes('klient') || combined.includes('adres') || combined.includes('telefon') || combined.includes('kontakt')) {
+      return 'klientas';
+    }
+    if (combined.includes('kain') || combined.includes('pajam') || combined.includes('išlaid') || combined.includes('peln') || combined.includes('versl')) {
+      return 'verslas';
+    }
+    if (combined.includes('proces') || combined.includes('taisykl') || combined.includes('veiksm') || combined.includes(' žingsnis')) {
+      return 'procesas';
+    }
+    return 'kita';
   };
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -228,11 +250,41 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
     try {
       if (name === 'add_client') {
+        // Make fields optional - save with whatever data is available, use 'nesutarta' for unknown
         await addData(TABLES.CLIENTS, user.uid, {
-          ...args,
+          name: args.name || 'Naujas klientas',
+          phone: args.phone || 'nesutarta',
+          address: args.address || 'nesutarta',
+          buildingType: args.buildingType || 'butas',
+          notes: args.notes || '',
           createdAt: new Date().toISOString(),
         });
-        return `Klientas ${args.name} sėkmingai pridėtas.`;
+        return `Klientas ${args.name || 'Naujas klientas'} sėkmingai pridėtas.`;
+      }
+
+      if (name === 'geocode_address') {
+        // Automatically find address coordinates
+        const { city, placeName, country } = args;
+        try {
+          const fullAddress = `${placeName}, ${city}${country ? ', ' + country : ', Lietuva'}`;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`
+          );
+          const data = await response.json();
+          
+          if (data && data.length > 0) {
+            const result = data[0];
+            return JSON.stringify({
+              success: true,
+              address: result.display_name,
+              lat: parseFloat(result.lat),
+              lng: parseFloat(result.lon)
+            });
+          }
+          return JSON.stringify({ success: false, error: 'Adresas nerastas' });
+        } catch (e) {
+          return JSON.stringify({ success: false, error: 'Klaida ieškant adreso' });
+        }
       }
 
       if (name === 'update_client') {
@@ -258,24 +310,29 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           kiti: args.additionalServices?.kiti || false
         };
 
-        const totalPrice = calculateOrderPrice(args.windowCount, args.floor, additionalServices, settings);
+        const totalPrice = calculateOrderPrice(
+          args.windowCount || 0, 
+          args.floor || 0, 
+          additionalServices, 
+          settings
+        );
 
         await addData(TABLES.ORDERS, user.uid, {
           clientId: client.id,
           clientName: client.name,
-          address: args.address,
-          date: args.date,
-          time: args.time,
-          windowCount: args.windowCount,
-          floor: args.floor,
-          estimatedDuration: args.estimatedDuration || 60,
+          address: args.address || client.address || 'nesutarta',
+          date: args.date || 'nesutarta',
+          time: args.time || 'nesutarta',
+          windowCount: args.windowCount || 0,
+          floor: args.floor || 0,
+          estimatedDuration: args.estimatedDuration || 0,
           additionalServices,
           totalPrice,
           status: 'suplanuota',
           notes: args.notes || '',
           createdAt: new Date().toISOString(),
         });
-        return `Užsakymas klientui ${client.name} sėkmingai sukurtas ${args.date} ${args.time}.`;
+        return `Užsakymas klientui ${client.name} sėkmingai sukurtas.`;
       }
 
       if (name === 'update_order') {
@@ -307,10 +364,14 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
       if (name === 'add_expense') {
         await addData('expenses', user.uid, {
-          ...args,
+          title: args.title || 'nesutarta',
+          amount: args.amount || 0,
+          date: args.date || 'nesutarta',
+          category: args.category || 'kita',
+          notes: args.notes || '',
           createdAt: new Date().toISOString(),
         });
-        return `Išlaidos "${args.title}" (${args.amount}€) užregistruotos.`;
+        return `Išlaidos "${args.title || 'nesutarta'}" užregistruotos.`;
       }
 
       if (name === 'update_expense') {
@@ -529,17 +590,18 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     }
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (messageText?: string) => {
+    const textToSend = messageText || input.trim();
+    if (!textToSend || isLoading) return;
 
-    const userMsg = input.trim();
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    lastUserMessageRef.current = textToSend;
+    if (!messageText) setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: textToSend, timestamp: Date.now() }]);
     setIsLoading(true);
 
     try {
       const apiKey = localStorage.getItem('custom_api_key') || (window as any).aistudio?.getApiKey?.() || process.env.GEMINI_API_KEY!;
-      const result = await chatWithAssistant(userMsg, history, { clients, orders, expenses, memories });
+      const result = await chatWithAssistant(textToSend, history, { clients, orders, expenses, memories });
 
       // Check if we hit fallback
       if (result.text?.includes("AI smegenys ilsisi") || result.text?.includes("modeliai yra perkrauti")) {
@@ -629,17 +691,56 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       }
 
       if (finalResponse) {
-        setMessages(prev => [...prev, { role: 'model', text: finalResponse! }]);
+        setMessages(prev => [...prev, { role: 'model', text: finalResponse!, timestamp: Date.now() }]);
       }
 
       setHistory(currentHistory);
+      localStorage.setItem('chat_history_' + user.uid, JSON.stringify(currentHistory));
+      setLastFailedMessage(null);
+
+      if (finalResponse && textToSend) {
+        const memoryCheck = shouldSuggestMemory(textToSend, finalResponse, memories);
+        if (memoryCheck.shouldRemember && memoryCheck.suggestedContent) {
+          const category = detectMemoryCategory(textToSend, finalResponse);
+          try {
+            await addData('memories', user.uid, {
+              content: memoryCheck.suggestedContent,
+              category: category,
+              importance: 3,
+              uid: user.uid,
+              createdAt: new Date().toISOString(),
+              isActive: true
+            });
+            setMemories(prev => [...prev, { id: 'new', content: memoryCheck.suggestedContent!, category, importance: 3, uid: user.uid, createdAt: new Date().toISOString(), isActive: true }]);
+          } catch (memError) {
+            console.warn('Failed to auto-save memory:', memError);
+          }
+        }
+      }
     } catch (error) {
       console.error("Chat Error:", error);
-      setMessages(prev => [...prev, { role: 'model', text: `Atsiprašau, įvyko klaida: ${error instanceof Error ? error.message : 'Nežinoma klaida'}. Bandykite dar kartą.` }]);
+      const errorMsg = `Atsiprašau, įvyko klaida: ${error instanceof Error ? error.message : 'Nežinoma klaida'}.`;
+      setMessages(prev => [...prev, { role: 'model', text: errorMsg, timestamp: Date.now(), failed: true }]);
+      setLastFailedMessage(textToSend);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Timeout fallback - reset loading after 30 seconds
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        if (isLoading) {
+          console.warn("AI request timeout - resetting loading state");
+          setIsLoading(false);
+          setMessages(prev => [...prev, { role: 'model', text: "Atsiprašau, atsakymas užtruko per ilgai. Bandykite dar kartą arba pervilkite puslapį.", timestamp: Date.now() }]);
+          setLastFailedMessage(lastUserMessageRef.current);
+        }
+      }, 30000);
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoading]);
 
   return (
     <>
@@ -707,11 +808,30 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     onClick={() => {
                       setMessages([]);
                       setHistory([]);
+                      setLastFailedMessage(null);
+                      localStorage.removeItem('chat_history_' + user.uid);
                     }}
                     className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/60 hover:text-white"
                     title="Išvalyti pokalbį"
                   >
                     <Trash2 size={16} />
+                  </button>
+                )}
+                {lastFailedMessage && (
+                  <button
+                    onClick={() => {
+                      setInput(lastFailedMessage);
+                      setLastFailedMessage(null);
+                      // Automatically send the message
+                      setTimeout(() => {
+                        const sendButton = document.getElementById('chat-send-btn');
+                        if (sendButton) sendButton.click();
+                      }, 100);
+                    }}
+                    className="p-2 hover:bg-white/10 rounded-full transition-colors text-yellow-300 hover:text-yellow-200"
+                    title="Pakartoti paskutinį"
+                  >
+                    <RefreshCw size={16} />
                   </button>
                 )}
                 <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
@@ -893,6 +1013,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                           <div className="markdown-body prose prose-sm max-w-none">
                             <ReactMarkdown>{msg.text}</ReactMarkdown>
                           </div>
+                          <p className="text-[9px] text-slate-300 mt-2">{new Date(msg.timestamp).toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' })}</p>
                           <div className="absolute -right-10 top-0 flex gap-1">
                             <button
                               onClick={() => setShowVoiceSelector(!showVoiceSelector)}
@@ -1001,7 +1122,17 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                           )}
                         </>
                       ) : (
-                        msg.text
+                        <>
+                          {msg.text}
+                          <p className="text-[9px] text-slate-400 mt-2 text-right">{new Date(msg.timestamp).toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <button
+                            onClick={() => handleSend(msg.text)}
+                            className="absolute -right-10 top-2 p-2 rounded-full bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100 transition-all"
+                            title="Siųsti dar kartą"
+                          >
+                            <RefreshCw size={14} />
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -1011,11 +1142,13 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
               {isLoading && (
                 <div className="flex justify-start">
                   <div className="flex gap-3 max-w-[85%]">
-                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center animate-pulse">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
                       <Bot size={14} />
                     </div>
-                    <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm">
-                      <Loader2 size={16} className="animate-spin text-blue-600" />
+                    <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm flex items-center gap-1.5">
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 </div>
@@ -1044,13 +1177,27 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                   >
                     {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
                   </button>
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || isLoading}
-                    className="w-10 bg-blue-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:scale-95 transition-all"
-                  >
-                    <Send size={18} />
-                  </button>
+                  {isLoading ? (
+                    <button
+                      onClick={() => {
+                        setIsLoading(false);
+                        setMessages(prev => [...prev, { role: 'model', text: 'Užklausa sustabdyta.', timestamp: Date.now() }]);
+                      }}
+                      className="w-10 bg-red-500 text-white rounded-xl flex items-center justify-center hover:bg-red-600 transition-all"
+                      title="Sustabdyti"
+                    >
+                      <X size={18} />
+                    </button>
+                  ) : (
+                    <button
+                      id="chat-send-btn"
+                      onClick={() => handleSend()}
+                      disabled={!input.trim() || isLoading}
+                      className="w-10 bg-blue-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:scale-95 transition-all"
+                    >
+                      <Send size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

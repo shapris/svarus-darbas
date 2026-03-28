@@ -61,9 +61,11 @@ export default defineConfig(({mode}) => {
             'vendor-ai': ['@google/genai'],
             'vendor-pdf': ['jspdf', 'jspdf-autotable'],
             'vendor-maps': ['leaflet', 'react-leaflet'],
+            'vendor-motion': ['motion'],
           },
         },
       },
+      chunkSizeWarningLimit: 500,
     },
     server: {
       // HMR can be disabled via DISABLE_HMR=true (e.g. remote or constrained environments).

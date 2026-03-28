@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { AppSettings } from '../types';
-import { updateData, TABLES, isDemoMode } from '../supabase';
+import { AppSettings, Memory } from '../types';
+import { updateData, addData, deleteData, getData, TABLES, isDemoMode } from '../supabase';
 import { downloadData, importData } from '../localDb';
-import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check } from 'lucide-react';
+import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check, Brain, Plus, Trash2, Star, Edit } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface LocalUser {
@@ -18,9 +18,10 @@ interface SettingsViewProps {
   settings: AppSettings;
   setSettings: (settings: AppSettings) => void;
   user: LocalUser;
+  memories?: Memory[];
 }
 
-export default function SettingsView({ settings, setSettings, user }: SettingsViewProps) {
+export default function SettingsView({ settings, setSettings, user, memories = [] }: SettingsViewProps) {
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -267,6 +268,50 @@ export default function SettingsView({ settings, setSettings, user }: SettingsVi
           Ši programėlė sukurta specialiai Lietuvos langų valymo paslaugų teikėjams. Valdykite klientus, užsakymus ir pajamas vienoje vietoje.
         </p>
       </section>
+
+      {memories && memories.length > 0 && (
+        <section className="bg-gradient-to-br from-amber-50 to-orange-50 p-5 rounded-3xl border-2 border-amber-200">
+          <div className="flex items-center gap-2 mb-4">
+            <Brain className="text-amber-600" size={20} />
+            <h3 className="font-bold text-amber-900">Asistento atmintis</h3>
+            <span className="ml-auto bg-amber-200 text-amber-800 text-xs px-2 py-1 rounded-full font-bold">
+              {memories.length}
+            </span>
+          </div>
+          <p className="text-xs text-amber-700 mb-4">
+            Čia saugomi svarbūs sprendimai, klientų ypatumai ir mokymų temos.
+          </p>
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {memories.slice(0, 10).map((mem) => (
+              <div key={mem.id} className="bg-white p-3 rounded-xl border border-amber-100 shadow-sm">
+                <div className="flex items-start gap-2">
+                  <div className="flex gap-0.5 mt-0.5">
+                    {Array.from({ length: mem.importance || 3 }).map((_, i) => (
+                      <Star key={i} size={10} className="text-amber-400 fill-amber-400" />
+                    ))}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-800">{mem.content}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                        {mem.category === 'verslas' ? '💼 Verslas' : mem.category === 'klientas' ? '👤 Klientas' : mem.category === 'procesas' ? '⚙️ Procesas' : '📋 Kita'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {mem.createdAt?.split('T')[0]}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {memories.length > 10 && (
+            <p className="text-xs text-amber-600 mt-3 text-center">
+              + dar {memories.length - 10} įrašų...
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

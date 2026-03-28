@@ -62,8 +62,6 @@ export async function routeAndExecute(
       const hybridResult = await classifyIntentHybrid(userMessage, apiKey);
       
       if (shouldUseDeterministicRouting(hybridResult) && hybridResult.toolName) {
-        console.log('Using hybrid classifier:', hybridResult);
-        
         const result = await executeToolByName(
           hybridResult.toolName, 
           hybridResult.parameters, 
@@ -84,9 +82,7 @@ export async function routeAndExecute(
   
   // Fallback to original keyword-based classification
   const intentionMatch = classifyIntention(userMessage);
-  
-  console.log('Intention classified:', intentionMatch);
-  
+
   // 2. Check if tool execution is needed
   if (!requiresToolExecution(intentionMatch.intention)) {
     return {

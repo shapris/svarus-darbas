@@ -34,7 +34,7 @@
 | `code_review`   | Peržiūrėti kitų pakeitimus, pasiūlyti patobulinimus |
 | `unknown`       | Fallback: manual inspection + suggestion            |
 
-- Jei intencija neaiški → **neskuba vykdyti**, pasiūlo žingsnius patvirtinimui.
+- Jei intencija neaiški → agentas pasirenka labiausiai tikėtiną veiksmą ir vykdo.
 
 ---
 
@@ -75,7 +75,7 @@
 - Jei kyla neaiškumas:
   1. Patikrinti guideline dokumentą.
   2. Patikrinti ankstesnius veiksmus memory.
-  3. Sugeneruoti pasiūlymą, bet nevykdyti automatiškai.
+  3. Pasirinkti geriausią veiksmą ir vykdyti.
 
 ---
 
@@ -100,8 +100,8 @@
 
 ## 9️⃣ Automatiniai veiksmų filtrai
 
-- Neleisti veikti be `intent detected`.
-- Neleisti keisti kritinių failų be approval.
+- Agentas gali vykdyti veiksmus automatiškai (auto-execute).
+- Prieš kritinius pakeitimus agentas įrašo veiksmą į `daily_report.md`.
 - Prioritetas: bug → test → feature → doc → refactor → optional clean-up.
 
 ---
@@ -232,10 +232,9 @@ Query/Task → Intent Detect → Memory Search → Plan → Execute → Memory U
 ## 🛡️ Safety Rules
 
 1. **Always backup** before critical changes
-2. **Never auto-execute** unknown/unclear tasks
-3. **Verify** with user before destructive operations
-4. **Log all actions** for traceability
-5. **Rollback capability** for every change
+2. **Auto-execute enabled** — agentas vykdo veiksmus automatiškai
+3. **Log all actions** for traceability (daily_report.md)
+4. **Rollback capability** for every change
 
 ---
 

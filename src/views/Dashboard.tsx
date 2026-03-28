@@ -319,6 +319,33 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         )}
       </div>
 
+      {memories.filter(m => (m.importance || 3) >= 4 && m.isActive !== false).length > 0 && (
+        <section className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-amber-600">🔔</span>
+            <h2 className="text-lg font-bold text-amber-900">Svarbūs priminimai</h2>
+            <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-200 px-2 py-1 rounded-full">
+              {memories.filter(m => (m.importance || 3) >= 4 && m.isActive !== false).length}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {memories.filter(m => (m.importance || 3) >= 4 && m.isActive !== false).slice(0, 3).map((mem) => (
+              <div key={mem.id} className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="text-amber-500 mt-1">⭐⭐⭐⭐⭐</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-900">{mem.content}</p>
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      {mem.category === 'verslas' ? '💼 Verslas' : mem.category === 'klientas' ? '👤 Klientas' : mem.category === 'procesas' ? '⚙️ Procesas' : '📋 Kita'}: {mem.createdAt?.split('T')[0] || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-slate-900">Apžvalga</h2>

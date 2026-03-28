@@ -102,6 +102,28 @@ export interface InventoryItem {
   updated_at?: string;
 }
 
+export type UserRole = 'admin' | 'staff' | 'client';
+
+export interface UserProfile {
+  id: string;
+  uid: string;
+  email: string;
+  role: UserRole;
+  name?: string;
+  phone?: string;
+  clientId?: string;
+  createdAt: string;
+}
+
+export interface ClientPortalAccess {
+  id: string;
+  clientId: string;
+  email: string;
+  passwordHash: string;
+  lastLogin?: string;
+  createdAt: string;
+}
+
 export const DEFAULT_SETTINGS: AppSettings = {
   pricePerWindow: 5,
   pricePerFloor: 2,

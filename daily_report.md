@@ -1,12 +1,50 @@
 # Kasdienis Darbo Žiniaraštis
 
-**Data:** 2026-03-26  
+**Data:** 2026-03-27  
 **Agentas:** Kilo Code  
 **Projektas:** Švarus Darbas CRM
 
 ---
 
-## 🟢 Atlikti Veiksmai
+## 🟢 Atlikti Veiksmai (2026-03-27)
+
+### 1️⃣ Auto-Memory Saugojimo Funkcija
+
+| #   | Veiksmas                          | Statusas |
+| --- | ---------------------------------- | -------- |
+| 1   | Importuota shouldSuggestMemory    | ✅       |
+| 2   | Pridėta detectMemoryCategory       | ✅       |
+| 3   | Auto-save logika ChatAssistant.tsx | ✅       |
+| 4   | TypeScript lint                    | ✅ 0 klaidų |
+| 5   | Vite build                         | ✅ Sėkmingas |
+
+### 2️⃣ README ir Testai
+
+| #   | Veiksmas                          | Statusas |
+| --- | ---------------------------------- | -------- |
+| 1   | Papildytas README.md               | ✅       |
+| 2   | Pridėtas npm test script           | ✅       |
+| 3   | Sukurtas test-memory.ts            | ✅ 7/7   |
+| 4   | Pataisytas Lithuanian chars        | ✅       |
+| 5   | Build                              | ✅ Sėkmingas |
+
+### 3️⃣ Retry Button (Siųsti dar kartą)
+
+| #   | Veiksmas                          | Statusas |
+| --- | ---------------------------------- | -------- |
+| 1   | Pridėtas retry button prie žinutės | ✅       |
+| 2   | Rodomas užvedus ant žinutės         | ✅       |
+| 3   | Leidžia pakartoti pranešimą         | ✅       |
+
+**Detalės:**
+- Funkcija automatiškai išsaugo svarbius pokalbius į duomenų bazę
+- Naudoja esamą memoryPriority.ts sistemą
+- Kategorijos: klientas, verslas, procesas, kita
+- Testai: 7 testai (shouldSuggestMemory, extractKeywords, prioritizeMemories)
+
+---
+
+## 🔄 Ankstesnių Dienų Veiksmai (2026-03-26)
 
 ### 1️⃣ ANALYZE (Projekto būklė)
 
@@ -49,9 +87,25 @@
 
 ## 🔜 Rekomenduojami Veiksmai (Priority Queue)
 
-1. **LOW** - Išvalyti console.log (ne skubu)
-2. **LOW** - API key perkelti į .env
-3. **OPTIONAL** - Optimizuoti chunk sizes
+| Prioritetas | Užduotis                        | Statusas |
+| ----------- | -------------------------------- | -------- |
+| 🟢 ATLIKTA | Sukurti testus                  | ✅ 7/7   |
+| 🟢 ATLIKTA | Papildyti README                | ✅       |
+| 🟠 HIGH     | Patikrinti ar veikia auto-memory | Laukiama |
+| 🟢 LOW      | Išvalyti console.log            | Ne skubu |
+| 🟢 LOW      | API key perkelti į .env          | Ne skubu |
+
+---
+
+## 📝 Statusas
+
+| Komponentas         | Būklė      | Pastabos                |
+| ------------------- | ---------- | ----------------------- |
+| Auto-Memory         | 🟢 Įgyvendinta | veikia pagal planą    |
+| Hybrid Classifier   | 🟢 Veikia   | 45+ intencijų          |
+| Memory Priority     | 🟢 Veikia   | prioritizavimas veikia |
+| Planning Engine     | 🟢 Veikia   | multi-step workflows   |
+| Build               | 🟢 Sėkmingas | 22.90s                 |
 
 ---
 

@@ -102,6 +102,10 @@ CREATE TABLE IF NOT EXISTS memories (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     uid TEXT NOT NULL,
     content TEXT NOT NULL,
+    category TEXT DEFAULT 'kita',
+    importance INTEGER DEFAULT 5,
+    event_date TEXT,
+    is_active BOOLEAN DEFAULT true,
     context TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

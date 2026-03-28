@@ -3,24 +3,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase } from './supabase';
 import Layout from './components/Layout';
 import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory } from './types';
-import Dashboard from './views/Dashboard';
-import ClientsView from './views/ClientsView';
-import OrdersView from './views/OrdersView';
-import CalendarView from './views/CalendarView';
-import SettingsView from './views/SettingsView';
-import BookingPage from './views/BookingPage';
-import ExpensesView from './views/ExpensesView';
-import AnalyticsView from './views/AnalyticsView';
-import LogisticsView from './views/LogisticsView';
-import TeamView from './views/TeamView';
-import InventoryView from './views/InventoryView';
-import ChatAssistant from './components/ChatAssistant';
-import { Droplets } from 'lucide-react';
+import { Droplets, AlertCircle, CheckCircle, Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+const BookingPage = lazy(() => import('./views/BookingPage'));
+const ChatAssistant = lazy(() => import('./components/ChatAssistant'));
+
+const Dashboard = lazy(() => import('./views/Dashboard'));
+const ClientsView = lazy(() => import('./views/ClientsView'));
+const OrdersView = lazy(() => import('./views/OrdersView'));
+const CalendarView = lazy(() => import('./views/CalendarView'));
+const SettingsView = lazy(() => import('./views/SettingsView'));
+const ExpensesView = lazy(() => import('./views/ExpensesView'));
+const AnalyticsView = lazy(() => import('./views/AnalyticsView'));
+const LogisticsView = lazy(() => import('./views/LogisticsView'));
+const TeamView = lazy(() => import('./views/TeamView'));
+const InventoryView = lazy(() => import('./views/InventoryView'));
+
+// Toast notification system
+function showToast(message: string, type: 'error' | 'success' | 'info' = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top duration-300 ${
+    type === 'error' ? 'bg-red-500 text-white' : type === 'success' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+  }`;
+  toast.innerHTML = `
+    ${type === 'error' ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' : ''}
+    ${type === 'success' ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' : ''}
+    <span class="text-sm font-medium">${message}</span>
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('animate-in', 'slide-out-to-top');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -37,13 +57,23 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem('saved_email') !== null;
+  });
 
-  // Auto-set OpenRouter API key if not already set
+  // Set saved email on load
   useEffect(() => {
-    const OPENROUTER_KEY = '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';
-    if (!localStorage.getItem('custom_api_key')) {
-      localStorage.setItem('custom_api_key', OPENROUTER_KEY);
-      console.log('✅ OpenRouter API key set automatically');
+    const savedEmail = localStorage.getItem('saved_email');
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+  }, []);
+
+  // Auto-set OpenRouter API key from .env if not already set
+  useEffect(() => {
+    const envKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+    if (envKey && !localStorage.getItem('custom_api_key')) {
+      localStorage.setItem('custom_api_key', envKey);
     }
   }, []);
 
@@ -54,6 +84,21 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Auto-login: try to restore from localStorage
+    const savedUser = localStorage.getItem('saved_user');
+    if (savedUser) {
+      try {
+        const userObj = JSON.parse(savedUser);
+        if (userObj.uid && userObj.email) {
+          setUser(userObj);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        localStorage.removeItem('saved_user');
+      }
+    }
 
     (async () => {
       // Only auto-login in demo mode
@@ -168,29 +213,36 @@ export default function App() {
     };
   }, [user]);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent, rememberMe: boolean = false) => {
     e.preventDefault();
     try {
       const result = await signIn(email, password);
       const { user: userData } = result;
       if (userData) {
-        setUser({
+        const userObj = {
           uid: userData.id,
           email: userData.email || '',
           displayName: userData.user_metadata?.display_name || null,
           photoURL: userData.user_metadata?.avatar_url || null,
-        });
+        };
+        setUser(userObj);
+        
+        // Auto-login: save to localStorage if remember me is checked
+        if (rememberMe) {
+          localStorage.setItem('saved_user', JSON.stringify(userObj));
+          localStorage.setItem('saved_email', email);
+        }
       }
       setShowLoginForm(null);
       // Show info if using demo fallback
       if ('isDemoFallback' in result) {
-        alert('Jungiamasi į demonstracinį režimą. Duomenys bus saugomi tik jūsų naršyklėje.');
+        showToast('Jungiamasi į demonstracinį režimą', 'info');
       }
     } catch (error: any) {
       console.error('Login failed:', error);
       // Show the actual error message
       const errorMessage = error?.message || 'Neteisingas el. paštas arba slaptažodis';
-      alert(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -212,13 +264,13 @@ export default function App() {
       setShowLoginForm(null);
       // Show info if using demo fallback
       if ('isDemoFallback' in result) {
-        alert('Paskyra sukurta demonstraciniame režime. Duomenys bus saugomi tik jūsų naršyklėje.');
+        showToast('Paskyra sukurta demonstraciniame režime', 'success');
       }
     } catch (error: any) {
       console.error('Registration failed:', error);
       // Show the actual error message
       const errorMessage = error?.message || 'Registracija nepavyko';
-      alert(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -229,6 +281,9 @@ export default function App() {
     setOrders([]);
     setExpenses([]);
     setEmployees([]);
+    // Clear saved credentials
+    localStorage.removeItem('saved_user');
+    localStorage.removeItem('saved_email');
   };
 
   if (loading) {
@@ -241,7 +296,13 @@ export default function App() {
 
   if (isBookingPage && bookingUserId) {
     return (
-      <BookingPage userId={bookingUserId} />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      }>
+        <BookingPage userId={bookingUserId} />
+      </Suspense>
     );
   }
 
@@ -330,7 +391,7 @@ export default function App() {
                     await signInWithGoogle();
                   } catch (error: any) {
                     console.error('Google login failed:', error);
-                    alert('Google prisijungimas nepavyko: ' + error.message);
+                    showToast('Google prisijungimas nepavyko', 'error');
                   }
                 }}
                 className="w-full flex items-center justify-center gap-2 bg-white text-slate-700 py-3 px-4 rounded-xl font-medium border border-slate-200 hover:bg-slate-50 transition-colors"
@@ -345,15 +406,17 @@ export default function App() {
               </button>
             </>
           ) : (
-            <form onSubmit={showLoginForm === 'login' ? handleLogin : handleRegister}>
-              <input
-                type="text"
-                placeholder="Vardas"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full mb-3 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                required={showLoginForm === 'register'}
-              />
+            <form onSubmit={(e) => showLoginForm === 'login' ? handleLogin(e, rememberMe) : handleRegister(e)}>
+              {showLoginForm === 'register' && (
+                <input
+                  type="text"
+                  placeholder="Vardas"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full mb-3 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  required
+                />
+              )}
               <input
                 type="email"
                 placeholder="El. paštas"
@@ -370,6 +433,17 @@ export default function App() {
                 className="w-full mb-4 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                 required
               />
+              {showLoginForm === 'login' && (
+                <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-slate-600">Prisiminti mane kitą kartą</span>
+                </label>
+              )}
               <button
                 type="submit"
                 className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
@@ -391,30 +465,42 @@ export default function App() {
   }
 
   const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
-      case 'clients':
-        return <ClientsView clients={clients} orders={orders} user={user} />;
-      case 'orders':
-        return <OrdersView orders={orders} clients={clients} settings={settings} user={user} employees={employees} />;
-      case 'calendar':
-        return <CalendarView orders={orders} employees={employees} />;
-      case 'settings':
-        return <SettingsView settings={settings} setSettings={setSettings} user={user} />;
-      case 'expenses':
-        return <ExpensesView expenses={expenses} user={user} />;
-      case 'analytics':
-        return <AnalyticsView orders={orders} expenses={expenses} clients={clients} settings={settings} />;
-      case 'logistics':
-        return <LogisticsView orders={orders} />;
-      case 'team':
-        return <TeamView employees={employees} user={user} />;
-      case 'inventory':
-        return <InventoryView userId={user.uid} />;
-      default:
-        return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
-    }
+    const content = (() => {
+      switch (activeTab) {
+        case 'dashboard':
+          return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
+        case 'clients':
+          return <ClientsView clients={clients} orders={orders} user={user} />;
+        case 'orders':
+          return <OrdersView orders={orders} clients={clients} settings={settings} user={user} employees={employees} />;
+        case 'calendar':
+          return <CalendarView orders={orders} employees={employees} />;
+        case 'settings':
+          return <SettingsView settings={settings} setSettings={setSettings} user={user} memories={memories} />;
+        case 'expenses':
+          return <ExpensesView expenses={expenses} user={user} />;
+        case 'analytics':
+          return <AnalyticsView orders={orders} expenses={expenses} clients={clients} settings={settings} />;
+        case 'logistics':
+          return <LogisticsView orders={orders} />;
+        case 'team':
+          return <TeamView employees={employees} user={user} />;
+        case 'inventory':
+          return <InventoryView userId={user.uid} />;
+        default:
+          return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
+      }
+    })();
+
+    return (
+      <Suspense fallback={
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      }>
+        {content}
+      </Suspense>
+    );
   };
 
   return (
@@ -430,13 +516,15 @@ export default function App() {
           {renderContent()}
         </motion.div>
       </AnimatePresence>
-      <ChatAssistant
-        user={user}
-        clients={clients}
-        orders={orders}
-        expenses={expenses}
-        settings={settings}
-      />
+      <Suspense fallback={null}>
+        <ChatAssistant
+          user={user}
+          clients={clients}
+          orders={orders}
+          expenses={expenses}
+          settings={settings}
+        />
+      </Suspense>
     </Layout>
   );
 }
