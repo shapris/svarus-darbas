@@ -16,7 +16,7 @@ import {
     registerUser as localRegisterUser
 } from './localDb';
 import * as FirebaseBackend from './firebaseBridge';
-import { DEFAULT_SETTINGS, type AppSettings } from './types';
+import { DEFAULT_SETTINGS, type AppSettings, type UserProfile, type UserRole, type Client, type Order } from './types';
 
 const forceDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -536,6 +536,169 @@ export async function testConnection() {
         console.error('Supabase connection failed:', err);
         return false;
     }
+}
+
+// Role-based functions
+
+// Get user profile with role
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+    if (usesFirebase) {
+        return FirebaseBackend.getUserProfile(uid);
+    }
+    if (isDemoMode || !supabase) {
+        // Demo mode: check local storage for user role
+        const storedProfile = localStorage.getItem(`profile_${uid}`);
+        return storedProfile ? JSON.parse(storedProfile) : null;
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('uid', uid)
+            .single();
+            
+        if (error) {
+            if (error.code === 'PGRST116') {
+                // Profile doesn't exist, create default
+                return await createDefaultProfile(uid);
+            }
+            return null;
+        }
+        
+        return data as UserProfile;
+    } catch (err) {
+        console.error('Error getting user profile:', err);
+        return null;
+    }
+}
+
+// Create default user profile
+export async function createDefaultProfile(uid: string, email?: string, role: UserRole = 'staff'): Promise<UserProfile> {
+    const profile: UserProfile = {
+        id: crypto.randomUUID(),
+        uid,
+        email: email || '',
+        role,
+        createdAt: new Date().toISOString()
+    };
+    
+    if (usesFirebase) {
+        return FirebaseBackend.createProfile(profile);
+    }
+    if (isDemoMode || !supabase) {
+        localStorage.setItem(`profile_${uid}`, JSON.stringify(profile));
+        return profile;
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .insert(profile)
+            .select()
+            .single();
+            
+        if (error) throw error;
+        return data as UserProfile;
+    } catch (err) {
+        console.error('Error creating profile:', err);
+        // Fallback to local storage
+        localStorage.setItem(`profile_${uid}`, JSON.stringify(profile));
+        return profile;
+    }
+}
+
+// Update user profile
+export async function updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    if (usesFirebase) {
+        return FirebaseBackend.updateProfile(uid, updates);
+    }
+    if (isDemoMode || !supabase) {
+        const profile = await getUserProfile(uid);
+        if (profile) {
+            const updated = { ...profile, ...updates };
+            localStorage.setItem(`profile_${uid}`, JSON.stringify(updated));
+            return updated;
+        }
+        return null;
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('uid', uid)
+            .select()
+            .single();
+            
+        if (error) throw error;
+        return data as UserProfile;
+    } catch (err) {
+        console.error('Error updating profile:', err);
+        return null;
+    }
+}
+
+// Get client orders for client portal
+export async function getClientOrders(clientId: string): Promise<Order[]> {
+    if (usesFirebase) {
+        return FirebaseBackend.getClientOrders(clientId);
+    }
+    if (isDemoMode || !supabase) {
+        return localGetData('orders').filter(order => order.clientId === clientId) as Order[];
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('clientId', clientId)
+            .order('date', { ascending: false });
+            
+        if (error) throw error;
+        return data as Order[];
+    } catch (err) {
+        console.error('Error getting client orders:', err);
+        return [];
+    }
+}
+
+// Register client user
+export async function registerClientUser(email: string, password: string, clientData: { name: string; phone: string; address: string }) {
+    // First create auth user
+    const authResult = await signUp(email, password, clientData.name);
+    if (!authResult.user) {
+        throw new Error('Nepavyko sukurti vartotojo');
+    }
+    
+    const uid = authResult.user.id;
+    
+    // Create client record
+    const client: Client = {
+        id: crypto.randomUUID(),
+        name: clientData.name,
+        phone: clientData.phone,
+        address: clientData.address,
+        buildingType: 'butas', // default
+        createdAt: new Date().toISOString()
+    };
+    
+    if (usesFirebase) {
+        await FirebaseBackend.addData('clients', client);
+    } else if (!isDemoMode && supabase) {
+        const { error } = await supabase.from('clients').insert(client);
+        if (error) throw error;
+    } else {
+        localAddData('clients', client);
+    }
+    
+    // Create user profile with client role
+    await createDefaultProfile(uid, email, 'client');
+    
+    // Link profile to client
+    await updateUserProfile(uid, { clientId: client.id, name: clientData.name, phone: clientData.phone });
+    
+    return { user: authResult.user, client };
 }
 
 // Export auth

@@ -87,6 +87,65 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     return 'kita';
   };
 
+  const detectOrderInConversation = (query: string, response: string, clients: Client[]): { shouldCreate: boolean; clientId?: string; date?: string; time?: string; windowCount?: number } => {
+    const combined = (query + ' ' + response).toLowerCase();
+    const orderKeywords = ['užsakymas', 'langai', 'valymas', 'atlikti', 'darbas', 'tvarkyti', 'grafikas', 'suplanuoti', 'prie', 'ryt', 'poryt', 'sekmadien', 'šeštadien', 'penktadien'];
+    const hasOrderKeyword = orderKeywords.some(kw => combined.includes(kw));
+    const hasDate = combined.includes('ryt') || combined.includes('poryt') || combined.includes('sekmadien') || combined.includes('šeštadien') || combined.includes('penktadien') || /\d{4}-\d{2}-\d{2}/.test(combined);
+    
+    if (!hasOrderKeyword || !clients.length) {
+      return { shouldCreate: false };
+    }
+
+    // Try to find client in conversation
+    let clientId: string | undefined;
+    for (const client of clients) {
+      if (combined.includes(client.name.toLowerCase()) || combined.includes(client.address.toLowerCase())) {
+        clientId = client.id;
+        break;
+      }
+    }
+
+    // Parse date
+    let date: string | undefined;
+    const today = new Date();
+    if (combined.includes('ryt')) {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      date = tomorrow.toISOString().split('T')[0];
+    } else if (combined.includes('poryt')) {
+      const dayAfter = new Date(today);
+      dayAfter.setDate(dayAfter.getDate() + 2);
+      date = dayAfter.toISOString().split('T')[0];
+    } else if (combined.includes('sekmadien')) {
+      const nextSun = new Date(today);
+      nextSun.setDate(today.getDate() + (7 - today.getDay()));
+      date = nextSun.toISOString().split('T')[0];
+    }
+
+    // Parse time if mentioned
+    let time: string | undefined;
+    const timeMatch = combined.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      time = timeMatch[0];
+    }
+
+    // Parse window count
+    let windowCount: number | undefined;
+    const windowMatch = combined.match(/(\d+)\s*(lang|langų|langus)/i);
+    if (windowMatch) {
+      windowCount = parseInt(windowMatch[1]);
+    }
+
+    return { 
+      shouldCreate: hasOrderKeyword && hasDate && !!clientId, 
+      clientId, 
+      date, 
+      time, 
+      windowCount 
+    };
+  };
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const tempTranscriptRef = useRef('');
@@ -699,6 +758,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       setLastFailedMessage(null);
 
       if (finalResponse && textToSend) {
+        // Check if should create a memory
         const memoryCheck = shouldSuggestMemory(textToSend, finalResponse, memories);
         if (memoryCheck.shouldRemember && memoryCheck.suggestedContent) {
           const category = detectMemoryCategory(textToSend, finalResponse);
@@ -714,6 +774,34 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
             setMemories(prev => [...prev, { id: 'new', content: memoryCheck.suggestedContent!, category, importance: 3, uid: user.uid, createdAt: new Date().toISOString(), isActive: true }]);
           } catch (memError) {
             console.warn('Failed to auto-save memory:', memError);
+          }
+        }
+
+        // Check if should create an order from conversation
+        const orderDetection = detectOrderInConversation(textToSend, finalResponse, clients);
+        if (orderDetection.shouldCreate && orderDetection.clientId) {
+          try {
+            const client = clients.find(c => c.id === orderDetection.clientId);
+            if (client) {
+              const newOrder = {
+                clientId: orderDetection.clientId,
+                clientName: client.name,
+                address: client.address,
+                date: orderDetection.date || new Date().toISOString().split('T')[0],
+                time: orderDetection.time || '10:00',
+                windowCount: orderDetection.windowCount || 5,
+                floor: 1,
+                additionalServices: { balkonai: false, vitrinos: false, terasa: false, kiti: false },
+                totalPrice: (orderDetection.windowCount || 5) * 5,
+                status: 'suplanuota' as const,
+                notes: `Sukurta iš pokalbio: ${textToSend.slice(0, 100)}`,
+                createdAt: new Date().toISOString(),
+              };
+              await addData(TABLES.ORDERS, user.uid, newOrder);
+              console.log('Auto-created order from conversation');
+            }
+          } catch (orderError) {
+            console.warn('Failed to auto-create order:', orderError);
           }
         }
       }

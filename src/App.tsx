@@ -4,14 +4,19 @@
  */
 
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase } from './supabase';
+import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase, getUserProfile, createDefaultProfile } from './supabase';
 import Layout from './components/Layout';
-import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory } from './types';
+import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory, UserProfile } from './types';
 import { Droplets, AlertCircle, CheckCircle, Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const BookingPage = lazy(() => import('./views/BookingPage'));
 const ChatAssistant = lazy(() => import('./components/ChatAssistant'));
+
+// Client Portal Components
+const ClientLogin = lazy(() => import('./views/ClientPortal/ClientLogin'));
+const ClientRegistration = lazy(() => import('./views/ClientPortal/ClientRegistration'));
+const ClientDashboard = lazy(() => import('./views/ClientPortal/ClientDashboard'));
 
 const Dashboard = lazy(() => import('./views/Dashboard'));
 const ClientsView = lazy(() => import('./views/ClientsView'));
@@ -60,6 +65,10 @@ export default function App() {
   const [rememberMe, setRememberMe] = useState(() => {
     return localStorage.getItem('saved_email') !== null;
   });
+
+  // Client Portal State
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [showClientPortal, setShowClientPortal] = useState<'login' | 'register' | 'dashboard' | null>(null);
 
   // Set saved email on load
   useEffect(() => {
@@ -166,7 +175,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setUserProfile(null);
+      return;
+    }
+
+    // Load user profile to determine role
+    getUserProfile(user.uid).then(profile => {
+      if (profile) {
+        setUserProfile(profile);
+        // If user is client, show client portal
+        if (profile.role === 'client') {
+          setShowClientPortal('dashboard');
+        } else {
+          setShowClientPortal(null);
+        }
+      } else {
+        // Create default profile for staff users
+        createDefaultProfile(user.uid, user.email, 'staff').then(newProfile => {
+          setUserProfile(newProfile);
+          setShowClientPortal(null);
+        });
+      }
+    });
 
     // Load Settings
     getData<any>(TABLES.SETTINGS, user.uid).then(settingsData => {
@@ -368,13 +399,25 @@ export default function App() {
                 onClick={() => setShowLoginForm('login')}
                 className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-medium hover:bg-blue-700 transition-colors mb-3"
               >
-                Prisijungti
+                Darbuotojo Prisijungimas
+              </button>
+              <button
+                onClick={() => setShowClientPortal('login')}
+                className="w-full bg-green-600 text-white py-3.5 rounded-xl font-medium hover:bg-green-700 transition-colors mb-3"
+              >
+                Kliento Prisijungimas
               </button>
               <button
                 onClick={() => setShowLoginForm('register')}
                 className="w-full mt-3 bg-slate-100 text-slate-700 py-3 rounded-xl font-medium hover:bg-slate-200 transition-colors"
               >
-                Sukurti paskyrą
+                Sukurti Darbuotojo Paskyrą
+              </button>
+              <button
+                onClick={() => setShowClientPortal('register')}
+                className="w-full mt-3 bg-green-100 text-green-700 py-3 rounded-xl font-medium hover:bg-green-200 transition-colors"
+              >
+                Sukurti Kliento Paskyrą
               </button>
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
@@ -464,6 +507,22 @@ export default function App() {
     );
   }
 
+  // Client Portal Handlers
+  const handleClientLogin = (authUser: AuthUser) => {
+    setUser(authUser);
+  };
+
+  const handleClientRegister = (authUser: AuthUser, client: Client) => {
+    setUser(authUser);
+    showToast('Sėkmingai užsiregistravote!', 'success');
+  };
+
+  const handleClientLogout = () => {
+    setUser(null);
+    setUserProfile(null);
+    setShowClientPortal(null);
+  };
+
   const renderContent = () => {
     const content = (() => {
       switch (activeTab) {
@@ -504,28 +563,54 @@ export default function App() {
   };
 
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -10 }}
-          transition={{ duration: 0.2 }}
-        >
-          {renderContent()}
-        </motion.div>
-      </AnimatePresence>
-      <Suspense fallback={null}>
-        <ChatAssistant
-          user={user}
-          clients={clients}
-          orders={orders}
-          expenses={expenses}
-          settings={settings}
-        />
-      </Suspense>
-    </Layout>
+    <>
+      {/* Client Portal */}
+      {showClientPortal && userProfile?.role === 'client' && (
+        <Suspense fallback={
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        }>
+          {showClientPortal === 'login' && (
+            <ClientLogin
+              onSuccess={handleClientLogin}
+              onRegister={() => setShowClientPortal('register')}
+              onBack={() => setShowClientPortal(null)}
+            />
+          )}
+          {showClientPortal === 'register' && (
+            <ClientRegistration
+              onSuccess={handleClientRegister}
+              onBack={() => setShowClientPortal('login')}
+            />
+          )}
+          {showClientPortal === 'dashboard' && user && userProfile && (
+            <ClientDashboard
+              user={user}
+              profile={userProfile}
+              onLogout={handleClientLogout}
+            />
+          )}
+        </Suspense>
+      )}
+
+      {/* Staff CRM */}
+      {!showClientPortal && (
+        <Layout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
+        </Layout>
+      )}
+    </>
   );
 }
 
