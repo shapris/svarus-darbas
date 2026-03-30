@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase, getUserProfile, createDefaultProfile } from './supabase';
+import React, { useState, useEffect, lazy, Suspense, useCallback, useMemo } from 'react';
+import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase, getUserProfile, createDefaultProfile, requestPasswordResetEmail } from './supabase';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
+import { FullPageLoader } from './components/LoadingSpinner';
 import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory, UserProfile } from './types';
-import { Droplets, AlertCircle, CheckCircle, Info, X } from 'lucide-react';
+import { Droplets } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ToastContainer } from './components/Toast';
+import { useToast } from './hooks/useToast';
+import { formatAuthErrorForUser, AUTH_FALLBACK, AUTH_INVITE_HELP } from './utils/authMessages';
 
 const BookingPage = lazy(() => import('./views/BookingPage'));
 const ChatAssistant = lazy(() => import('./components/ChatAssistant'));
@@ -28,24 +33,10 @@ const AnalyticsView = lazy(() => import('./views/AnalyticsView'));
 const LogisticsView = lazy(() => import('./views/LogisticsView'));
 const TeamView = lazy(() => import('./views/TeamView'));
 const InventoryView = lazy(() => import('./views/InventoryView'));
+const PaymentsView = lazy(() => import('./views/PaymentsView'));
+const ResetPasswordView = lazy(() => import('./views/ResetPasswordView'));
 
-// Toast notification system
-function showToast(message: string, type: 'error' | 'success' | 'info' = 'info') {
-  const toast = document.createElement('div');
-  toast.className = `fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-in slide-in-from-top duration-300 ${
-    type === 'error' ? 'bg-red-500 text-white' : type === 'success' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
-  }`;
-  toast.innerHTML = `
-    ${type === 'error' ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' : ''}
-    ${type === 'success' ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>' : ''}
-    <span class="text-sm font-medium">${message}</span>
-  `;
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    toast.classList.add('animate-in', 'slide-out-to-top');
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
-}
+// Optimized toast system - removed DOM manipulation
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -66,6 +57,9 @@ export default function App() {
     return localStorage.getItem('saved_email') !== null;
   });
 
+  // Toast system
+  const { toasts, removeToast, showToast } = useToast();
+
   // Client Portal State
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showClientPortal, setShowClientPortal] = useState<'login' | 'register' | 'dashboard' | null>(null);
@@ -78,11 +72,21 @@ export default function App() {
     }
   }, []);
 
-  // Auto-set OpenRouter API key from .env if not already set
+  // Auto-set API key from .env if custom key not saved (OpenRouter takes precedence if both)
   useEffect(() => {
-    const envKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-    if (envKey && !localStorage.getItem('custom_api_key')) {
-      localStorage.setItem('custom_api_key', envKey);
+    if (localStorage.getItem('custom_api_key')) return;
+    const or = import.meta.env.VITE_OPENROUTER_API_KEY;
+    if (or && String(or).trim().startsWith('sk-or-v1-')) {
+      localStorage.setItem('custom_api_key', String(or).trim());
+      return;
+    }
+    const gem =
+      import.meta.env.VITE_GEMINI_API_KEY ||
+      (typeof process !== 'undefined'
+        ? String((process.env as Record<string, string | undefined>).GEMINI_API_KEY ?? '').trim()
+        : '');
+    if (gem) {
+      localStorage.setItem('custom_api_key', gem);
     }
   }, []);
 
@@ -90,6 +94,7 @@ export default function App() {
   const path = window.location.pathname;
   const isBookingPage = path.startsWith('/booking/');
   const bookingUserId = isBookingPage ? path.split('/')[2] : null;
+  const isResetPasswordPage = /^\/reset-password\/?$/.test(path);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,7 +209,7 @@ export default function App() {
       if (settingsData.length > 0) {
         setSettings({ ...DEFAULT_SETTINGS, ...settingsData[0] });
       } else {
-        addData(TABLES.SETTINGS, user.uid, { ...DEFAULT_SETTINGS, uid: user.uid }).then(newSettings => {
+        addData(TABLES.SETTINGS, user.uid, { ...DEFAULT_SETTINGS }).then(newSettings => {
           setSettings({ ...DEFAULT_SETTINGS, ...newSettings } as AppSettings);
         });
       }
@@ -267,13 +272,11 @@ export default function App() {
       setShowLoginForm(null);
       // Show info if using demo fallback
       if ('isDemoFallback' in result) {
-        showToast('Jungiamasi į demonstracinį režimą', 'info');
+        showToast.info('Jungiamasi į demonstracinį režimą');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login failed:', error);
-      // Show the actual error message
-      const errorMessage = error?.message || 'Neteisingas el. paštas arba slaptažodis';
-      showToast(errorMessage, 'error');
+      showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.login));
     }
   };
 
@@ -295,13 +298,13 @@ export default function App() {
       setShowLoginForm(null);
       // Show info if using demo fallback
       if ('isDemoFallback' in result) {
-        showToast('Paskyra sukurta demonstraciniame režime', 'success');
+        showToast.success('Paskyra sukurta demonstraciniame režime');
+      } else {
+        showToast.success('Paskyra sukurta. Jūs automatiškai prisijungėte.');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration failed:', error);
-      // Show the actual error message
-      const errorMessage = error?.message || 'Registracija nepavyko';
-      showToast(errorMessage, 'error');
+      showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.register));
     }
   };
 
@@ -317,11 +320,56 @@ export default function App() {
     localStorage.removeItem('saved_email');
   };
 
+  const handleClientLogin = (authUser: AuthUser) => {
+    setUser(authUser);
+    getUserProfile(authUser.uid).then(profile => {
+      if (profile?.role === 'client') {
+        setUserProfile(profile);
+        setShowClientPortal('dashboard');
+      } else {
+        setShowClientPortal(null);
+        if (profile) setUserProfile(profile);
+      }
+    });
+  };
+
+  const handleClientRegister = (authUser: AuthUser, client: Client) => {
+    setUser(authUser);
+    const profile: UserProfile = {
+      id: crypto.randomUUID(),
+      uid: authUser.uid,
+      email: authUser.email || '',
+      role: 'client',
+      clientId: client.id,
+      name: client.name,
+      phone: client.phone,
+      createdAt: new Date().toISOString()
+    };
+    setUserProfile(profile);
+    setShowClientPortal('dashboard');
+    showToast.success('Paskyra sukurta. Sveiki prisijungę!');
+  };
+
+  const handleClientLogout = () => {
+    setUser(null);
+    setUserProfile(null);
+    setShowClientPortal(null);
+    setActiveTab('dashboard');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
+    );
+  }
+
+  if (isResetPasswordPage) {
+    return (
+      <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
+        <ResetPasswordView />
+      </Suspense>
     );
   }
 
@@ -339,6 +387,8 @@ export default function App() {
 
   if (!user) {
     return (
+      <>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -349,8 +399,18 @@ export default function App() {
           <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-5 text-white">
             <Droplets size={28} strokeWidth={2} />
           </div>
-          <h1 className="text-xl font-semibold text-slate-900 mb-2">Švarus Darbas</h1>
-          <p className="text-slate-600 mb-4 text-sm leading-relaxed">Prisijunkite prie CRM: užsakymai, klientai, komanda.</p>
+          <h1 className="text-xl font-semibold text-slate-900 mb-2">Švarus Darbas CRM</h1>
+          <p className="text-slate-600 mb-3 text-sm leading-relaxed">Valdykite užsakymus, klientus ir komandą vienoje sistemoje.</p>
+          <div className="mb-4 text-left text-[12px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-3">
+            <p className="font-semibold text-slate-800 mb-1">Greitas startas komandai:</p>
+            <p>1. Sukurkite darbuotojo paskyrą.</p>
+            <p>2. Prisijunkite ir atsidarykite „Nustatymai“.</p>
+            <p>3. Pasidalinkite rezervacijos nuoroda su klientais.</p>
+          </div>
+          <div className="mb-4 text-left text-[11px] text-slate-600 bg-white border border-slate-100 rounded-lg p-3 space-y-1.5">
+            <p><span className="font-semibold text-slate-800">Komanda:</span> {AUTH_INVITE_HELP.staffInvite}</p>
+            <p><span className="font-semibold text-slate-800">Klientai:</span> {AUTH_INVITE_HELP.clientInvite}</p>
+          </div>
           {!isDemoMode && usesFirebase && (
             <div className="mb-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-700 text-left border border-slate-100">
               Duomenys saugomi Google Firebase (debesis). Įjunkite Email/Google prisijungimą Firebase konsolėje.
@@ -396,28 +456,28 @@ export default function App() {
           {!showLoginForm ? (
             <>
               <button
-                onClick={() => setShowLoginForm('login')}
+                onClick={() => { setShowClientPortal(null); setShowLoginForm('login'); }}
                 className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-medium hover:bg-blue-700 transition-colors mb-3"
               >
-                Darbuotojo Prisijungimas
+                Darbuotojo prisijungimas
               </button>
               <button
-                onClick={() => setShowClientPortal('login')}
+                onClick={() => { setShowLoginForm(null); setShowClientPortal('login'); }}
                 className="w-full bg-green-600 text-white py-3.5 rounded-xl font-medium hover:bg-green-700 transition-colors mb-3"
               >
-                Kliento Prisijungimas
+                Kliento prisijungimas
               </button>
               <button
-                onClick={() => setShowLoginForm('register')}
+                onClick={() => { setShowClientPortal(null); setShowLoginForm('register'); }}
                 className="w-full mt-3 bg-slate-100 text-slate-700 py-3 rounded-xl font-medium hover:bg-slate-200 transition-colors"
               >
-                Sukurti Darbuotojo Paskyrą
+                Sukurti darbuotojo paskyrą
               </button>
               <button
-                onClick={() => setShowClientPortal('register')}
+                onClick={() => { setShowLoginForm(null); setShowClientPortal('register'); }}
                 className="w-full mt-3 bg-green-100 text-green-700 py-3 rounded-xl font-medium hover:bg-green-200 transition-colors"
               >
-                Sukurti Kliento Paskyrą
+                Sukurti kliento paskyrą
               </button>
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
@@ -432,9 +492,9 @@ export default function App() {
                 onClick={async () => {
                   try {
                     await signInWithGoogle();
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     console.error('Google login failed:', error);
-                    showToast('Google prisijungimas nepavyko', 'error');
+                    showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.google));
                   }
                 }}
                 className="w-full flex items-center justify-center gap-2 bg-white text-slate-700 py-3 px-4 rounded-xl font-medium border border-slate-200 hover:bg-slate-50 transition-colors"
@@ -477,15 +537,39 @@ export default function App() {
                 required
               />
               {showLoginForm === 'login' && (
-                <label className="flex items-center gap-2 mb-4 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-slate-600">Prisiminti mane kitą kartą</span>
-                </label>
+                <>
+                  <div className="text-right -mt-2 mb-3">
+                    <button
+                      type="button"
+                      title="Siųsti slaptažodžio atkūrimo nuorodą į el. paštą"
+                      onClick={async () => {
+                        const trimmed = email.trim();
+                        if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                          showToast.error('Įveskite el. paštą aukščiau, tada spauskite „Pamiršote slaptažodį?“.');
+                          return;
+                        }
+                        try {
+                          await requestPasswordResetEmail(trimmed);
+                          showToast.success('Jei paskyra egzistuoja, netrukus gausite laišką su nuoroda.');
+                        } catch (e: unknown) {
+                          showToast.error(formatAuthErrorForUser(e, 'Nepavyko išsiųsti atkūrimo laiško.'));
+                        }
+                      }}
+                      className="text-xs text-blue-600 hover:text-blue-800"
+                    >
+                      Pamiršote slaptažodį?
+                    </button>
+                  </div>
+                  <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-600">Prisiminti mane kitą kartą</span>
+                  </label>
+                </>
               )}
               <button
                 type="submit"
@@ -504,36 +588,38 @@ export default function App() {
           )}
         </motion.div>
       </div>
+      {showClientPortal === 'login' && (
+        <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
+          <ClientLogin
+            onSuccess={handleClientLogin}
+            onRegister={() => setShowClientPortal('register')}
+            onBack={() => setShowClientPortal(null)}
+          />
+        </Suspense>
+      )}
+      {showClientPortal === 'register' && (
+        <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
+          <ClientRegistration
+            onSuccess={handleClientRegister}
+            onBack={() => setShowClientPortal('login')}
+          />
+        </Suspense>
+      )}
+      </>
     );
   }
-
-  // Client Portal Handlers
-  const handleClientLogin = (authUser: AuthUser) => {
-    setUser(authUser);
-  };
-
-  const handleClientRegister = (authUser: AuthUser, client: Client) => {
-    setUser(authUser);
-    showToast('Sėkmingai užsiregistravote!', 'success');
-  };
-
-  const handleClientLogout = () => {
-    setUser(null);
-    setUserProfile(null);
-    setShowClientPortal(null);
-  };
 
   const renderContent = () => {
     const content = (() => {
       switch (activeTab) {
         case 'dashboard':
-          return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
+          return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} user={user} settings={settings} />;
         case 'clients':
           return <ClientsView clients={clients} orders={orders} user={user} />;
         case 'orders':
           return <OrdersView orders={orders} clients={clients} settings={settings} user={user} employees={employees} />;
         case 'calendar':
-          return <CalendarView orders={orders} employees={employees} />;
+          return <CalendarView orders={orders} employees={employees} clients={clients} onOpenClient={() => setActiveTab('clients')} />;
         case 'settings':
           return <SettingsView settings={settings} setSettings={setSettings} user={user} memories={memories} />;
         case 'expenses':
@@ -546,6 +632,8 @@ export default function App() {
           return <TeamView employees={employees} user={user} />;
         case 'inventory':
           return <InventoryView userId={user.uid} />;
+        case 'payments':
+          return <PaymentsView user={user} />;
         default:
           return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
       }
@@ -563,40 +651,26 @@ export default function App() {
   };
 
   return (
-    <>
-      {/* Client Portal */}
-      {showClientPortal && userProfile?.role === 'client' && (
-        <Suspense fallback={
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        }>
-          {showClientPortal === 'login' && (
-            <ClientLogin
-              onSuccess={handleClientLogin}
-              onRegister={() => setShowClientPortal('register')}
-              onBack={() => setShowClientPortal(null)}
-            />
-          )}
-          {showClientPortal === 'register' && (
-            <ClientRegistration
-              onSuccess={handleClientRegister}
-              onBack={() => setShowClientPortal('login')}
-            />
-          )}
-          {showClientPortal === 'dashboard' && user && userProfile && (
-            <ClientDashboard
-              user={user}
-              profile={userProfile}
-              onLogout={handleClientLogout}
-            />
-          )}
-        </Suspense>
-      )}
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-50">
+        {/* Toast Container */}
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        
+        {showClientPortal === 'dashboard' && user && userProfile && (
+          <ClientDashboard
+            user={user}
+            profile={userProfile}
+            onLogout={handleClientLogout}
+          />
+        )}
 
       {/* Staff CRM */}
-      {!showClientPortal && (
-        <Layout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}>
+      {!showClientPortal && user && (
+        <Layout 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          onLogout={handleLogout}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -610,7 +684,8 @@ export default function App() {
           </AnimatePresence>
         </Layout>
       )}
-    </>
+
+      </div>
+    </ErrorBoundary>
   );
 }
-

@@ -10,7 +10,12 @@ export const addClientTool: FunctionDeclaration = {
       name: { type: Type.STRING, description: "Kliento vardas ir pavardė arba įmonės pavadinimas" },
       phone: { type: Type.STRING, description: "Telefono numeris (nebūtinas - galima pridėti vėliau)" },
       address: { type: Type.STRING, description: "Adresas (jei žinote tik miestą + vietą, bus konvertuota automatiškai)" },
-      buildingType: { type: Type.STRING, enum: ["butas", "namas", "ofisas"], description: "Pastato tipas (butas/namas/ofisas)" },
+      buildingType: {
+        type: Type.STRING,
+        enum: ["butas", "namas", "ofisas", "nesutarta"],
+        description:
+          "Pastato tipas. Jei nežinoma ar nenorite klausti — visada naudokite \"nesutarta\" ir išsaugokite klientą.",
+      },
       notes: { type: Type.STRING, description: "Papildomos pastabos apie klientą" },
     },
     required: [],
@@ -130,7 +135,11 @@ export const updateClientTool: FunctionDeclaration = {
       phone: { type: Type.STRING, description: "Naujas telefonas" },
       address: { type: Type.STRING, description: "Naujas adresas" },
       notes: { type: Type.STRING, description: "Naujos pastabos" },
-      buildingType: { type: Type.STRING, enum: ["butas", "namas", "ofisas"], description: "Naujas pastato tipas" },
+      buildingType: {
+        type: Type.STRING,
+        enum: ["butas", "namas", "ofisas", "nesutarta"],
+        description: "Naujas pastato tipas (nebūtina — galima nesutarta)",
+      },
     },
     required: ["clientId"],
   },

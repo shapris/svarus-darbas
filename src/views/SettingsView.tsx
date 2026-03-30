@@ -3,12 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppSettings, Memory } from '../types';
-import { updateData, addData, deleteData, getData, TABLES, isDemoMode } from '../supabase';
+import { updateData, addData, deleteData, getData, TABLES, isDemoMode, checkOrdersSchemaHealth, testConnection, usesFirebase } from '../supabase';
 import { downloadData, importData } from '../localDb';
 import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check, Brain, Plus, Trash2, Star, Edit } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getAiBudgetStatus } from '../services/aiService';
+import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 
 interface LocalUser {
   uid: string;
@@ -24,7 +26,16 @@ interface SettingsViewProps {
 export default function SettingsView({ settings, setSettings, user, memories = [] }: SettingsViewProps) {
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingSchema, setIsCheckingSchema] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [readiness, setReadiness] = useState({
+    backend: 'checking' as 'checking' | 'ok' | 'fail',
+    aiKey: false,
+    aiBudgetRemaining: 0,
+    aiBudgetLimit: 0,
+    bookingUrl: false,
+    mode: isDemoMode ? 'demo' : (usesFirebase ? 'firebase' : 'supabase'),
+  });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +46,8 @@ export default function SettingsView({ settings, setSettings, user, memories = [
       }
       setSettings(formData);
       alert('Nustatymai išsaugoti!');
-    } catch (error) {
-      console.error('Error saving settings:', error);
+    } catch {
+      alert('Nepavyko išsaugoti nustatymų');
     } finally {
       setIsSaving(false);
     }
@@ -75,6 +86,37 @@ export default function SettingsView({ settings, setSettings, user, memories = [
       fileInputRef.current.value = '';
     }
   };
+
+  const handleCheckOrdersSchema = async () => {
+    setIsCheckingSchema(true);
+    try {
+      const result = await checkOrdersSchemaHealth(user.uid);
+      alert(result.message);
+    } catch (error: any) {
+      alert(`Schema check failed: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setIsCheckingSchema(false);
+    }
+  };
+
+  const refreshReadiness = async () => {
+    const connected = await testConnection().catch(() => false);
+    const ai = getAiBudgetStatus();
+    const envGem = getGeminiKeyFromEnv();
+    const custom = localStorage.getItem('custom_api_key') || '';
+    setReadiness({
+      backend: connected ? 'ok' : 'fail',
+      aiKey: !!envGem || !!custom,
+      aiBudgetRemaining: ai.remaining,
+      aiBudgetLimit: ai.limit,
+      bookingUrl: bookingUrl.startsWith('http'),
+      mode: isDemoMode ? 'demo' : (usesFirebase ? 'firebase' : 'supabase'),
+    });
+  };
+
+  useEffect(() => {
+    refreshReadiness();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -115,11 +157,48 @@ export default function SettingsView({ settings, setSettings, user, memories = [
               type="file"
               accept=".json"
               onChange={handleImport}
+              title="Importuoti duomenų failą"
+              aria-label="Importuoti duomenų failą"
               className="hidden"
             />
           </div>
         </section>
       )}
+
+      <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+              <Settings size={20} />
+            </div>
+            <h3 className="font-bold text-slate-900">Production Readiness</h3>
+          </div>
+          <button
+            type="button"
+            onClick={refreshReadiness}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200"
+          >
+            Atnaujinti būseną
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+          <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+            Backend: <span className={readiness.backend === 'ok' ? 'text-emerald-700 font-bold' : readiness.backend === 'fail' ? 'text-rose-700 font-bold' : 'text-slate-500'}>{readiness.backend}</span>
+          </div>
+          <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+            Režimas: <span className="font-bold text-slate-700">{readiness.mode}</span>
+          </div>
+          <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+            AI raktas: <span className={readiness.aiKey ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>{readiness.aiKey ? 'ok' : 'trūksta'}</span>
+          </div>
+          <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+            AI dienos biudžetas: <span className="font-bold text-slate-700">{readiness.aiBudgetRemaining}/{readiness.aiBudgetLimit}</span>
+          </div>
+          <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 md:col-span-2">
+            Booking URL: <span className={readiness.bookingUrl ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>{readiness.bookingUrl ? 'ok' : 'klaida'}</span>
+          </div>
+        </div>
+      </section>
 
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
@@ -137,6 +216,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
                 type="number"
                 value={formData.pricePerWindow}
                 onChange={(e) => setFormData({ ...formData, pricePerWindow: parseFloat(e.target.value) })}
+                title="Kaina už langą"
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -146,6 +226,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
                 type="number"
                 value={formData.pricePerFloor}
                 onChange={(e) => setFormData({ ...formData, pricePerFloor: parseFloat(e.target.value) })}
+                title="Kaina už aukštą"
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -158,6 +239,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
                 type="number"
                 value={formData.priceBalkonai}
                 onChange={(e) => setFormData({ ...formData, priceBalkonai: parseFloat(e.target.value) })}
+                title="Kaina balkonams"
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -167,6 +249,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
                 type="number"
                 value={formData.priceVitrinos}
                 onChange={(e) => setFormData({ ...formData, priceVitrinos: parseFloat(e.target.value) })}
+                title="Kaina vitrinų valymui"
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -179,6 +262,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
                 type="number"
                 value={formData.priceTerasa}
                 onChange={(e) => setFormData({ ...formData, priceTerasa: parseFloat(e.target.value) })}
+                title="Kaina terasos valymui"
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -188,6 +272,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
                 type="number"
                 value={formData.priceKiti}
                 onChange={(e) => setFormData({ ...formData, priceKiti: parseFloat(e.target.value) })}
+                title="Kaina kitiems paviršiams"
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
@@ -200,6 +285,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
               rows={3}
               value={formData.smsTemplate}
               onChange={(e) => setFormData({ ...formData, smsTemplate: e.target.value })}
+              title="SMS priminimo šablonas"
               className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
@@ -267,6 +353,26 @@ export default function SettingsView({ settings, setSettings, user, memories = [
         <p className="text-sm opacity-80 leading-relaxed">
           Ši programėlė sukurta specialiai Lietuvos langų valymo paslaugų teikėjams. Valdykite klientus, užsakymus ir pajamas vienoje vietoje.
         </p>
+      </section>
+
+      <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700">
+            <Info size={18} />
+          </div>
+          <h3 className="font-bold text-slate-900">DB schema diagnostika</h3>
+        </div>
+        <p className="text-xs text-slate-500 mb-4">
+          Patikrina, kuri `orders` lentelės schema aktyvi (`modern` ar `legacy`) ir ar įrašymas veiks.
+        </p>
+        <button
+          type="button"
+          onClick={handleCheckOrdersSchema}
+          disabled={isCheckingSchema}
+          className="bg-slate-900 text-white py-3 px-4 rounded-xl font-medium hover:bg-slate-800 transition-colors disabled:opacity-60"
+        >
+          {isCheckingSchema ? 'Tikrinama...' : 'Patikrinti DB schemą'}
+        </button>
       </section>
 
       {memories && memories.length > 0 && (

@@ -75,8 +75,8 @@ export async function routeAndExecute(
           method: hybridResult.method
         };
       }
-    } catch (error) {
-      console.warn('Hybrid classification failed, falling back to keyword:', error);
+    } catch {
+      // Hybrid classification failed, fall back to keyword
     }
   }
   

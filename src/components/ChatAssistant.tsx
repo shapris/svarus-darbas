@@ -6,8 +6,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, Bot, User as UserIcon, Trash2, Mic, MicOff, Volume2, VolumeX, Brain, AlertTriangle, Settings2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { chatWithAssistant, getAiInstance, isOpenRouterKey, generateSpeech, stopAllAudio } from '../services/aiService';
+import { chatWithAssistant, getAiInstance, getGeminiApiKeyForSdk, isOpenRouterKey, generateSpeech, stopAllAudio } from '../services/aiService';
 import { shouldSuggestMemory } from '../services/memoryPriority';
+import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 import { Client, Order, Expense, AppSettings, Memory } from '../types';
 import { addData, updateData, deleteData, subscribeToData, getData, TABLES } from '../supabase';
 import { calculateOrderPrice } from '../utils';
@@ -58,7 +59,20 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   const [selectedLang, setSelectedLang] = useState<string>(localStorage.getItem('tts_language') || 'lt-LT');
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const [showPreviewMicHint, setShowPreviewMicHint] = useState(false);
+
+  const sanitizeHistoryForGemini = (history: any[]) => {
+    return (history || [])
+      .map((h) => {
+        const role = h?.role === 'user' ? 'user' : 'model';
+        const text = String(h?.parts?.[0]?.text ?? '').trim();
+        if (!text) return null;
+        return { role, parts: [{ text }] };
+      })
+      .filter(Boolean);
+  };
   const lastUserMessageRef = useRef<string>('');
+  const lastSpeechErrorAlertAtRef = useRef<number>(0);
 
   // Available voices based on provider
   const availableVoices = {
@@ -152,6 +166,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   const synthRef = useRef<SpeechSynthesis | null>(window.speechSynthesis);
 
   const checkApiKey = async () => {
+    const envGem = getGeminiKeyFromEnv();
+    if (envGem) {
+      setHasApiKey(true);
+      setApiKeyProvider('google');
+      return;
+    }
     const storedKey = localStorage.getItem('custom_api_key');
     if (storedKey) {
       setHasApiKey(true);
@@ -257,7 +277,6 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         };
 
         recognition.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
           setIsRecording(false);
           recognitionRef.current = null;
 
@@ -272,6 +291,20 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           };
 
           const userMessage = errorMessages[event.error] || `Klaida: ${event.error}`;
+          const isCursorLikePreview =
+            window.location.hostname === 'localhost' &&
+            (window.self !== window.top || /electron|cursor/i.test(navigator.userAgent));
+          if (isCursorLikePreview && (event.error === 'network' || event.error === 'not-allowed' || event.error === 'service-not-allowed')) {
+            setShowPreviewMicHint(true);
+          }
+          // Avoid disruptive alert spam for transient/non-critical speech errors.
+          if (event.error === 'network' || event.error === 'aborted' || event.error === 'no-speech') {
+            // Silent for transient errors to avoid noisy dev console.
+            lastSpeechErrorAlertAtRef.current = Date.now();
+            return;
+          }
+
+          console.error('Speech recognition error:', event.error);
           alert(userMessage);
         };
 
@@ -314,7 +347,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           name: args.name || 'Naujas klientas',
           phone: args.phone || 'nesutarta',
           address: args.address || 'nesutarta',
-          buildingType: args.buildingType || 'butas',
+          buildingType: args.buildingType || 'nesutarta',
           notes: args.notes || '',
           createdAt: new Date().toISOString(),
         });
@@ -659,7 +692,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     setIsLoading(true);
 
     try {
-      const apiKey = localStorage.getItem('custom_api_key') || (window as any).aistudio?.getApiKey?.() || process.env.GEMINI_API_KEY!;
+      const apiKey =
+        localStorage.getItem('custom_api_key') ||
+        (window as any).aistudio?.getApiKey?.() ||
+        getGeminiKeyFromEnv();
       const result = await chatWithAssistant(textToSend, history, { clients, orders, expenses, memories });
 
       // Check if we hit fallback
@@ -672,9 +708,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       let currentHistory = result.history;
       let finalResponse = result.text;
 
-      if (result.functionCalls) {
+      const toolCalls = 'functionCalls' in result ? result.functionCalls : undefined;
+      if (toolCalls?.length) {
         const functionResponses = [];
-        for (const call of result.functionCalls) {
+        for (const call of toolCalls) {
           const toolResult = await handleToolCall(call);
           functionResponses.push({
             role: 'function',
@@ -689,7 +726,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         }
 
         // Add tool calls to history if not already there
-        const toolCallHistory = result.functionCalls.map((call: any) => ({
+        const toolCallHistory = toolCalls.map((call: any) => ({
           role: 'model',
           parts: [{
             functionCall: {
@@ -711,8 +748,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
             finalResponse = secondResult.text;
             currentHistory = secondResult.history;
           } else {
-            const ai = getAiInstance(apiKey);
-            const modelsToTry = ["gemini-3-flash-preview", "gemini-2.0-flash-exp", "gemini-1.5-flash"];
+            const geminiKey = getGeminiApiKeyForSdk();
+            if (!geminiKey) {
+              finalResponse = finalResponse || 'Trūksta Google Gemini rakto antram užklausos žingsniui.';
+            } else {
+            const ai = getAiInstance(geminiKey);
+            const modelsToTry = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
             let secondResponseText = "";
             let secondHistory: any[] = [];
             let lastError: any = null;
@@ -721,7 +762,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
               try {
                 const secondChat = ai.chats.create({
                   model: modelName,
-                  history: updatedHistory,
+                  history: sanitizeHistoryForGemini(updatedHistory) as any,
                 });
                 const secondResponse = await secondChat.sendMessage({ message: "Apdorok veiksmų rezultatus ir patvirtink vartotojui." });
                 secondResponseText = secondResponse.text;
@@ -740,6 +781,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
               // Fallback if second call fails
               finalResponse = "Veiksmai atlikti sėkmingai, bet nepavyko sugeneruoti patvirtinimo teksto. Ar galiu dar kuo nors padėti?";
               currentHistory = updatedHistory;
+            }
             }
           }
         } catch (e) {
@@ -763,15 +805,15 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         if (memoryCheck.shouldRemember && memoryCheck.suggestedContent) {
           const category = detectMemoryCategory(textToSend, finalResponse);
           try {
-            await addData('memories', user.uid, {
+            const saved = (await addData('memories', user.uid, {
               content: memoryCheck.suggestedContent,
-              category: category,
+              category,
               importance: 3,
               uid: user.uid,
               createdAt: new Date().toISOString(),
-              isActive: true
-            });
-            setMemories(prev => [...prev, { id: 'new', content: memoryCheck.suggestedContent!, category, importance: 3, uid: user.uid, createdAt: new Date().toISOString(), isActive: true }]);
+              isActive: true,
+            } as Record<string, unknown>)) as unknown as Memory;
+            setMemories((prev) => [...prev, saved]);
           } catch (memError) {
             console.warn('Failed to auto-save memory:', memError);
           }
@@ -815,17 +857,17 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     }
   };
 
-  // Timeout fallback - reset loading after 30 seconds
+  // Timeout fallback — OpenRouter free tier + tool round-trips can exceed 30s
   useEffect(() => {
     if (isLoading) {
       const timeout = setTimeout(() => {
         if (isLoading) {
           console.warn("AI request timeout - resetting loading state");
           setIsLoading(false);
-          setMessages(prev => [...prev, { role: 'model', text: "Atsiprašau, atsakymas užtruko per ilgai. Bandykite dar kartą arba pervilkite puslapį.", timestamp: Date.now() }]);
+          setMessages(prev => [...prev, { role: 'model', text: "Atsiprašau, atsakymas užtruko per ilgai. Bandykite trumpesnę užklausą, palaukite ir bandykite vėl, arba patikrinkite API raktą / tinklą.", timestamp: Date.now() }]);
           setLastFailedMessage(lastUserMessageRef.current);
         }
-      }, 30000);
+      }, 90000);
       return () => clearTimeout(timeout);
     }
   }, [isLoading]);
@@ -835,6 +877,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(true)}
+        title="Atidaryti asistentą"
         className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40 hover:bg-blue-700 transition-colors"
       >
         <Bot size={28} />
@@ -922,7 +965,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     <RefreshCw size={16} />
                   </button>
                 )}
-                <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <button onClick={() => setIsOpen(false)} title="Uždaryti asistentą" className="p-2 hover:bg-white/10 rounded-full transition-colors">
                   <X size={20} />
                 </button>
               </div>
@@ -941,9 +984,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     <div className="flex justify-between items-center mb-4">
                       <h4 className="font-semibold text-slate-900 text-xs flex items-center gap-2">
                         <Settings2 size={14} className="text-blue-600" />
-                        API nustatymai (OpenRouter)
+                        API nustatymai (Gemini arba OpenRouter)
                       </h4>
-                      <button onClick={() => setShowApiSettings(false)} className="text-slate-400 hover:text-slate-600">
+                      <button onClick={() => setShowApiSettings(false)} title="Uždaryti API nustatymus" className="text-slate-400 hover:text-slate-600">
                         <X size={16} />
                       </button>
                     </div>
@@ -951,14 +994,19 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     <div className="space-y-4">
                       <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
                         <p className="text-[10px] text-blue-800 leading-relaxed mb-3">
-                          Įklijuokite savo <strong>OpenRouter</strong> raktą (prasideda <code>sk-or-v1-</code>) tiesiai čia:
+                          <strong>Google Gemini:</strong> raktas iš{' '}
+                          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline">
+                            AI Studio
+                          </a>
+                          , paprastai prasideda <code>AIza</code>. <strong>OpenRouter:</strong>{' '}
+                          <code>sk-or-v1-...</code>. Vienas laukas — išsaugoma pagal formato tipą.
                         </p>
                         <div className="flex gap-2 mb-3">
                           <input
                             type="password"
                             value={customApiKey}
                             onChange={(e) => setCustomApiKey(e.target.value)}
-                            placeholder="sk-or-v1-..."
+                            placeholder="AIza... arba sk-or-v1-..."
                             className="flex-1 bg-white border border-blue-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                           />
                           <button
@@ -988,7 +1036,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                           onClick={handleOpenKeySelector}
                           className="w-full mt-2 bg-white text-blue-700 border border-blue-200 px-4 py-3 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
                         >
-                          Pasirinkti savo Google raktą
+                          AI Studio: pasirinkti Google raktą naršyklėje
                         </button>
                       </div>
 
@@ -998,9 +1046,14 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                           apiKeyProvider === 'google' ? 'text-emerald-600' :
                             'text-slate-400'
                           }`}>
-                          {apiKeyProvider === 'openrouter' ? 'OpenRouter' : apiKeyProvider === 'google' ? 'Mano API' : 'Standartinis'}
+                          {apiKeyProvider === 'openrouter' ? 'OpenRouter' : apiKeyProvider === 'google' ? 'Gemini (Mano API)' : 'Standartinis / .env'}
                         </span>
                       </div>
+                      {getGeminiKeyFromEnv() && !localStorage.getItem('custom_api_key') && (
+                        <p className="text-[10px] text-slate-500 px-2">
+                          Raktas įkeltas iš <code className="bg-slate-100 px-1 rounded">.env</code> — įveskite ir išsaugokite čia tik jei norite pakeisti.
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -1017,7 +1070,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                         <Brain size={18} className="text-blue-600" />
                         Asistento atmintis
                       </h4>
-                      <button onClick={() => setShowMemories(false)} className="p-2 bg-slate-50 rounded-full text-slate-400">
+                      <button onClick={() => setShowMemories(false)} title="Uždaryti atmintį" className="p-2 bg-slate-50 rounded-full text-slate-400">
                         <X size={16} />
                       </button>
                     </div>
@@ -1039,6 +1092,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                               </div>
                               <button
                                 onClick={() => handleToolCall({ name: 'delete_memory', args: { memoryId: memory.id } })}
+                                title="Ištrinti atminties įrašą"
                                 className="p-2 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
                               >
                                 <Trash2 size={14} />
@@ -1132,7 +1186,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                             >
                               <div className="flex justify-between items-center mb-3">
                                 <h4 className="text-xs font-bold text-slate-900">Balso nustatymai</h4>
-                                <button onClick={() => setShowVoiceSelector(false)} className="text-slate-400 hover:text-slate-600">
+                                <button onClick={() => setShowVoiceSelector(false)} title="Uždaryti balso nustatymus" className="text-slate-400 hover:text-slate-600">
                                   <X size={14} />
                                 </button>
                               </div>
@@ -1152,6 +1206,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                       setSelectedVoice(e.target.value);
                                       localStorage.setItem('selected_voice', e.target.value);
                                     }}
+                                    title="Pasirinkti balsą"
                                     className="w-full mt-1 text-xs border border-slate-200 rounded-lg p-2"
                                   >
                                     <option value="Zephyr">Zephyr (šiltas)</option>
@@ -1170,6 +1225,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                       setSelectedLang(e.target.value);
                                       localStorage.setItem('tts_language', e.target.value);
                                     }}
+                                    title="Pasirinkti kalbą"
                                     className="w-full mt-1 text-xs border border-slate-200 rounded-lg p-2"
                                   >
                                     <option value="lt-LT">Lietuvių (Lietuva)</option>
@@ -1197,6 +1253,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                       setVoiceRate(val);
                                       localStorage.setItem('voice_rate', val.toString());
                                     }}
+                                    title="Nustatyti balso greitį"
                                     className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                                   />
                                   <div className="flex justify-between text-[9px] text-slate-400">
@@ -1234,9 +1291,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                       <Bot size={14} />
                     </div>
                     <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm flex items-center gap-1.5">
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
                     </div>
                   </div>
                 </div>
@@ -1245,6 +1302,19 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
             {/* Input */}
             <div className="p-6 bg-white border-t border-slate-100">
+              {showPreviewMicHint && (
+                <div className="mb-3 text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 flex items-start justify-between gap-2">
+                  <span>Balso įvedimą naudokite atskiroje naršyklėje (Chrome/Edge), nes preview lange jis gali neveikti.</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowPreviewMicHint(false)}
+                    className="text-amber-700 hover:text-amber-900"
+                    title="Uždaryti"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
               <div className="relative">
                 <input
                   type="text"
@@ -1281,6 +1351,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                       id="chat-send-btn"
                       onClick={() => handleSend()}
                       disabled={!input.trim() || isLoading}
+                      title="Siųsti žinutę"
                       className="w-10 bg-blue-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:scale-95 transition-all"
                     >
                       <Send size={18} />

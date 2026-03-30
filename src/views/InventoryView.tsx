@@ -49,8 +49,7 @@ export default function InventoryView({ userId }: InventoryViewProps) {
       setIsAddingItem(false);
       setEditingItem(null);
       setFormData({ name: '', quantity: 0, unit: 'vnt', minQuantity: 5, category: 'valikliai' });
-    } catch (error) {
-      console.error('Error saving inventory item:', error);
+    } catch {
       alert('Klaida išsaugant inventorių.');
     }
   };
@@ -59,8 +58,8 @@ export default function InventoryView({ userId }: InventoryViewProps) {
     if (window.confirm('Ar tikrai norite ištrinti šią prekę?')) {
       try {
         deleteData(TABLES.INVENTORY, id);
-      } catch (error) {
-        console.error('Error deleting item:', error);
+      } catch {
+        // Silent fail
       }
     }
   };
@@ -84,8 +83,8 @@ export default function InventoryView({ userId }: InventoryViewProps) {
         quantity: newQuantity,
         lastRestocked: amount > 0 ? new Date().toISOString() : item.lastRestocked,
       });
-    } catch (error) {
-      console.error('Error updating stock:', error);
+    } catch {
+      // Silent fail on stock update
     }
   };
 

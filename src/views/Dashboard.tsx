@@ -3,20 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Order, Client, Expense, Memory } from '../types';
+import { AuthUser } from '../supabase';
 import { formatCurrency, formatDate } from '../utils';
-import { CheckCircle2, Clock, Calendar as CalendarIcon, TrendingUp, TrendingDown, Plus, Users, FileText, Sparkles, Cloud, Sun, CloudRain, Thermometer, MapPin, PieChart, Package, Users2 } from 'lucide-react';
+import { CheckCircle2, Clock, Calendar as CalendarIcon, TrendingUp, TrendingDown, Plus, Users, FileText, Sparkles, Cloud, Sun, CloudRain, Thermometer, MapPin, PieChart, Package, Users2, MessageSquare, Bell, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import {
   getBusinessInsights,
   generateSpeech,
   getSpeechAudio,
   stopAllAudio,
-  DASHBOARD_INSIGHT_LABELS,
   type DashboardInsight,
 } from '../services/aiService';
+import { DASHBOARD_INSIGHT_LABELS, getLastInsightsSource } from '../services/insightsService';
+import { smsService } from '../services/smsService';
 import { Volume2, Mic, Quote, VolumeX } from 'lucide-react';
+
+const ChatAssistant = lazy(() => import('../components/ChatAssistant'));
 
 interface DashboardProps {
   orders: Order[];
@@ -24,6 +28,8 @@ interface DashboardProps {
   expenses: Expense[];
   memories: Memory[];
   setActiveTab: (tab: string) => void;
+  user?: AuthUser;
+  settings?: any;
 }
 
 interface WeatherData {
@@ -40,13 +46,33 @@ function resolveGeminiVoice(): GeminiTtsVoice {
   return (allowed.includes(v as GeminiTtsVoice) ? v : 'Zephyr') as GeminiTtsVoice;
 }
 
-export default function Dashboard({ orders, clients, expenses, memories, setActiveTab }: DashboardProps) {
+export default function Dashboard({ orders, clients, expenses, memories, setActiveTab, user, settings }: DashboardProps) {
   const [insights, setInsights] = useState<DashboardInsight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
   const [cachedAudios, setCachedAudios] = useState<Record<string, HTMLAudioElement>>({});
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [dailyQuote, setDailyQuote] = useState<string>('');
+  const [smsStats, setSmsStats] = useState(smsService.getReminderStats());
+  const [isInsightsFallback, setIsInsightsFallback] = useState(false);
+
+  // Initialize SMS service and check reminders
+  useEffect(() => {
+    smsService.loadReminders();
+    smsService.clearOldReminders();
+    
+    // Check for pending reminders every minute
+    const interval = setInterval(() => {
+      smsService.checkPendingReminders(orders, clients, settings || {});
+      setSmsStats(smsService.getReminderStats());
+    }, 60000);
+    
+    // Initial check
+    smsService.checkPendingReminders(orders, clients, settings || {});
+    setSmsStats(smsService.getReminderStats());
+    
+    return () => clearInterval(interval);
+  }, [orders, clients, settings]);
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -60,8 +86,8 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
           condition: code > 50 ? 'Lietus' : code > 0 ? 'Debesuota' : 'Giedra',
           isRainy: code > 50
         });
-      } catch (e) {
-        console.error('Weather fetch failed', e);
+      } catch {
+        // Weather fetch failed silently
       }
     };
     fetchWeather();
@@ -95,8 +121,8 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 if (audio) {
                   setCachedAudios((prev) => ({ ...prev, [`insight-${index}`]: audio }));
                 }
-              } catch (e) {
-                console.warn('Pre-fetch failed for cached insight', index);
+              } catch {
+                // Pre-fetch failed silently
               }
             });
             return;
@@ -110,20 +136,24 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
       try {
         const res = await getBusinessInsights(orders, clients, memories, expenses);
         setInsights(res);
+        setIsInsightsFallback(getLastInsightsSource() === 'fallback');
         localStorage.setItem(cacheKey, JSON.stringify(res));
 
+        // Pre-fetch audio for insights
         res.forEach(async (insight, index) => {
           try {
             const audio = await getSpeechAudio(insight.text, voice);
             if (audio) {
               setCachedAudios((prev) => ({ ...prev, [`insight-${index}`]: audio }));
             }
-          } catch (e) {
-            console.warn('Pre-fetch failed for new insight', index);
+          } catch {
+            // Pre-fetch failed silently
           }
         });
       } catch (error) {
         console.error('Failed to fetch insights:', error);
+        // Set empty insights on error to prevent infinite loading
+        setInsights([]);
       } finally {
         setIsLoadingInsights(false);
       }
@@ -210,7 +240,7 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
     { label: 'Šiandien', value: todayOrders.length, icon: CalendarIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Laukia', value: pendingOrders.length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Pelnas', value: formatCurrency(profit), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Išlaidos', value: formatCurrency(totalExpenses), icon: TrendingDown, color: 'text-red-600', bg: 'bg-red-50' },
+    { label: 'SMS priminimai', value: smsStats.pending, icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   const handleOpenMap = () => {
@@ -446,6 +476,11 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">
                 Trys blokai: atmintis ir komanda · rinka bei įranga · klientai ir operacijos. Kiekvieną galite perklausyti atskirai.
               </p>
+              {isInsightsFallback && (
+                <span className="inline-flex mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-100 text-amber-800">
+                  AI įžvalgos laikinai nepasiekiamos (kvota), rodomos vietinės įžvalgos
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -491,13 +526,82 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         </div>
       </section>
 
+      {/* SMS Reminders Section */}
+      <section>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-slate-900">SMS priminimai</h2>
+          <div className="flex gap-2">
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">
+              Siųsta: {smsStats.sent}
+            </span>
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">
+              Laukia: {smsStats.pending}
+            </span>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+          {smsService.getTodaysReminders().length > 0 ? (
+            <div className="space-y-2">
+              {smsService.getTodaysReminders().slice(0, 3).map(reminder => {
+                const order = orders.find(o => o.id === reminder.orderId);
+                const client = clients.find(c => c.id === reminder.clientId);
+                
+                if (!order || !client) return null;
+                
+                const getReminderLabel = (type: string) => {
+                  switch (type) {
+                    case '24h': return 'Priminimas prieš 24h';
+                    case '1h': return 'Priminimas prieš 1h';
+                    case 'thank_you': return 'Ačiū žinutė';
+                    case 'payment': return 'Mokėjimas';
+                    default: return type;
+                  }
+                };
+                
+                return (
+                  <div key={reminder.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-medium text-purple-600">
+                          {getReminderLabel(reminder.type)}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {reminder.scheduledFor.toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="text-sm font-medium text-slate-900">{client.name}</div>
+                      <div className="text-xs text-slate-600">{order.address}</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        smsService.sendManualReminder(reminder.orderId, reminder.type, orders, clients, settings || {});
+                        setSmsStats(smsService.getReminderStats());
+                      }}
+                      className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                      title="Siųsti dabar"
+                    >
+                      <Send size={14} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500">
+              <MessageSquare size={32} className="mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Šiandien nėra suplanuotų priminimų</p>
+            </div>
+          )}
+        </div>
+      </section>
+
       <section>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-slate-900">Finansų dinamika</h2>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Paskutiniai 6 mėn.</span>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm h-72">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm" style={{ height: '300px', width: '100%' }}>
+          <ResponsiveContainer width={400} height={250}>
             <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis
@@ -507,16 +611,18 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
                 dy={10}
               />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
-                tickFormatter={(value) => `€${value}`}
-              />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} />
               <Tooltip
-                cursor={{ fill: '#f8fafc' }}
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '12px', fontWeight: 'bold' }}
-                formatter={(value: number) => [`€${value}`, undefined]}
+                contentStyle={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  padding: '8px 12px',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                }}
+                formatter={(value: number) => [formatCurrency(value), '']}
               />
               <Bar dataKey="Pajamos" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={12} />
               <Bar dataKey="Išlaidos" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={12} stackId="expenses" />
@@ -574,6 +680,23 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
           </div>
         )}
       </section>
+
+      {/* Chat Assistant */}
+      {user && (
+        <Suspense fallback={
+          <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+          </div>
+        }>
+          <ChatAssistant 
+            user={user}
+            clients={clients}
+            orders={orders}
+            expenses={expenses}
+            settings={settings || {}}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

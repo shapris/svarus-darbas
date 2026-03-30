@@ -1,0 +1,15 @@
+---
+description: Always-on execution workflow for this project
+alwaysApply: true
+---
+
+# Always-On Project Workflow
+
+- Do not ask for repeated confirmations after the user says to proceed.
+- Execute tasks end-to-end: implement, run checks, and report verified results.
+- Prefer live validation (app running + smoke test) before claiming a fix.
+- Keep dev server running in background when possible.
+- Use available tools actively (search, lint, browser checks, shell) instead of guessing.
+- If blocked by permissions or environment limits, apply the nearest automatic fallback and continue.
+- Keep updates concise and frequent while work is in progress.
+- Focus on production-impacting issues first: broken flows, data errors, API failures.

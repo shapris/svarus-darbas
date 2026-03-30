@@ -3,12 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Client, BuildingType, Order } from '../types';
 import { getData, addData, updateData, deleteData, TABLES } from '../supabase';
-import { Search, Plus, User as UserIcon, Phone, MapPin, Building, MoreVertical, X, Edit, Trash2, History, ChevronRight } from 'lucide-react';
+import { Search, Plus, User as UserIcon, Phone, MapPin, Building, MoreVertical, X, Edit, Trash2, History, ChevronRight, Loader2, Star, Users, AlertTriangle, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDate, formatCurrency } from '../utils';
+import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
+import { useToast } from '../hooks/useToast';
+import { clientSegmentation, type ClientSegment } from '../services/clientSegmentation';
 
 interface LocalUser {
   uid: string;
@@ -28,9 +31,13 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   const [isAdding, setIsAdding] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [viewingHistory, setViewingHistory] = useState<Client | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [highlightedClientId, setHighlightedClientId] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
+    phone: 'nesutarta',
     address: '',
     buildingType: 'butas' as BuildingType,
     notes: '',
@@ -44,20 +51,40 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!formData.name.trim()) {
+      showToast.error('Privaloma nurodyti kliento vardą');
+      return;
+    }
+    if (!formData.address.trim()) {
+      showToast.error('Privaloma nurodyti adresą');
+      return;
+    }
+
+    const normalizedPhone = formData.phone.trim() || 'nesutarta';
+
+    setIsSubmitting(true);
     try {
       if (editingClient) {
-        await updateData(TABLES.CLIENTS, editingClient.id, { ...formData });
+        await updateData(TABLES.CLIENTS, editingClient.id, { ...formData, phone: normalizedPhone });
+        showToast.success('Kliento informacija atnaujinta!');
       } else {
         await addData(TABLES.CLIENTS, user.uid, {
           ...formData,
+          phone: normalizedPhone,
           createdAt: new Date().toISOString(),
         });
+        showToast.success('Naujas klientas sėkmingai pridėtas!');
       }
       setIsAdding(false);
       setEditingClient(null);
-      setFormData({ name: '', phone: '', address: '', buildingType: 'butas', notes: '' });
+      setFormData({ name: '', phone: 'nesutarta', address: '', buildingType: 'butas', notes: '' });
     } catch (error) {
+      showToast.error('Nepavyko išsaugoti kliento. Bandykite dar kartą.');
       console.error('Error saving client:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -74,12 +101,17 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Ar tikrai norite ištrinti šį klientą?')) {
-      try {
-        deleteData(TABLES.CLIENTS, id);
-      } catch (error) {
-        console.error('Error deleting client:', error);
-      }
+    if (!window.confirm('Ar tikrai norite ištrinti šį klientą?')) return;
+    
+    setIsDeleting(id);
+    try {
+      await deleteData(TABLES.CLIENTS, id);
+      showToast.success('Klientas sėkmingai ištrintas');
+    } catch (error) {
+      showToast.error('Nepavyko ištrinti kliento');
+      console.error('Error deleting client:', error);
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -87,12 +119,35 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
     return orders.filter(o => o.clientId === clientId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
+  useEffect(() => {
+    const selectedClientId = localStorage.getItem('selected_client_id');
+    if (!selectedClientId) return;
+    const target = clients.find((c) => c.id === selectedClientId);
+    if (!target) {
+      localStorage.removeItem('selected_client_id');
+      return;
+    }
+
+    setSearch(target.name || '');
+    setViewingHistory(target);
+    setHighlightedClientId(target.id);
+    localStorage.removeItem('selected_client_id');
+
+    setTimeout(() => {
+      const el = document.querySelector(`[data-client-id="${target.id}"]`) as HTMLElement | null;
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+
+    setTimeout(() => setHighlightedClientId(null), 4000);
+  }, [clients]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Klientai</h2>
         <button
           onClick={() => setIsAdding(true)}
+          title="Pridėti klientą"
           className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
         >
           <Plus size={20} />
@@ -115,7 +170,12 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
           <motion.div
             layout
             key={client.id}
-            className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-blue-100 transition-colors"
+            data-client-id={client.id}
+            className={`bg-white p-4 rounded-3xl border shadow-sm transition-colors ${
+              highlightedClientId === client.id
+                ? 'border-blue-400 shadow-blue-100 ring-2 ring-blue-200'
+                : 'border-slate-100 hover:border-blue-100'
+            }`}
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center gap-3">
@@ -139,14 +199,14 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 </div>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => setViewingHistory(client)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                <button onClick={() => setViewingHistory(client)} title="Peržiūrėti istoriją" className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
                   <History size={18} />
                 </button>
-                <button onClick={() => handleEdit(client)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                <button onClick={() => handleEdit(client)} title="Redaguoti klientą" className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
                   <Edit size={18} />
                 </button>
-                <button onClick={() => handleDelete(client.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                  <Trash2 size={18} />
+                <button onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }} title="Ištrinti klientą" className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50" disabled={isDeleting === client.id}>
+                  {isDeleting === client.id ? <LoadingSpinner size="sm" /> : <Trash2 size={18} />}
                 </button>
               </div>
             </div>
@@ -190,7 +250,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 <h3 className="text-xl font-bold text-slate-900">
                   {editingClient ? 'Redaguoti klientą' : 'Pridėti klientą'}
                 </h3>
-                <button onClick={() => { setIsAdding(false); setEditingClient(null); }} className="p-2 text-slate-400 hover:text-slate-600">
+                <button onClick={() => { setIsAdding(false); setEditingClient(null); }} title="Uždaryti" className="p-2 text-slate-400 hover:text-slate-600">
                   <X size={24} />
                 </button>
               </div>
@@ -210,12 +270,11 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Telefonas</label>
                   <input
-                    required
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="+370 600 00000"
+                    placeholder="+370 600 00000 arba nesutarta"
                   />
                 </div>
                 <div>
@@ -231,8 +290,8 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastato tipas</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['butas', 'namas', 'ofisas'] as BuildingType[]).map((type) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(['butas', 'namas', 'ofisas', 'nesutarta'] as BuildingType[]).map((type) => (
                       <button
                         key={type}
                         type="button"
@@ -259,9 +318,17 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors mt-4"
+                  disabled={isSubmitting}
+                  className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingClient ? 'Išsaugoti pakeitimus' : 'Pridėti klientą'}
+                  {isSubmitting ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>{editingClient ? 'Išsaugoma...' : 'Pridedama...'}</span>
+                    </div>
+                  ) : (
+                    <>{editingClient ? 'Išsaugoti pakeitimus' : 'Pridėti klientą'}</>
+                  )}
                 </button>
               </form>
             </motion.div>
@@ -286,7 +353,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   <h3 className="text-xl font-bold text-slate-900">Užsakymų istorija</h3>
                   <p className="text-xs text-slate-400 font-medium">{viewingHistory.name}</p>
                 </div>
-                <button onClick={() => setViewingHistory(null)} className="p-2 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setViewingHistory(null)} title="Uždaryti istoriją" className="p-2 text-slate-400 hover:text-slate-600">
                   <X size={24} />
                 </button>
               </div>

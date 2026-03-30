@@ -4,10 +4,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, DollarSign, User, Home, Settings, LogOut, FileText, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { Calendar, Clock, DollarSign, User, Home, Settings, LogOut, FileText, CheckCircle, AlertCircle, X, CreditCard } from 'lucide-react';
 import { getClientOrders, signOut, type AuthUser } from '../../supabase';
 import { Order, UserProfile } from '../../types';
 import { motion } from 'motion/react';
+import PaymentView from './PaymentView';
 
 interface ClientDashboardProps {
     user: AuthUser;
@@ -18,7 +19,8 @@ interface ClientDashboardProps {
 export default function ClientDashboard({ user, profile, onLogout }: ClientDashboardProps) {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
+    const [activeTab, setActiveTab] = useState<'orders' | 'profile' | 'payment'>('orders');
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     useEffect(() => {
@@ -31,8 +33,8 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
         try {
             const clientOrders = await getClientOrders(profile.clientId);
             setOrders(clientOrders);
-        } catch (err) {
-            console.error('Error loading orders:', err);
+        } catch {
+            // Error loading orders silently
         } finally {
             setLoading(false);
         }
@@ -73,8 +75,8 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
         try {
             await signOut();
             onLogout();
-        } catch (err) {
-            console.error('Logout error:', err);
+        } catch {
+            // Logout error silently
         }
     };
 
@@ -128,6 +130,19 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
                             <div className="flex items-center space-x-2">
                                 <FileText className="w-4 h-4" />
                                 <span>Mano Užsakymai</span>
+                            </div>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('payment')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                                activeTab === 'payment'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }`}
+                        >
+                            <div className="flex items-center space-x-2">
+                                <CreditCard className="w-4 h-4" />
+                                <span>Mokėjimai</span>
                             </div>
                         </button>
                         <button
@@ -283,6 +298,78 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
                             </div>
                         </motion.div>
                     </div>
+                )}
+
+                {activeTab === 'payment' && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="max-w-2xl mx-auto"
+                    >
+                        {selectedOrder ? (
+                            <div>
+                                <button
+                                    onClick={() => setSelectedOrder(null)}
+                                    className="mb-4 flex items-center space-x-2 text-blue-600 hover:text-blue-800"
+                                >
+                                    <X className="w-4 h-4" />
+                                    <span>Atgal į užsakymų sąrašą</span>
+                                </button>
+                                <PaymentView 
+                                    order={selectedOrder} 
+                                    onPaymentComplete={() => {
+                                        setSelectedOrder(null);
+                                        loadOrders();
+                                    }}
+                                />
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-lg shadow p-6">
+                                <h2 className="text-lg font-medium text-gray-900 mb-4">Pasirinkite Užsakymą Apmokėjimui</h2>
+                                <div className="space-y-3">
+                                    {loading ? (
+                                        <div className="text-center py-8">
+                                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                            <p className="mt-2 text-gray-500">Kraunami užsakymai...</p>
+                                        </div>
+                                    ) : orders.length === 0 ? (
+                                        <div className="text-center py-8">
+                                            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                            <p className="text-gray-500">Nėra užsakymų apmokėjimui</p>
+                                        </div>
+                                    ) : (
+                                        orders.filter(order => !order.isPaid).map((order) => (
+                                            <div
+                                                key={order.id}
+                                                onClick={() => setSelectedOrder(order)}
+                                                className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <p className="font-medium text-gray-900">
+                                                            Langų valymas - {order.address}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            {new Date(order.date).toLocaleDateString('lt-LT')} {order.time}
+                                                        </p>
+                                                        <p className="text-sm text-gray-500">
+                                                            Langai: {order.windowCount} | Aukštas: {order.floor}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-semibold text-gray-900">
+                                                            €{order.totalPrice}
+                                                        </p>
+                                                        <p className="text-sm text-orange-600">Laukiama apmokėjimo</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </motion.div>
                 )}
 
                 {activeTab === 'profile' && (

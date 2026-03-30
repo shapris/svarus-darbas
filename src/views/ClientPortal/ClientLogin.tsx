@@ -5,7 +5,8 @@
 
 import React, { useState } from 'react';
 import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, UserPlus } from 'lucide-react';
-import { signIn, type AuthUser } from '../../supabase';
+import { signIn, requestPasswordResetEmail, type AuthUser } from '../../supabase';
+import { formatAuthErrorForUser, AUTH_FALLBACK } from '../../utils/authMessages';
 import { motion } from 'motion/react';
 
 interface ClientLoginProps {
@@ -22,11 +23,13 @@ export default function ClientLogin({ onSuccess, onRegister, onBack }: ClientLog
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
         setError('');
+        setNotice('');
     };
 
     const validateForm = () => {
@@ -66,8 +69,32 @@ export default function ClientLogin({ onSuccess, onRegister, onBack }: ClientLog
             } else {
                 setError('Nepavyko prisijungti');
             }
-        } catch (err: any) {
-            setError(err.message || 'Prisijungimo klaida');
+        } catch (err: unknown) {
+            setError(formatAuthErrorForUser(err, AUTH_FALLBACK.login));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        setError('');
+        setNotice('');
+
+        const email = formData.email.trim();
+        if (!email) {
+            setError('Įveskite el. paštą, kad galėtume išsiųsti slaptažodžio atstatymo nuorodą.');
+            return;
+        }
+        if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+            setError('Neteisingas el. pašto formatas');
+            return;
+        }
+        setLoading(true);
+        try {
+            await requestPasswordResetEmail(email);
+            setNotice('Jei paskyra egzistuoja, netrukus gausite laišką su nuoroda.');
+        } catch (err: unknown) {
+            setError(formatAuthErrorForUser(err, 'Nepavyko išsiųsti slaptažodžio atstatymo laiško.'));
         } finally {
             setLoading(false);
         }
@@ -84,7 +111,7 @@ export default function ClientLogin({ onSuccess, onRegister, onBack }: ClientLog
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <User className="w-8 h-8 text-blue-600" />
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-800">Kliento Prisijungimas</h1>
+                    <h1 className="text-2xl font-bold text-gray-800">Kliento prisijungimas</h1>
                     <p className="text-gray-600 mt-2">Prisijunkite norėdami matyti savo užsakymus</p>
                 </div>
 
@@ -95,6 +122,15 @@ export default function ClientLogin({ onSuccess, onRegister, onBack }: ClientLog
                         className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6"
                     >
                         {error}
+                    </motion.div>
+                )}
+                {notice && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-6"
+                    >
+                        {notice}
                     </motion.div>
                 )}
 
@@ -152,7 +188,9 @@ export default function ClientLogin({ onSuccess, onRegister, onBack }: ClientLog
                         </label>
                         <button
                             type="button"
+                            onClick={handleForgotPassword}
                             className="text-sm text-blue-600 hover:text-blue-800"
+                            disabled={loading}
                         >
                             Pamiršote slaptažodį?
                         </button>

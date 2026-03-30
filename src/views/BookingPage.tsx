@@ -21,7 +21,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
+    phone: 'nesutarta',
     address: '',
     buildingType: 'butas' as BuildingType,
     date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
@@ -43,8 +43,8 @@ export default function BookingPage({ userId }: BookingPageProps) {
       try {
         const next = await fetchPublicBookingSettings(userId);
         if (!cancelled) setSettings(next);
-      } catch (error) {
-        console.error('Error fetching settings:', error);
+      } catch {
+        // Error fetching settings silently
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -65,6 +65,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const normalizedPhone = formData.phone.trim() || 'nesutarta';
       const coords = await geocodeAddress(formData.address);
       const useCloud = isRemoteBackend && !isDemoMode;
 
@@ -73,7 +74,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
           userId,
           {
             name: formData.name,
-            phone: formData.phone,
+            phone: normalizedPhone,
             address: formData.address,
             buildingType: formData.buildingType,
             createdAt: new Date().toISOString(),
@@ -96,7 +97,10 @@ export default function BookingPage({ userId }: BookingPageProps) {
         );
       } else {
         const allClients = await getData<any>(TABLES.CLIENTS, userId);
-        const existingClient = allClients.find((c: any) => c.phone === formData.phone);
+        const existingClient =
+          normalizedPhone !== 'nesutarta'
+            ? allClients.find((c: any) => c.phone === normalizedPhone)
+            : null;
 
         let clientId: string;
 
@@ -105,7 +109,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
         } else {
           const newClient = await addData(TABLES.CLIENTS, userId, {
             name: formData.name,
-            phone: formData.phone,
+            phone: normalizedPhone,
             address: formData.address,
             buildingType: formData.buildingType,
             createdAt: new Date().toISOString(),
@@ -133,9 +137,8 @@ export default function BookingPage({ userId }: BookingPageProps) {
       }
 
       setIsBooked(true);
-    } catch (error: any) {
-      console.error('Booking failed:', error);
-      const msg = error?.message || error?.details || '';
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Rezervacija nepavyko';
       if (String(msg).toLowerCase().includes('invalid_booking')) {
         alert('Ši rezervacijos nuoroda nebegalioja arba verslas neaktyvus.');
       } else {
@@ -219,12 +222,11 @@ export default function BookingPage({ userId }: BookingPageProps) {
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Telefonas</label>
             <input
-              required
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              placeholder="+370 600 00000"
+              placeholder="+370 600 00000 arba nesutarta"
             />
           </div>
 
@@ -243,7 +245,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastato tipas</label>
             <div className="grid grid-cols-3 gap-2">
-              {(['butas', 'namas', 'ofisas'] as BuildingType[]).map((type) => (
+              {(['butas', 'namas', 'ofisas', 'nesutarta'] as BuildingType[]).map((type) => (
                 <button
                   key={type}
                   type="button"

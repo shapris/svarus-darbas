@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type BuildingType = 'butas' | 'namas' | 'ofisas';
+export type BuildingType = 'butas' | 'namas' | 'ofisas' | 'nesutarta';
 export type OrderStatus = 'suplanuota' | 'vykdoma' | 'atlikta';
 
 export interface Employee {
@@ -54,6 +54,8 @@ export interface Order {
   photoAfter?: string;
   evaluation?: 'a1' | 'a2' | 'a3';
   isPaid?: boolean;
+  /** Optional label for analytics / reporting (e.g. service category). */
+  serviceType?: string;
   createdAt: string;
 }
 
@@ -122,6 +124,34 @@ export interface ClientPortalAccess {
   passwordHash: string;
   lastLogin?: string;
   createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  order_id: string;
+  client_id: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'cancelled' | 'refunded';
+  due_date: string;
+  created_at: string;
+  paid_at?: string;
+  stripe_payment_intent_id?: string;
+  invoice_url?: string;
+}
+
+export interface Transaction {
+  id: string;
+  invoice_id?: string;
+  payment_intent_id?: string;
+  client_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  type: 'payment' | 'refund' | 'partial_refund';
+  stripe_charge_id?: string;
+  failure_reason?: string;
+  created_at: string;
+  processed_at?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

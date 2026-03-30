@@ -47,8 +47,8 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
         category: 'kita',
         notes: '',
       });
-    } catch (error) {
-      console.error('Error saving expense:', error);
+    } catch {
+      alert('Klaida išsaugant išlaidą');
     }
   };
 
@@ -57,8 +57,8 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
       try {
         deleteData(TABLES.EXPENSES, id);
         if (selectedExpense?.id === id) setSelectedExpense(null);
-      } catch (error) {
-        console.error('Error deleting expense:', error);
+      } catch {
+        // Silent fail
       }
     }
   };

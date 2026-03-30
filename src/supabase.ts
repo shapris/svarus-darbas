@@ -16,7 +16,7 @@ import {
     registerUser as localRegisterUser
 } from './localDb';
 import * as FirebaseBackend from './firebaseBridge';
-import { DEFAULT_SETTINGS, type AppSettings, type UserProfile, type UserRole, type Client, type Order } from './types';
+import { DEFAULT_SETTINGS, type AppSettings, type UserProfile, type UserRole, type Client, type Order, type Memory } from './types';
 
 const forceDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -27,22 +27,28 @@ export const usesFirebase =
     !!import.meta.env.VITE_FIREBASE_API_KEY &&
     !!import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// Supabase credentials - fallback to provided values if env vars not set
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wwegrquhoptxbllwiejw.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZWdycXVob3B0eGJsbHdpZWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjA4ODcsImV4cCI6MjA4OTY5Njg4N30.e4-9CnvJ71TOxAEetCHhq14T16XjBkJVnl6P_szSLbc';
 const isValidSupabaseUrl = supabaseUrl.includes('.supabase.co') && !supabaseUrl.includes('your-project');
 const isSupabaseConfigured =
     !usesFirebase &&
     !forceDemoMode &&
     !!(supabaseUrl && supabaseAnonKey && isValidSupabaseUrl);
 
+type GlobalWithSupabase = typeof globalThis & { __svarusSupabase?: SupabaseClient | null };
+const globalScope = globalThis as GlobalWithSupabase;
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-    ? createClient(supabaseUrl, supabaseAnonKey, {
-        auth: {
-            autoRefreshToken: true,
-            persistSession: true,
-            detectSessionInUrl: true,
-        },
-    })
+    ? (globalScope.__svarusSupabase ??
+        (globalScope.__svarusSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                autoRefreshToken: true,
+                persistSession: true,
+                detectSessionInUrl: true,
+            },
+            // Do not set global Accept/Content-Type — PostgREST needs per-request Accept
+            // (e.g. application/vnd.pgrst.object+json for .single()), or you get 406.
+        })))
     : null;
 
 export const isRemoteBackend = usesFirebase || !!supabase;
@@ -79,6 +85,284 @@ export interface AuthUser {
     photoURL: string | null;
 }
 
+/** Opt-in only: set VITE_DEBUG_SUPABASE=true to log fetch/query details. */
+const DEBUG_SUPABASE = import.meta.env.VITE_DEBUG_SUPABASE === 'true';
+
+type ProfileRow = {
+    id: string;
+    uid: string;
+    email: string | null;
+    name?: string | null;
+    phone?: string | null;
+    role: UserProfile['role'];
+    client_id?: string | null;
+    created_at?: string | null;
+};
+
+function mapProfileRowToUserProfile(data: ProfileRow): UserProfile {
+    return {
+        id: data.id,
+        uid: data.uid,
+        email: data.email ?? '',
+        role: data.role,
+        name: data.name ?? undefined,
+        phone: data.phone ?? undefined,
+        clientId: data.client_id ?? undefined,
+        createdAt: data.created_at ?? new Date().toISOString(),
+    };
+}
+
+function userProfileUpdatesToSnake(updates: Partial<UserProfile>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    if (updates.email !== undefined) out.email = updates.email;
+    if (updates.name !== undefined) out.name = updates.name;
+    if (updates.phone !== undefined) out.phone = updates.phone;
+    if (updates.role !== undefined) out.role = updates.role;
+    if (updates.clientId !== undefined) out.client_id = updates.clientId;
+    return out;
+}
+
+const MEMORY_CATEGORIES = new Set<string>(['klientas', 'verslas', 'procesas', 'kita']);
+
+function coerceMemoryCategory(v: unknown): Memory['category'] {
+    const s = typeof v === 'string' ? v : 'kita';
+    return MEMORY_CATEGORIES.has(s) ? (s as Memory['category']) : 'kita';
+}
+
+/** DB uses `type` / `priority` / `owner_id`; app uses category / importance / uid. */
+function normalizeMemoryFromDb(row: Record<string, unknown>): Memory {
+    const typeOrCat = row.category ?? row.type ?? 'kita';
+    const imp = row.importance ?? row.priority;
+    return {
+        id: String(row.id ?? ''),
+        content: String(row.content ?? ''),
+        category: coerceMemoryCategory(typeOrCat),
+        importance: typeof imp === 'number' && !Number.isNaN(imp) ? imp : 3,
+        createdAt: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
+        uid: String(row.owner_id ?? row.uid ?? ''),
+        eventDate: row.event_date
+            ? String(row.event_date)
+            : row.eventDate
+              ? String(row.eventDate)
+              : undefined,
+        isActive: row.is_active === undefined && row.isActive === undefined ? true : row.is_active !== false && row.isActive !== false,
+    };
+}
+
+const BUILDING_TYPES = new Set<string>(['butas', 'namas', 'ofisas', 'nesutarta']);
+
+function coerceBuildingType(v: unknown): Client['buildingType'] {
+    const s = typeof v === 'string' ? v.toLowerCase().trim() : '';
+    if (BUILDING_TYPES.has(s)) return s as Client['buildingType'];
+    return 'nesutarta';
+}
+
+/** SQL `clients`: name, phone, address, building_type, owner_id, created_at (no `notes` in default schema). */
+function normalizeClientFromDb(row: Record<string, unknown>): Client {
+    return {
+        id: String(row.id ?? ''),
+        name: String(row.name ?? ''),
+        phone: String(row.phone ?? ''),
+        address: String(row.address ?? ''),
+        buildingType: coerceBuildingType(row.building_type ?? row.buildingType),
+        notes: row.notes != null ? String(row.notes) : undefined,
+        lastCleaningDate:
+            row.last_cleaning_date != null
+                ? String(row.last_cleaning_date)
+                : row.lastCleaningDate != null
+                  ? String(row.lastCleaningDate)
+                  : undefined,
+        createdAt: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
+    };
+}
+
+function mapOrderStatusFromDb(v: unknown): Order['status'] {
+    const s = String(v ?? '').toLowerCase();
+    if (s === 'vykdoma' || s === 'in_progress') return 'vykdoma';
+    if (s === 'atlikta' || s === 'completed' || s === 'done') return 'atlikta';
+    return 'suplanuota';
+}
+
+function normalizeOrderDateFromDb(v: unknown): string {
+    const raw = String(v ?? '').trim();
+    if (!raw) return '';
+    const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (iso) return iso[1];
+    const lt = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (lt) {
+        const dd = lt[1].padStart(2, '0');
+        const mm = lt[2].padStart(2, '0');
+        const yyyy = lt[3];
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+    return raw;
+}
+
+function normalizeOrderFromDb(row: Record<string, unknown>): Order {
+    const legacyServices = {
+        balkonai: Number(row.balkonai ?? 0) > 0,
+        vitrinos: Number(row.vitrinos ?? 0) > 0,
+        terasa: Number(row.terasa ?? 0) > 0,
+        kiti: String(row.kiti ?? '').trim().length > 0,
+    };
+    const services =
+        (row.additional_services as Order['additionalServices']) ||
+        (row.additionalServices as Order['additionalServices']) ||
+        legacyServices;
+
+    return {
+        id: String(row.id ?? ''),
+        clientId: String(row.client_id ?? row.clientId ?? ''),
+        clientName: String(row.client_name ?? row.clientName ?? ''),
+        employeeId: row.employee_id != null ? String(row.employee_id) : row.employeeId != null ? String(row.employeeId) : undefined,
+        address: String(row.address ?? ''),
+        lat: row.lat != null ? Number(row.lat) : undefined,
+        lng: row.lng != null ? Number(row.lng) : undefined,
+        date: normalizeOrderDateFromDb(row.date),
+        time: String(row.time ?? '10:00'),
+        windowCount: Number(row.window_count ?? row.windowCount ?? row.windows ?? 0),
+        floor: Number(row.floor ?? row.floors ?? 1),
+        additionalServices: {
+            balkonai: !!services?.balkonai,
+            vitrinos: !!services?.vitrinos,
+            terasa: !!services?.terasa,
+            kiti: !!services?.kiti,
+        },
+        totalPrice: Number(row.total_price ?? row.totalPrice ?? row.price ?? 0),
+        status: mapOrderStatusFromDb(row.status),
+        estimatedDuration: row.estimated_duration != null ? Number(row.estimated_duration) : row.estimatedDuration != null ? Number(row.estimatedDuration) : undefined,
+        isRecurring: row.is_recurring != null ? Boolean(row.is_recurring) : row.isRecurring != null ? Boolean(row.isRecurring) : undefined,
+        recurringInterval: row.recurring_interval != null ? Number(row.recurring_interval) : row.recurringInterval != null ? Number(row.recurringInterval) : undefined,
+        notes: row.notes != null ? String(row.notes) : undefined,
+        photoBefore: row.photo_before != null ? String(row.photo_before) : row.photoBefore != null ? String(row.photoBefore) : undefined,
+        photoAfter: row.photo_after != null ? String(row.photo_after) : row.photoAfter != null ? String(row.photoAfter) : undefined,
+        evaluation: row.evaluation as Order['evaluation'],
+        isPaid: row.is_paid != null ? Boolean(row.is_paid) : row.isPaid != null ? Boolean(row.isPaid) : undefined,
+        serviceType: row.service_type != null ? String(row.service_type) : row.serviceType != null ? String(row.serviceType) : undefined,
+        createdAt: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
+    };
+}
+
+type PgLikeError = { code?: string; message?: string } | null;
+const ordersKnownMissingColumns = new Set<string>();
+
+function extractMissingColumnFromPgError(error: PgLikeError): string | null {
+    const msg = String(error?.message ?? '');
+    const match = msg.match(/Could not find the '([^']+)' column/i);
+    return match?.[1] ?? null;
+}
+
+async function insertWithColumnFallback(
+    tableName: string,
+    initialPayload: Record<string, unknown>
+): Promise<{ data: unknown; error: PgLikeError }> {
+    const payload: Record<string, unknown> = { ...initialPayload };
+    if (tableName === 'orders' && ordersKnownMissingColumns.size > 0) {
+        for (const missing of ordersKnownMissingColumns) delete payload[missing];
+    }
+    let attempts = 0;
+    while (attempts < 12) {
+        attempts += 1;
+        const { data, error } = await supabase!.from(tableName).insert(payload).select().single();
+        if (!error) return { data, error: null };
+        const missing = extractMissingColumnFromPgError(error);
+        if (error.code !== 'PGRST204' || !missing || !(missing in payload)) {
+            return { data: null, error };
+        }
+        if (tableName === 'orders') ordersKnownMissingColumns.add(missing);
+        delete payload[missing];
+    }
+    return { data: null, error: { code: 'PGRST204', message: 'Too many missing-column retries' } };
+}
+
+async function updateWithColumnFallback(
+    tableName: string,
+    id: string,
+    initialPayload: Record<string, unknown>
+): Promise<PgLikeError> {
+    const payload: Record<string, unknown> = { ...initialPayload };
+    if (tableName === 'orders' && ordersKnownMissingColumns.size > 0) {
+        for (const missing of ordersKnownMissingColumns) delete payload[missing];
+    }
+    let attempts = 0;
+    while (attempts < 12) {
+        attempts += 1;
+        const { error } = await supabase!.from(tableName).update(payload).eq('id', id);
+        if (!error) return null;
+        const missing = extractMissingColumnFromPgError(error);
+        if (error.code !== 'PGRST204' || !missing || !(missing in payload)) {
+            return error;
+        }
+        if (tableName === 'orders') ordersKnownMissingColumns.add(missing);
+        delete payload[missing];
+    }
+    return { code: 'PGRST204', message: 'Too many missing-column retries' };
+}
+
+export async function checkOrdersSchemaHealth(userId: string): Promise<{
+    ok: boolean;
+    mode: 'modern' | 'legacy' | 'unknown';
+    message: string;
+}> {
+    if (isDemoMode || !supabase) {
+        return {
+            ok: true,
+            mode: 'unknown',
+            message: 'Demo režimas: SQL schema netikrinama.',
+        };
+    }
+
+    const probeModern = {
+        owner_id: userId,
+        client_name: 'schema_probe',
+        date: new Date().toISOString().split('T')[0],
+        time: '10:00',
+        window_count: 1,
+        floor: 1,
+        additional_services: { balkonai: false, vitrinos: false, terasa: false, kiti: false },
+        total_price: 0,
+        status: 'suplanuota',
+        created_at: new Date().toISOString(),
+    };
+    const modern = await supabase.from('orders').insert(probeModern).select('id').single();
+    if (!modern.error) {
+        const createdId = (modern.data as { id?: string } | null)?.id;
+        if (createdId) await supabase.from('orders').delete().eq('id', createdId);
+        ordersSchemaMode = 'modern';
+        return { ok: true, mode: 'modern', message: 'Orders schema: modern (window_count/floor/additional_services).' };
+    }
+
+    const probeLegacy = {
+        owner_id: userId,
+        date: new Date().toISOString().split('T')[0],
+        time: '10:00',
+        windows: 1,
+        floors: 1,
+        balkonai: 0,
+        vitrinos: 0,
+        terasa: 0,
+        kiti: '',
+        status: 'pending',
+        price: 0,
+        created_at: new Date().toISOString(),
+    };
+    const legacy = await supabase.from('orders').insert(probeLegacy).select('id').single();
+    if (!legacy.error) {
+        const createdId = (legacy.data as { id?: string } | null)?.id;
+        if (createdId) await supabase.from('orders').delete().eq('id', createdId);
+        ordersSchemaMode = 'legacy';
+        return { ok: true, mode: 'legacy', message: 'Orders schema: legacy (windows/floors/balkonai/vitrinos/terasa).' };
+    }
+
+    return {
+        ok: false,
+        mode: 'unknown',
+        message: `Orders schema check failed. Modern: ${modern.error.message || modern.error.code}. Legacy: ${legacy.error.message || legacy.error.code}.`,
+    };
+}
+
 // Convert Supabase user to app user format
 function mapSupabaseUser(user: User | null): AuthUser | null {
     if (!user) return null;
@@ -92,6 +376,7 @@ function mapSupabaseUser(user: User | null): AuthUser | null {
 
 // Auth listeners for demo mode
 let authListeners: ((user: AuthUser | null) => void)[] = [];
+let ordersSchemaMode: 'unknown' | 'modern' | 'legacy' = 'unknown';
 
 // Sign up with email and password
 export async function signUp(email: string, password: string, displayName?: string) {
@@ -227,6 +512,24 @@ export async function signIn(email: string, password: string) {
     }
 }
 
+/** Request password reset email (Supabase or Firebase). Not available in pure local demo. */
+export async function requestPasswordResetEmail(email: string): Promise<void> {
+    const trimmed = email.trim();
+    if (!trimmed) {
+        throw new Error('Įveskite el. paštą.');
+    }
+    const redirectTo = `${window.location.origin}/reset-password`;
+    if (usesFirebase) {
+        await FirebaseBackend.sendFirebasePasswordReset(trimmed);
+        return;
+    }
+    if (isDemoMode || !supabase) {
+        throw new Error('Slaptažodžio atstatymas šiuo metu nepasiekiamas vietiniame režime.');
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmed, { redirectTo });
+    if (error) throw error;
+}
+
 // Sign in with Google
 export async function signInWithGoogle() {
     if (usesFirebase) {
@@ -316,16 +619,48 @@ export async function getData<T extends DatabaseRecord>(
     if (isDemoMode || !supabase) {
         return localGetData<any>(tableName, userId);
     }
-    const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('uid', userId)
-        .order('created_at', { ascending: false });
+    // Use 'uid' for profiles table, 'owner_id' for other tables
+    const idColumn = tableName === 'profiles' ? 'uid' : 'owner_id';
+    
+    if (DEBUG_SUPABASE) {
+        console.log(`[DEBUG] getData: table=${tableName}, column=${idColumn}, userId=${userId}`);
+    }
+    
+    // Dynamic table/columns — chain types differ per step; use a loose builder.
+    let query: any = supabase.from(tableName);
+    if (tableName === 'profiles') {
+        query = query.select('id,uid,email,name,phone,role,client_id,created_at');
+    } else {
+        query = query.select('*');
+    }
+    if (tableName === 'profiles') {
+        query = query.match({ [idColumn]: userId });
+    } else {
+        query = query.eq(idColumn, userId);
+    }
+    if (tableName !== 'profiles') {
+        query = query.order('created_at', { ascending: false });
+    }
+    
+    const { data, error } = await query;
     if (error) {
-        console.error(`Error fetching ${tableName}:`, error);
+        console.error(`[DEBUG] Error fetching ${tableName}:`, error);
         throw error;
     }
-    return data || [];
+    if (DEBUG_SUPABASE) {
+        console.log(`[DEBUG] getData success: ${tableName}, rows=${data?.length || 0}`);
+    }
+    const rows = data || [];
+    if (tableName === 'memories') {
+        return (rows as Record<string, unknown>[]).map((r) => normalizeMemoryFromDb(r)) as unknown as T[];
+    }
+    if (tableName === 'clients') {
+        return (rows as Record<string, unknown>[]).map((r) => normalizeClientFromDb(r)) as unknown as T[];
+    }
+    if (tableName === 'orders') {
+        return (rows as Record<string, unknown>[]).map((r) => normalizeOrderFromDb(r)) as unknown as T[];
+    }
+    return rows as T[];
 }
 
 export async function getDataById<T extends DatabaseRecord>(
@@ -349,6 +684,15 @@ export async function getDataById<T extends DatabaseRecord>(
         console.error(`Error fetching ${tableName} by id:`, error);
         throw error;
     }
+    if (tableName === 'memories' && data) {
+        return normalizeMemoryFromDb(data as Record<string, unknown>) as unknown as T;
+    }
+    if (tableName === 'clients' && data) {
+        return normalizeClientFromDb(data as Record<string, unknown>) as unknown as T;
+    }
+    if (tableName === 'orders' && data) {
+        return normalizeOrderFromDb(data as Record<string, unknown>) as unknown as T;
+    }
     return data;
 }
 
@@ -363,21 +707,194 @@ export async function addData<T extends Record<string, unknown>>(
     if (isDemoMode || !supabase) {
         return localAddData<any>(tableName, userId, item);
     }
+
+    // Legacy Supabase `memories` table: content, type, priority, owner_id, created_at (not category/importance)
+    if (tableName === 'memories') {
+        const m = item as Record<string, unknown>;
+        const content = m.content;
+        if (content === undefined || content === null || String(content).trim() === '') {
+            throw new Error('Memory content is required');
+        }
+        const insertData: Record<string, unknown> = {
+            content: String(content),
+            type: String(m.type ?? m.category ?? 'kita'),
+            priority:
+                typeof m.importance === 'number' && !Number.isNaN(m.importance)
+                    ? m.importance
+                    : typeof m.priority === 'number' && !Number.isNaN(m.priority)
+                      ? m.priority
+                      : 5,
+            owner_id: userId,
+            created_at: String(m.createdAt ?? m.created_at ?? new Date().toISOString()),
+        };
+        if (DEBUG_SUPABASE) {
+            console.log(`[DEBUG] addData: table=memories`);
+            console.log(`[DEBUG] insertData keys:`, Object.keys(insertData));
+        }
+        const { data, error } = await supabase
+            .from('memories')
+            .insert(insertData)
+            .select()
+            .single();
+        if (error) {
+            console.error(`[DEBUG] Error adding to memories:`, error);
+            throw error;
+        }
+        if (DEBUG_SUPABASE) {
+            console.log(`[DEBUG] addData success: memories`);
+        }
+        return normalizeMemoryFromDb(data as Record<string, unknown>) as unknown as T;
+    }
+
+    // Default Supabase `clients`: no `notes` column — merge notes into address; only known columns.
+    if (tableName === 'clients') {
+        const c = item as Record<string, unknown>;
+        let address = String(c.address ?? '');
+        const notes = String(c.notes ?? '').trim();
+        if (notes) {
+            address = address ? `${address} · ${notes}` : notes;
+        }
+        const insertData: Record<string, unknown> = {
+            name: String(c.name ?? 'Naujas klientas').trim() || 'Naujas klientas',
+            phone: String(c.phone ?? ''),
+            address,
+            building_type: coerceBuildingType(c.buildingType ?? c.building_type),
+            owner_id: userId,
+            created_at: String(c.createdAt ?? c.created_at ?? new Date().toISOString()),
+        };
+        if (DEBUG_SUPABASE) {
+            console.log(`[DEBUG] addData: table=clients`, Object.keys(insertData));
+        }
+        const { data, error } = await supabase.from('clients').insert(insertData).select().single();
+        if (error) {
+            console.error(
+                `Error adding to clients:`,
+                (error as { message?: string; code?: string }).message || (error as { code?: string }).code,
+                error
+            );
+            throw error;
+        }
+        if (DEBUG_SUPABASE) {
+            console.log(`[DEBUG] addData success: clients`);
+        }
+        return normalizeClientFromDb(data as Record<string, unknown>) as unknown as T;
+    }
+
+    // Support both new and legacy Supabase `orders` schemas.
+    if (tableName === 'orders') {
+        const o = item as Record<string, unknown>;
+        const services = (o.additionalServices ?? {}) as Record<string, unknown>;
+        const modernInsert: Record<string, unknown> = {
+            client_id: o.clientId ?? o.client_id ?? null,
+            client_name: o.clientName ?? o.client_name ?? '',
+            employee_id: o.employeeId ?? o.employee_id ?? null,
+            address: o.address ?? '',
+            lat: o.lat ?? null,
+            lng: o.lng ?? null,
+            date: o.date ?? new Date().toISOString().split('T')[0],
+            time: o.time ?? '10:00',
+            window_count: Number(o.windowCount ?? o.window_count ?? 0),
+            floor: Number(o.floor ?? 1),
+            additional_services: services,
+            total_price: Number(o.totalPrice ?? o.total_price ?? o.price ?? 0),
+            status: o.status ?? 'suplanuota',
+            estimated_duration: o.estimatedDuration ?? o.estimated_duration ?? 60,
+            is_recurring: o.isRecurring ?? o.is_recurring ?? false,
+            recurring_interval: o.recurringInterval ?? o.recurring_interval ?? null,
+            notes: o.notes ?? '',
+            owner_id: userId,
+            created_at: String(o.createdAt ?? o.created_at ?? new Date().toISOString()),
+        };
+        const legacyInsert: Record<string, unknown> = {
+            client_id: o.clientId ?? o.client_id ?? null,
+            date: o.date ?? new Date().toISOString().split('T')[0],
+            time: o.time ?? '10:00',
+            windows: Number(o.windowCount ?? o.window_count ?? 0),
+            floors: Number(o.floor ?? 1),
+            balkonai: services.balkonai ? 1 : 0,
+            vitrinos: services.vitrinos ? 1 : 0,
+            terasa: services.terasa ? 1 : 0,
+            kiti: services.kiti ? 'taip' : '',
+            status: o.status ?? 'pending',
+            price: Number(o.totalPrice ?? o.total_price ?? o.price ?? 0),
+            owner_id: userId,
+            created_at: String(o.createdAt ?? o.created_at ?? new Date().toISOString()),
+        };
+
+        let data: unknown = null;
+        let error: PgLikeError = null;
+        if (ordersSchemaMode !== 'legacy') {
+            ({ data, error } = await supabase.from('orders').insert(modernInsert).select().single());
+            if (!error) {
+                ordersSchemaMode = 'modern';
+            }
+        }
+        if (ordersSchemaMode === 'legacy' || (error && error.code === 'PGRST204')) {
+            ({ data, error } = await insertWithColumnFallback('orders', legacyInsert));
+            if (!error) {
+                ordersSchemaMode = 'legacy';
+            }
+        }
+        if (error) {
+            console.error(`Error adding to orders:`, error.message || error.code, error);
+            throw error;
+        }
+        return normalizeOrderFromDb(data as Record<string, unknown>) as unknown as T;
+    }
+    if (tableName === 'expenses') {
+        const e = item as Record<string, unknown>;
+        const insertData: Record<string, unknown> = {
+            title: String(e.title ?? 'nesutarta'),
+            amount: Number(e.amount ?? 0),
+            date: String(e.date ?? new Date().toISOString().split('T')[0]),
+            category: String(e.category ?? 'kita'),
+            notes: e.notes != null ? String(e.notes) : '',
+            owner_id: userId,
+        };
+        const { data, error } = await insertWithColumnFallback('expenses', insertData);
+        if (error) {
+            console.error(`Error adding to expenses:`, error.message || error.code, error);
+            throw error;
+        }
+        return data as T;
+    }
+
     // Convert camelCase to snake_case for Supabase
     const snakeItem: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(item)) {
+        if (key === 'uid' || key === 'owner_id') {
+            if (DEBUG_SUPABASE) {
+                console.log(`[DEBUG] Skipping key: ${key}`);
+            }
+            continue;
+        }
         snakeItem[key.replace(/([A-Z])/g, '_$1').toLowerCase()] = value;
     }
+    const idColumn = tableName === 'profiles' ? 'uid' : 'owner_id';
+    const insertData = { ...snakeItem, [idColumn]: userId };
+
+    if (DEBUG_SUPABASE) {
+        console.log(`[DEBUG] addData: table=${tableName}, column=${idColumn}`);
+        console.log(`[DEBUG] insertData keys:`, Object.keys(insertData));
+    }
+
     const { data, error } = await supabase
         .from(tableName)
-        .insert({ ...snakeItem, uid: userId })
+        .insert(insertData)
         .select()
         .single();
     if (error) {
-        console.error(`Error adding to ${tableName}:`, error);
+        console.error(
+            `Error adding to ${tableName}:`,
+            (error as { message?: string; code?: string }).message || (error as { code?: string }).code,
+            error
+        );
         throw error;
     }
-    return data;
+    if (DEBUG_SUPABASE) {
+        console.log(`[DEBUG] addData success: ${tableName}`);
+    }
+    return data as T;
 }
 
 export async function updateData<T extends Record<string, unknown>>(
@@ -389,8 +906,120 @@ export async function updateData<T extends Record<string, unknown>>(
         await FirebaseBackend.updateData<T>(tableName, id, updates);
         return;
     }
+    if (tableName === 'expenses') {
+        const u = updates as Record<string, unknown>;
+        const snake: Record<string, unknown> = {};
+        if (u.title !== undefined) snake.title = u.title;
+        if (u.amount !== undefined) snake.amount = u.amount;
+        if (u.date !== undefined) snake.date = u.date;
+        if (u.category !== undefined) snake.category = u.category;
+        if (u.notes !== undefined) snake.notes = u.notes;
+        if (Object.keys(snake).length === 0) return;
+        const error = await updateWithColumnFallback('expenses', id, snake);
+        if (error) {
+            console.error(`Error updating expenses:`, error);
+            throw error;
+        }
+        return;
+    }
     if (isDemoMode || !supabase) {
         localUpdateData<any>(tableName, id, updates);
+        return;
+    }
+    if (tableName === 'memories') {
+        const u = updates as Record<string, unknown>;
+        const snakeUpdates: Record<string, unknown> = {};
+        if (u.content !== undefined) snakeUpdates.content = u.content;
+        if (u.category !== undefined) snakeUpdates.type = u.category;
+        if (u.type !== undefined) snakeUpdates.type = u.type;
+        if (u.importance !== undefined) snakeUpdates.priority = u.importance;
+        if (u.priority !== undefined) snakeUpdates.priority = u.priority;
+        if (Object.keys(snakeUpdates).length === 0) {
+            return;
+        }
+        const { error } = await supabase.from('memories').update(snakeUpdates).eq('id', id);
+        if (error) {
+            console.error(`Error updating memories:`, error);
+            throw error;
+        }
+        return;
+    }
+    if (tableName === 'clients') {
+        const u = updates as Record<string, unknown>;
+        const snake: Record<string, unknown> = {};
+        if (u.name !== undefined) snake.name = u.name;
+        if (u.phone !== undefined) snake.phone = u.phone;
+        if (u.address !== undefined) snake.address = u.address;
+        if (u.buildingType !== undefined) snake.building_type = coerceBuildingType(u.buildingType);
+        if (u.building_type !== undefined) snake.building_type = coerceBuildingType(u.building_type);
+        if (u.lastCleaningDate !== undefined) snake.last_cleaning_date = u.lastCleaningDate;
+        if (u.last_cleaning_date !== undefined) snake.last_cleaning_date = u.last_cleaning_date;
+        if (Object.keys(snake).length === 0) {
+            return;
+        }
+        const { error } = await supabase.from('clients').update(snake).eq('id', id);
+        if (error) {
+            console.error(`Error updating clients:`, error);
+            throw error;
+        }
+        return;
+    }
+    if (tableName === 'orders') {
+        const u = updates as Record<string, unknown>;
+        const services = (u.additionalServices ?? {}) as Record<string, unknown>;
+        const modern: Record<string, unknown> = {};
+        if (u.clientId !== undefined) modern.client_id = u.clientId;
+        if (u.clientName !== undefined) modern.client_name = u.clientName;
+        if (u.employeeId !== undefined) modern.employee_id = u.employeeId;
+        if (u.address !== undefined) modern.address = u.address;
+        if (u.lat !== undefined) modern.lat = u.lat;
+        if (u.lng !== undefined) modern.lng = u.lng;
+        if (u.date !== undefined) modern.date = u.date;
+        if (u.time !== undefined) modern.time = u.time;
+        if (u.windowCount !== undefined) modern.window_count = u.windowCount;
+        if (u.floor !== undefined) modern.floor = u.floor;
+        if (u.additionalServices !== undefined) modern.additional_services = services;
+        if (u.totalPrice !== undefined) modern.total_price = u.totalPrice;
+        if (u.status !== undefined) modern.status = u.status;
+        if (u.estimatedDuration !== undefined) modern.estimated_duration = u.estimatedDuration;
+        if (u.isRecurring !== undefined) modern.is_recurring = u.isRecurring;
+        if (u.recurringInterval !== undefined) modern.recurring_interval = u.recurringInterval;
+        if (u.notes !== undefined) modern.notes = u.notes;
+        modern.updated_at = new Date().toISOString();
+
+        let error: PgLikeError = null;
+        if (ordersSchemaMode !== 'legacy') {
+            error = await supabase.from('orders').update(modern).eq('id', id).then((r) => r.error);
+            if (!error) {
+                ordersSchemaMode = 'modern';
+            }
+        }
+        if (ordersSchemaMode === 'legacy' || (error && error.code === 'PGRST204')) {
+            const legacy: Record<string, unknown> = {};
+            if (u.clientId !== undefined) legacy.client_id = u.clientId;
+            if (u.date !== undefined) legacy.date = u.date;
+            if (u.time !== undefined) legacy.time = u.time;
+            if (u.windowCount !== undefined) legacy.windows = u.windowCount;
+            if (u.floor !== undefined) legacy.floors = u.floor;
+            if (u.additionalServices !== undefined) {
+                legacy.balkonai = services.balkonai ? 1 : 0;
+                legacy.vitrinos = services.vitrinos ? 1 : 0;
+                legacy.terasa = services.terasa ? 1 : 0;
+                legacy.kiti = services.kiti ? 'taip' : '';
+            }
+            if (u.totalPrice !== undefined) legacy.price = u.totalPrice;
+            if (u.status !== undefined) legacy.status = u.status;
+            if (u.notes !== undefined) legacy.notes = u.notes;
+            legacy.updated_at = new Date().toISOString();
+            error = await updateWithColumnFallback('orders', id, legacy);
+            if (!error) {
+                ordersSchemaMode = 'legacy';
+            }
+        }
+        if (error) {
+            console.error(`Error updating orders:`, error);
+            throw error;
+        }
         return;
     }
     // Convert camelCase to snake_case for Supabase
@@ -440,12 +1069,15 @@ export function subscribeToData<T extends DatabaseRecord>(
     // Initial fetch
     getData<T>(tableName, userId).then(callback).catch(console.error);
 
+    // Use 'uid' for profiles table, 'owner_id' for other tables
+    const idColumn = tableName === 'profiles' ? 'uid' : 'owner_id';
+    
     const channelName = `crm_${tableName}_${userId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
     const channel = supabase
         .channel(channelName)
         .on(
             'postgres_changes',
-            { event: '*', schema: 'public', table: tableName, filter: `uid=eq.${userId}` },
+            { event: '*', schema: 'public', table: tableName, filter: `${idColumn}=eq.${userId}` },
             (payload) => {
                 getData<T>(tableName, userId).then(callback).catch(console.error);
             }
@@ -554,21 +1186,18 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .select('*')
+            .select('id,uid,email,name,phone,role,client_id,created_at')
             .eq('uid', uid)
-            .single();
-            
+            .maybeSingle();
+
         if (error) {
-            if (error.code === 'PGRST116') {
-                // Profile doesn't exist, create default
-                return await createDefaultProfile(uid);
-            }
             return null;
         }
-        
-        return data as UserProfile;
-    } catch (err) {
-        console.error('Error getting user profile:', err);
+        if (!data) {
+            return null;
+        }
+        return mapProfileRowToUserProfile(data as ProfileRow);
+    } catch {
         return null;
     }
 }
@@ -594,14 +1223,22 @@ export async function createDefaultProfile(uid: string, email?: string, role: Us
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .insert(profile)
-            .select()
+            .insert({
+                id: profile.id,
+                uid: profile.uid,
+                email: profile.email || '',
+                role: profile.role,
+                name: profile.name ?? null,
+                phone: profile.phone ?? null,
+                client_id: profile.clientId ?? null,
+                created_at: profile.createdAt,
+            })
+            .select('id,uid,email,name,phone,role,client_id,created_at')
             .single();
-            
+
         if (error) throw error;
-        return data as UserProfile;
+        return mapProfileRowToUserProfile(data as ProfileRow);
     } catch (err) {
-        console.error('Error creating profile:', err);
         // Fallback to local storage
         localStorage.setItem(`profile_${uid}`, JSON.stringify(profile));
         return profile;
@@ -611,7 +1248,7 @@ export async function createDefaultProfile(uid: string, email?: string, role: Us
 // Update user profile
 export async function updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
     if (usesFirebase) {
-        return FirebaseBackend.updateProfile(uid, updates);
+        return FirebaseBackend.updateUserProfile(uid, updates);
     }
     if (isDemoMode || !supabase) {
         const profile = await getUserProfile(uid);
@@ -624,17 +1261,20 @@ export async function updateUserProfile(uid: string, updates: Partial<UserProfil
     }
     
     try {
+        const snake = userProfileUpdatesToSnake(updates);
+        if (Object.keys(snake).length === 0) {
+            return getUserProfile(uid);
+        }
         const { data, error } = await supabase
             .from('profiles')
-            .update(updates)
+            .update(snake)
             .eq('uid', uid)
-            .select()
+            .select('id,uid,email,name,phone,role,client_id,created_at')
             .single();
-            
+
         if (error) throw error;
-        return data as UserProfile;
+        return mapProfileRowToUserProfile(data as ProfileRow);
     } catch (err) {
-        console.error('Error updating profile:', err);
         return null;
     }
 }
@@ -645,7 +1285,7 @@ export async function getClientOrders(clientId: string): Promise<Order[]> {
         return FirebaseBackend.getClientOrders(clientId);
     }
     if (isDemoMode || !supabase) {
-        return localGetData('orders').filter(order => order.clientId === clientId) as Order[];
+        return localGetData<any>('orders', '').filter(order => order.clientId === clientId) as Order[];
     }
     
     try {
@@ -679,17 +1319,17 @@ export async function registerClientUser(email: string, password: string, client
         name: clientData.name,
         phone: clientData.phone,
         address: clientData.address,
-        buildingType: 'butas', // default
+        buildingType: 'nesutarta',
         createdAt: new Date().toISOString()
     };
     
     if (usesFirebase) {
-        await FirebaseBackend.addData('clients', client);
+        await FirebaseBackend.addData('clients', uid, client as unknown as Record<string, unknown>);
     } else if (!isDemoMode && supabase) {
         const { error } = await supabase.from('clients').insert(client);
         if (error) throw error;
     } else {
-        localAddData('clients', client);
+        localAddData('clients', uid, client);
     }
     
     // Create user profile with client role

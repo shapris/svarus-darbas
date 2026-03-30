@@ -1,8 +1,9 @@
 // Dashboard business insights and analytics
 
 import { Order, Client, Expense, Memory } from "../types";
-import { getAiInstance } from './aiService';
+import { getAiInstance, getGeminiApiKeyForSdk, consumeAiBudget } from './aiService';
 import { isOpenRouterKey, callOpenRouter } from './openRouterService';
+import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 
 export type DashboardInsightId = 'memory' | 'market' | 'operations';
 
@@ -28,6 +29,43 @@ export const DASHBOARD_INSIGHT_LABELS: Record<DashboardInsightId, { defaultTitle
     badge: 'Operacijos',
   },
 };
+
+let geminiInsightsCooldownUntil = 0;
+let openRouterInsightsCooldownUntil = 0;
+let inFlightInsightsPromise: Promise<DashboardInsight[]> | null = null;
+let inFlightInsightsKey = '';
+let lastInsightsSource: 'ai' | 'fallback' = 'fallback';
+
+export function getLastInsightsSource(): 'ai' | 'fallback' {
+  return lastInsightsSource;
+}
+
+function isCooldownActive(untilTs: number): boolean {
+  return Date.now() < untilTs;
+}
+
+function extractRetryDelayMs(err: unknown): number {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+  // Free-tier "per day" exhaustion can report short retryDelay; avoid hammering for hours.
+  if (/(perday|per day|requestsperday|limit:\s*0)/i.test(raw)) {
+    return 6 * 60 * 60 * 1000; // 6h cooldown for hard quota exhaustion
+  }
+  const match = raw.match(/retry(?:Delay)?["\s:]*([0-9]+)(?:\.[0-9]+)?s/i);
+  const seconds = match ? Number(match[1]) : NaN;
+  if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
+  return 60_000; // default 60s cooldown
+}
+
+function isRateLimitOrQuotaError(err: unknown): boolean {
+  const raw = (err instanceof Error ? err.message : String(err ?? '')).toLowerCase();
+  return (
+    raw.includes('429') ||
+    raw.includes('resource_exhausted') ||
+    raw.includes('quota') ||
+    raw.includes('rate limit') ||
+    raw.includes('too many requests')
+  );
+}
 
 function normalizeDashboardInsightsFromObjects(raw: unknown[]): DashboardInsight[] {
   const byId = new Map<DashboardInsightId, DashboardInsight>();
@@ -249,57 +287,121 @@ export async function getBusinessInsights(
   memories: Memory[] = [],
   expenses: Expense[] = [],
 ): Promise<DashboardInsight[]> {
+  const requestKey = `${orders.length}|${clients.length}|${memories.length}|${expenses.length}`;
+  if (inFlightInsightsPromise && inFlightInsightsKey === requestKey) {
+    return inFlightInsightsPromise;
+  }
+
+  const run = async (): Promise<DashboardInsight[]> => {
   const apiKey =
     localStorage.getItem('custom_api_key') ||
     (window as any).aistudio?.getApiKey?.() ||
-    import.meta.env.VITE_GEMINI_API_KEY ||
+    getGeminiKeyFromEnv() ||
     '';
 
   const prompt = buildBusinessInsightsPrompt(orders, clients, memories, expenses);
   const fallback = buildDashboardInsightsFallback(orders, clients, memories, expenses);
+  const geminiKey = getGeminiApiKeyForSdk();
 
-  if (!apiKey) {
+  if (!apiKey && !geminiKey) {
+    lastInsightsSource = 'fallback';
     return fallback;
   }
 
-  const runOpenRouter = async (): Promise<DashboardInsight[] | null> => {
+  const runOpenRouterInsights = async (): Promise<DashboardInsight[] | null> => {
+    if (isCooldownActive(openRouterInsightsCooldownUntil)) {
+      return null;
+    }
+    if (!consumeAiBudget(1)) {
+      return null;
+    }
     try {
-      const result = await callOpenRouter(apiKey, 'free-auto', [{ role: 'user', content: prompt }]);
-      const text = result.choices[0].message.content || '';
+      const result = await callOpenRouter('free-auto', [{ role: 'user', content: prompt }]);
+      if (!result || !result.choices || !result.choices[0]) {
+        return null;
+      }
+      const text = result.choices[0].message?.content || '';
+      if (!text) return null;
+
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return null;
-      const parsed = parseDashboardInsightsPayload(JSON.parse(jsonMatch[0]));
-      return parsed;
-    } catch (e) {
-      console.error('OpenRouter Insights Error:', e);
+
+      try {
+        return parseDashboardInsightsPayload(JSON.parse(jsonMatch[0]));
+      } catch {
+        console.warn('Insights: nepavyko išanalizuoti OpenRouter JSON, bandoma kita paslauga');
+        return null;
+      }
+    } catch (e: unknown) {
+      if (isRateLimitOrQuotaError(e)) {
+        openRouterInsightsCooldownUntil = Date.now() + extractRetryDelayMs(e);
+      }
+      console.warn('OpenRouter insights:', e);
       return null;
     }
   };
 
-  const runGemini = async (): Promise<DashboardInsight[] | null> => {
+  const runGeminiInsights = async (): Promise<DashboardInsight[] | null> => {
+    if (!geminiKey) return null;
+    if (isCooldownActive(geminiInsightsCooldownUntil)) {
+      return null;
+    }
+    if (!consumeAiBudget(1)) {
+      return null;
+    }
     try {
-      const ai = getAiInstance(apiKey);
+      const ai = getAiInstance(geminiKey);
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.0-flash',
         contents: prompt,
         config: { responseMimeType: 'application/json' },
       });
       const text = response.text;
       if (!text) return null;
-      return parseDashboardInsightsPayload(JSON.parse(text));
+
+      try {
+        return parseDashboardInsightsPayload(JSON.parse(text));
+      } catch {
+        console.warn('Insights: nepavyko išanalizuoti Gemini JSON');
+        return null;
+      }
     } catch (error) {
-      console.error('Error getting AI insights:', error);
+      if (isRateLimitOrQuotaError(error)) {
+        geminiInsightsCooldownUntil = Date.now() + extractRetryDelayMs(error);
+        return null;
+      }
+      // Keep dev console clean for expected provider failures.
       return null;
     }
   };
 
-  if (isOpenRouterKey(apiKey)) {
-    const fromOr = await runOpenRouter();
-    if (fromOr) return fromOr;
-    return fallback;
+  /** Pirmiau Gemini — išvengiama OpenRouter „free“ dienos ribos kiekvienam dashboard atnaujinimui. */
+  const fromGeminiFirst = await runGeminiInsights();
+  if (fromGeminiFirst) {
+    lastInsightsSource = 'ai';
+    return fromGeminiFirst;
   }
 
-  const fromGemini = await runGemini();
-  if (fromGemini) return fromGemini;
+  if (apiKey && isOpenRouterKey(apiKey)) {
+    const fromOr = await runOpenRouterInsights();
+    if (fromOr) {
+      lastInsightsSource = 'ai';
+      return fromOr;
+    }
+  }
+
+  lastInsightsSource = 'fallback';
   return fallback;
+  };
+
+  inFlightInsightsKey = requestKey;
+  inFlightInsightsPromise = run();
+  try {
+    return await inFlightInsightsPromise;
+  } finally {
+    if (inFlightInsightsKey === requestKey) {
+      inFlightInsightsPromise = null;
+      inFlightInsightsKey = '';
+    }
+  }
 }

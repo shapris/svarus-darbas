@@ -13,6 +13,8 @@ import {
     signOut as firebaseSignOut,
     updateProfile,
     onAuthStateChanged,
+    sendPasswordResetEmail,
+    confirmPasswordReset,
     type User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -30,7 +32,7 @@ import {
     addDoc,
     type DocumentData,
 } from 'firebase/firestore';
-import { DEFAULT_SETTINGS, type AppSettings } from './types';
+import { DEFAULT_SETTINGS, type AppSettings, type UserProfile, type UserRole, type Order } from './types';
 
 export const TABLES_FB = {
     CLIENTS: 'clients',
@@ -136,6 +138,27 @@ export async function signIn(email: string, password: string) {
         const auth = getFirebaseAuth();
         const cred = await signInWithEmailAndPassword(auth, email, password);
         return wrapUserForApp(cred.user);
+    } catch (e) {
+        throw mapAuthError(e);
+    }
+}
+
+export async function sendFirebasePasswordReset(email: string) {
+    try {
+        const auth = getFirebaseAuth();
+        await sendPasswordResetEmail(auth, email, {
+            url: `${window.location.origin}/reset-password`,
+            handleCodeInApp: false,
+        });
+    } catch (e) {
+        throw mapAuthError(e);
+    }
+}
+
+export async function confirmFirebasePasswordReset(oobCode: string, newPassword: string) {
+    try {
+        const auth = getFirebaseAuth();
+        await confirmPasswordReset(auth, oobCode, newPassword);
     } catch (e) {
         throw mapAuthError(e);
     }
@@ -303,7 +326,7 @@ export async function submitPublicBooking(
             name: clientPayload.name || '',
             phone,
             address: clientPayload.address || '',
-            buildingType: clientPayload.buildingType || 'butas',
+            buildingType: clientPayload.buildingType || 'nesutarta',
             createdAt: clientPayload.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         });
@@ -336,4 +359,35 @@ export async function testConnection() {
     } catch {
         return false;
     }
+}
+
+// Profile functions for role-based access
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+    const db = getFirestore(ensureApp());
+    const docRef = doc(db, 'profiles', uid);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    return snap.data() as UserProfile;
+}
+
+export async function createProfile(profile: UserProfile): Promise<UserProfile> {
+    const db = getFirestore(ensureApp());
+    await setDoc(doc(db, 'profiles', profile.uid), profile);
+    return profile;
+}
+
+export async function updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
+    const db = getFirestore(ensureApp());
+    const docRef = doc(db, 'profiles', uid);
+    await updateDoc(docRef, updates);
+    const snap = await getDoc(docRef);
+    return snap.exists() ? snap.data() as UserProfile : null;
+}
+
+export async function getClientOrders(clientId: string): Promise<Order[]> {
+    const db = getFirestore(ensureApp());
+    const ordersCol = collection(db, TABLES_FB.ORDERS);
+    const q = query(ordersCol, where('clientId', '==', clientId));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
 }

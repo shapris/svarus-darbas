@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { registerClientUser } from '../../supabase';
+import { formatAuthErrorForUser, AUTH_FALLBACK } from '../../utils/authMessages';
 import { motion } from 'motion/react';
 
 interface ClientRegistrationProps {
@@ -89,8 +90,8 @@ export default function ClientRegistration({ onSuccess, onBack }: ClientRegistra
             setTimeout(() => {
                 onSuccess(result.user, result.client);
             }, 2000);
-        } catch (err: any) {
-            setError(err.message || 'Registracijos klaida');
+        } catch (err: unknown) {
+            setError(formatAuthErrorForUser(err, AUTH_FALLBACK.register));
         } finally {
             setLoading(false);
         }
@@ -125,7 +126,7 @@ export default function ClientRegistration({ onSuccess, onBack }: ClientRegistra
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <User className="w-8 h-8 text-blue-600" />
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-800">Kliento Registracija</h1>
+                    <h1 className="text-2xl font-bold text-gray-800">Kliento registracija</h1>
                     <p className="text-gray-600 mt-2">Sukurkite paskyrą norėdami matyti savo užsakymus</p>
                 </div>
 

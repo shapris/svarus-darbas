@@ -43,8 +43,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
       setIsAdding(false);
       setEditingId(null);
       setFormData({ name: '', phone: '', color: COLORS[0], isActive: true });
-    } catch (error) {
-      console.error('Error saving employee:', error);
+    } catch {
       alert('Klaida išsaugant darbuotoją');
     }
   };
@@ -64,8 +63,8 @@ export default function TeamView({ employees, user }: TeamViewProps) {
     if (window.confirm('Ar tikrai norite ištrinti šį darbuotoją?')) {
       try {
         deleteData(TABLES.EMPLOYEES, id);
-      } catch (error) {
-        console.error('Error deleting employee:', error);
+      } catch {
+        // Silent fail - already alerted
       }
     }
   };
@@ -117,7 +116,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
               <button onClick={() => handleEdit(emp)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl">
                 <Edit2 size={16} />
               </button>
-              <button onClick={() => handleDelete(emp.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-xl">
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(emp.id); }} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-xl">
                 <Trash2 size={16} />
               </button>
             </div>

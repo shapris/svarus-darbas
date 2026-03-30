@@ -7,6 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { Order, Client, AppSettings, OrderStatus, Employee } from '../types';
 import { addData, updateData, deleteData, TABLES } from '../supabase';
 import { calculateOrderPrice, formatCurrency, formatDate, formatDuration, geocodeAddress, generateInvoicePDF } from '../utils';
+import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
+import { useToast } from '../hooks/useToast';
 
 interface LocalUser {
   uid: string;
@@ -33,6 +35,8 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     clientId: '',
     employeeId: '',
@@ -93,8 +97,8 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       }
       setIsAdding(false);
       setEditingOrder(null);
-    } catch (error) {
-      console.error('Error saving order:', error);
+    } catch {
+      showToast.error('Klaida išsaugant užsakymą');
     } finally {
       setIsSaving(false);
     }
@@ -130,16 +134,16 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         };
 
         await addData(TABLES.ORDERS, user.uid, newOrderData as any);
-        alert(`Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`);
+        showToast.success(`Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`);
       }
-    } catch (error) {
-      console.error('Error updating status:', error);
+    } catch {
+      // Silent fail on status update
     }
   };
 
   const handlePhotoUpload = async (order: Order, type: 'before' | 'after', file: File) => {
     setIsUploading(`${order.id}-${type}`);
-    alert('Nuotraukų įkėlimas nėra galimas naudojant vietinę duomenų saugyklą.');
+    showToast.info('Nuotraukų įkėlimas nėra galimas naudojant vietinę duomenų saugyklą.');
     setIsUploading(null);
   };
 
@@ -152,10 +156,16 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
   const handleDelete = async (id: string) => {
     if (!window.confirm('Ar tikrai norite ištrinti šį užsakymą?')) return;
+    
+    setIsDeleting(id);
     try {
-      deleteData(TABLES.ORDERS, id);
+      await deleteData(TABLES.ORDERS, id);
+      showToast.success('Užsakymas sėkmingai ištrintas');
     } catch (error) {
+      showToast.error('Nepavyko ištrinti užsakymo');
       console.error('Error deleting order:', error);
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -180,7 +190,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const sendSMS = (order: Order) => {
     const client = clients.find(c => c.id === order.clientId);
     if (!client || !client.phone) {
-      alert('Klientas neturi telefono numerio.');
+      showToast.error('Klientas neturi telefono numerio.');
       return;
     }
 
@@ -196,7 +206,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const requestFeedback = (order: Order) => {
     const client = clients.find(c => c.id === order.clientId);
     if (!client || !client.phone) {
-      alert('Klientas neturi telefono numerio.');
+      showToast.error('Klientas neturi telefono numerio.');
       return;
     }
 
@@ -298,7 +308,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       Redaguoti
                     </button>
                     <button
-                      onClick={() => handleDelete(order.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(order.id); }}
                       className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
                     >
                       Ištrinti

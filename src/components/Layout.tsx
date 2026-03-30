@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { LayoutDashboard, Users, Calendar, Settings, PlusCircle, LogOut, Wallet, Droplets } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Settings, PlusCircle, LogOut, Wallet, Droplets, CreditCard } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,6 +20,7 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
     { id: 'calendar', icon: Calendar, label: 'Kalendorius' },
     { id: 'clients', icon: Users, label: 'Klientai' },
     { id: 'expenses', icon: Wallet, label: 'Išlaidos' },
+    { id: 'payments', icon: CreditCard, label: 'Mokėjimai' },
     { id: 'settings', icon: Settings, label: 'Nustatymai' },
   ];
 

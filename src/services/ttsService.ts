@@ -2,6 +2,7 @@
 import { Modality } from "@google/genai";
 import { getAiInstance } from './aiService';
 import { isOpenRouterKey } from './openRouterService';
+import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 
 let currentAudio: HTMLAudioElement | null = null;
 
@@ -99,8 +100,7 @@ export async function getElevenLabsSpeech(
     const blob = await response.blob();
     const url = URL.createObjectURL(blob);
     return new Audio(url);
-  } catch (e) {
-    console.warn('ElevenLabs TTS failed:', e);
+  } catch {
     return null;
   }
 }
@@ -122,7 +122,6 @@ export async function getOpenAITSViaOpenRouter(
   const openAIVoice = voiceMap[voice] || 'alloy';
 
   // OpenRouter deprecated their audio/speech endpoint, use browser TTS as fallback
-  console.warn('OpenRouter TTS endpoint no longer available, using browser TTS');
   return null;
 }
 
@@ -142,7 +141,10 @@ export async function getSpeechAudio(
   
   // Fall back to main API key if no dedicated TTS key
   if (!apiKey) {
-    apiKey = localStorage.getItem('custom_api_key') || (window as any).aistudio?.getApiKey?.() || import.meta.env.VITE_GEMINI_API_KEY || '';
+    apiKey =
+      localStorage.getItem('custom_api_key') ||
+      (window as any).aistudio?.getApiKey?.() ||
+      getGeminiKeyFromEnv();
   }
 
   // If using OpenRouter key without dedicated TTS key, try browser TTS instead
@@ -188,9 +190,7 @@ export async function getSpeechAudio(
       (typeof error === 'string' && error.includes('429'));
 
     if (isQuotaError) {
-      console.warn("Speech generation quota exceeded, falling back to browser TTS.");
-    } else {
-      console.error("Error generating speech:", error);
+      // Quota exceeded, will fallback to browser TTS
     }
   }
   return null;
