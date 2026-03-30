@@ -27,9 +27,9 @@ export const usesFirebase =
     !!import.meta.env.VITE_FIREBASE_API_KEY &&
     !!import.meta.env.VITE_FIREBASE_PROJECT_ID;
 
-// Supabase credentials - fallback to provided values if env vars not set
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wwegrquhoptxbllwiejw.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZWdycXVob3B0eGJsbHdpZWp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjA4ODcsImV4cCI6MjA4OTY5Njg4N30.e4-9CnvJ71TOxAEetCHhq14T16XjBkJVnl6P_szSLbc';
+// Supabase credentials – only from .env / hosting env (never commit real keys in source).
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || '';
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() || '';
 const isValidSupabaseUrl = supabaseUrl.includes('.supabase.co') && !supabaseUrl.includes('your-project');
 const isSupabaseConfigured =
     !usesFirebase &&
@@ -159,6 +159,8 @@ function coerceBuildingType(v: unknown): Client['buildingType'] {
 
 /** SQL `clients`: name, phone, address, building_type, owner_id, created_at (no `notes` in default schema). */
 function normalizeClientFromDb(row: Record<string, unknown>): Client {
+    const latRaw = typeof row.lat === 'string' ? parseFloat(row.lat) : row.lat;
+    const lngRaw = typeof row.lng === 'string' ? parseFloat(row.lng) : row.lng;
     return {
         id: String(row.id ?? ''),
         name: String(row.name ?? ''),
@@ -173,6 +175,14 @@ function normalizeClientFromDb(row: Record<string, unknown>): Client {
                   ? String(row.lastCleaningDate)
                   : undefined,
         createdAt: String(row.created_at ?? row.createdAt ?? new Date().toISOString()),
+        lat: (() => {
+            const n = typeof latRaw === 'string' ? parseFloat(latRaw) : typeof latRaw === 'number' ? latRaw : NaN;
+            return Number.isFinite(n) ? n : undefined;
+        })(),
+        lng: (() => {
+            const n = typeof lngRaw === 'string' ? parseFloat(lngRaw) : typeof lngRaw === 'number' ? lngRaw : NaN;
+            return Number.isFinite(n) ? n : undefined;
+        })(),
     };
 }
 
@@ -246,7 +256,22 @@ function normalizeOrderFromDb(row: Record<string, unknown>): Order {
 }
 
 type PgLikeError = { code?: string; message?: string } | null;
-const ordersKnownMissingColumns = new Set<string>();
+const tableMissingColumnsCache = new Map<string, Set<string>>();
+
+function precacheRemoveMissingColumns(tableName: string, payload: Record<string, unknown>) {
+    const set = tableMissingColumnsCache.get(tableName);
+    if (!set) return;
+    for (const col of set) delete payload[col];
+}
+
+function recordMissingColumn(tableName: string, col: string) {
+    let set = tableMissingColumnsCache.get(tableName);
+    if (!set) {
+        set = new Set();
+        tableMissingColumnsCache.set(tableName, set);
+    }
+    set.add(col);
+}
 
 function extractMissingColumnFromPgError(error: PgLikeError): string | null {
     const msg = String(error?.message ?? '');
@@ -259,9 +284,7 @@ async function insertWithColumnFallback(
     initialPayload: Record<string, unknown>
 ): Promise<{ data: unknown; error: PgLikeError }> {
     const payload: Record<string, unknown> = { ...initialPayload };
-    if (tableName === 'orders' && ordersKnownMissingColumns.size > 0) {
-        for (const missing of ordersKnownMissingColumns) delete payload[missing];
-    }
+    precacheRemoveMissingColumns(tableName, payload);
     let attempts = 0;
     while (attempts < 12) {
         attempts += 1;
@@ -271,7 +294,7 @@ async function insertWithColumnFallback(
         if (error.code !== 'PGRST204' || !missing || !(missing in payload)) {
             return { data: null, error };
         }
-        if (tableName === 'orders') ordersKnownMissingColumns.add(missing);
+        recordMissingColumn(tableName, missing);
         delete payload[missing];
     }
     return { data: null, error: { code: 'PGRST204', message: 'Too many missing-column retries' } };
@@ -283,9 +306,7 @@ async function updateWithColumnFallback(
     initialPayload: Record<string, unknown>
 ): Promise<PgLikeError> {
     const payload: Record<string, unknown> = { ...initialPayload };
-    if (tableName === 'orders' && ordersKnownMissingColumns.size > 0) {
-        for (const missing of ordersKnownMissingColumns) delete payload[missing];
-    }
+    precacheRemoveMissingColumns(tableName, payload);
     let attempts = 0;
     while (attempts < 12) {
         attempts += 1;
@@ -295,7 +316,7 @@ async function updateWithColumnFallback(
         if (error.code !== 'PGRST204' || !missing || !(missing in payload)) {
             return error;
         }
-        if (tableName === 'orders') ordersKnownMissingColumns.add(missing);
+        recordMissingColumn(tableName, missing);
         delete payload[missing];
     }
     return { code: 'PGRST204', message: 'Too many missing-column retries' };
@@ -762,10 +783,14 @@ export async function addData<T extends Record<string, unknown>>(
             owner_id: userId,
             created_at: String(c.createdAt ?? c.created_at ?? new Date().toISOString()),
         };
+        const la = c.lat ?? c.latitude;
+        const ln = c.lng ?? c.longitude;
+        if (typeof la === 'number' && !Number.isNaN(la)) insertData.lat = la;
+        if (typeof ln === 'number' && !Number.isNaN(ln)) insertData.lng = ln;
         if (DEBUG_SUPABASE) {
             console.log(`[DEBUG] addData: table=clients`, Object.keys(insertData));
         }
-        const { data, error } = await supabase.from('clients').insert(insertData).select().single();
+        const { data, error } = await insertWithColumnFallback('clients', insertData);
         if (error) {
             console.error(
                 `Error adding to clients:`,
@@ -954,10 +979,12 @@ export async function updateData<T extends Record<string, unknown>>(
         if (u.building_type !== undefined) snake.building_type = coerceBuildingType(u.building_type);
         if (u.lastCleaningDate !== undefined) snake.last_cleaning_date = u.lastCleaningDate;
         if (u.last_cleaning_date !== undefined) snake.last_cleaning_date = u.last_cleaning_date;
+        if (u.lat !== undefined) snake.lat = u.lat;
+        if (u.lng !== undefined) snake.lng = u.lng;
         if (Object.keys(snake).length === 0) {
             return;
         }
-        const { error } = await supabase.from('clients').update(snake).eq('id', id);
+        const error = await updateWithColumnFallback('clients', id, snake);
         if (error) {
             console.error(`Error updating clients:`, error);
             throw error;
@@ -1090,6 +1117,17 @@ export function subscribeToData<T extends DatabaseRecord>(
     };
 }
 
+function isBookingRpcMissing(error: { message?: string; code?: string; status?: number } | null): boolean {
+    if (!error) return false;
+    const code = String(error.code ?? '');
+    const msg = String(error.message ?? '').toLowerCase();
+    if (error.status === 404 || msg.includes('404')) return true;
+    if (code === 'PGRST202' || code === '42883') return true;
+    if (msg.includes('could not find') && msg.includes('function')) return true;
+    if (msg.includes('does not exist') && msg.includes('function')) return true;
+    return false;
+}
+
 /** Public booking page: pricing (works for anonymous visitors when RPC + RLS are deployed). */
 export async function fetchPublicBookingSettings(ownerUid: string): Promise<AppSettings> {
     if (usesFirebase) {
@@ -1102,7 +1140,13 @@ export async function fetchPublicBookingSettings(ownerUid: string): Promise<AppS
     }
     const { data, error } = await supabase.rpc('get_booking_settings', { p_owner_uid: ownerUid });
     if (error) {
-        if (import.meta.env.DEV) console.warn('[Booking] get_booking_settings:', error.message);
+        if (isBookingRpcMissing(error)) {
+            console.warn(
+                '[Booking] Trūksta DB funkcijos get_booking_settings. Supabase → SQL Editor: vykdykite supabase/public_booking_rpcs.sql'
+            );
+        } else if (import.meta.env.DEV) {
+            console.warn('[Booking] get_booking_settings:', error.message);
+        }
         return { ...DEFAULT_SETTINGS };
     }
     if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -1144,7 +1188,14 @@ export async function submitPublicBooking(
         p_client: clientPayload,
         p_order: orderPayload,
     });
-    if (error) throw error;
+    if (error) {
+        if (isBookingRpcMissing(error)) {
+            throw new Error(
+                'booking_rpc_missing: Supabase SQL Editor įkelkite supabase/public_booking_rpcs.sql (funkcijos get_booking_settings ir submit_public_booking).'
+            );
+        }
+        throw error;
+    }
 }
 
 // Test connection
