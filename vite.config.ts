@@ -56,7 +56,6 @@ export default defineConfig(({mode}) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
             'vendor-charts': ['recharts'],
             'vendor-ai': ['@google/genai'],
             'vendor-pdf': ['jspdf', 'jspdf-autotable'],

@@ -9,14 +9,13 @@ import { AuthUser } from '../supabase';
 import { formatCurrency, formatDate } from '../utils';
 import { CheckCircle2, Clock, Calendar as CalendarIcon, TrendingUp, TrendingDown, Plus, Users, FileText, Sparkles, Cloud, Sun, CloudRain, Thermometer, MapPin, PieChart, Package, Users2, MessageSquare, Bell, Send } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { generateSpeech, getSpeechAudio, stopAllAudio } from '../services/ttsService';
 import {
+  DASHBOARD_INSIGHT_LABELS,
+  getLastInsightsSource,
   getBusinessInsights,
-  generateSpeech,
-  getSpeechAudio,
-  stopAllAudio,
   type DashboardInsight,
-} from '../services/aiService';
-import { DASHBOARD_INSIGHT_LABELS, getLastInsightsSource } from '../services/insightsService';
+} from '../services/insightsService';
 import { smsService } from '../services/smsService';
 import { Volume2, Mic, Quote, VolumeX } from 'lucide-react';
 

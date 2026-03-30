@@ -12,7 +12,8 @@
     "scout:improvements": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/improvement-scout.ps1\"",
     "test": "node --import tsx src/services/test-memory.ts",
     "server": "node server.cjs",
-    "dev:full": "concurrently \"npm run server\" \"npm run dev\""
+    "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
+    "deploy:vercel": "vercel deploy --prod"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

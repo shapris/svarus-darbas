@@ -9,8 +9,6 @@ import { geocodeAddress } from "../utils.js";
 import { classifyIntentHybrid } from './hybridClassifier.js';
 import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority.js';
 import { isOpenRouterKey, callOpenRouter } from './openRouterService.js';
-import { stopAllAudio, generateSpeech, getSpeechAudio, getElevenLabsSpeech, getOpenAITSViaOpenRouter } from './ttsService.js';
-import { getBusinessInsights, DASHBOARD_INSIGHT_LABELS } from './insightsService.js';
 import { ALL_TOOLS } from './toolDefinitions.js';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
 
@@ -108,9 +106,16 @@ export function consumeAiBudget(units = 1): boolean {
 }
 
 export function getAiInstance(apiKey: string) {
-  if (!aiInstance || currentApiKey !== apiKey) {
-    aiInstance = new GoogleGenAI({ apiKey });
-    currentApiKey = apiKey;
+  const key = String(apiKey ?? '').trim();
+  if (!key) {
+    throw new Error('Gemini SDK: trūksta API rakto (tuščia reikšmė).');
+  }
+  if (isOpenRouterKey(key)) {
+    throw new Error('Gemini SDK: naudokite Google Gemini raktą, ne OpenRouter.');
+  }
+  if (!aiInstance || currentApiKey !== key) {
+    aiInstance = new GoogleGenAI({ apiKey: key });
+    currentApiKey = key;
   }
   return aiInstance;
 }
@@ -398,7 +403,13 @@ export async function chatWithAssistant(
         }
 
         const ai = getAiInstance(geminiKey);
-        const modelsToTry = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"];
+        const modelsToTry = [
+          "gemini-2.5-flash",
+          "gemini-flash-latest",
+          "gemini-2.0-flash",
+          "gemini-1.5-flash",
+          "gemini-1.5-flash-8b",
+        ];
         let lastError: any = null;
 
         // Convert history to Google SDK compatible format
@@ -466,12 +477,6 @@ export async function chatWithAssistant(
   }
 }
 
-// Re-export TTS functions for backward compatibility
-export { stopAllAudio, generateSpeech, getSpeechAudio, getElevenLabsSpeech, getOpenAITSViaOpenRouter };
-export type { VoiceProvider, GoogleVoice, ElevenLabsVoice, OpenAIVoice } from './ttsService.js';
-
-// Re-export from sub-models for backward compatibility
 export { isOpenRouterKey, callOpenRouter } from './openRouterService.js';
-export { getBusinessInsights, DASHBOARD_INSIGHT_LABELS } from './insightsService.js';
 export type { DashboardInsightId, DashboardInsight } from './insightsService.js';
 export { ALL_TOOLS } from './toolDefinitions.js';

@@ -6,7 +6,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, Bot, User as UserIcon, Trash2, Mic, MicOff, Volume2, VolumeX, Brain, AlertTriangle, Settings2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { chatWithAssistant, getAiInstance, getGeminiApiKeyForSdk, isOpenRouterKey, generateSpeech, stopAllAudio } from '../services/aiService';
+import { chatWithAssistant, getAiInstance, getGeminiApiKeyForSdk, isOpenRouterKey } from '../services/aiService';
+import { generateSpeech, stopAllAudio } from '../services/ttsService';
 import { shouldSuggestMemory } from '../services/memoryPriority';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 import { Client, Order, Expense, AppSettings, Memory } from '../types';
@@ -753,7 +754,13 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
               finalResponse = finalResponse || 'Trūksta Google Gemini rakto antram užklausos žingsniui.';
             } else {
             const ai = getAiInstance(geminiKey);
-            const modelsToTry = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+            const modelsToTry = [
+              'gemini-2.5-flash',
+              'gemini-flash-latest',
+              'gemini-2.0-flash',
+              'gemini-1.5-flash',
+              'gemini-1.5-flash-8b',
+            ];
             let secondResponseText = "";
             let secondHistory: any[] = [];
             let lastError: any = null;
