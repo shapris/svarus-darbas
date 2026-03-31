@@ -300,8 +300,14 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           if (isCursorLikePreview && (event.error === 'network' || event.error === 'not-allowed' || event.error === 'service-not-allowed')) {
             setShowPreviewMicHint(true);
           }
-          // Avoid disruptive alert spam for transient/non-critical speech errors.
-          if (event.error === 'network' || event.error === 'aborted' || event.error === 'no-speech') {
+          // Avoid disruptive alert/console spam for transient or permission-blocked speech errors.
+          if (
+            event.error === 'network' ||
+            event.error === 'aborted' ||
+            event.error === 'no-speech' ||
+            event.error === 'not-allowed' ||
+            event.error === 'service-not-allowed'
+          ) {
             // Silent for transient errors to avoid noisy dev console.
             lastSpeechErrorAlertAtRef.current = Date.now();
             return;

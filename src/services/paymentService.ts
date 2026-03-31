@@ -13,8 +13,12 @@ const STRIPE_SECRET_KEY = import.meta.env.VITE_STRIPE_SECRET_KEY;
 let stripePromise: Promise<Stripe | null>;
 
 export const getStripe = () => {
+  const publishableKey = (STRIPE_PUBLISHABLE_KEY || '').trim();
+  if (!publishableKey) {
+    return Promise.resolve(null);
+  }
   if (!stripePromise) {
-    stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY || '');
+    stripePromise = loadStripe(publishableKey);
   }
   return stripePromise;
 };
