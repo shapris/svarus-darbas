@@ -347,15 +347,27 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Užsakymai</h2>
-        <button
-          type="button"
-          title="Naujas užsakymas"
-          aria-label="Naujas užsakymas"
-          onClick={() => setIsAdding(true)}
-          className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            title="Naujas užsakymas"
+            aria-label="Naujas užsakymas"
+            onClick={() => setIsAdding(true)}
+            className="hidden sm:inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors text-sm font-bold"
+          >
+            <Plus size={18} />
+            Naujas užsakymas
+          </button>
+          <button
+            type="button"
+            title="Naujas užsakymas"
+            aria-label="Naujas užsakymas"
+            onClick={() => setIsAdding(true)}
+            className="sm:hidden bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={20} />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4">
@@ -720,6 +732,19 @@ export default function OrdersView({ orders, clients, settings, user, employees 
             </div>
           </motion.div>
         ))}
+      </div>
+
+      <div className="sm:hidden sticky bottom-20 z-20">
+        <button
+          type="button"
+          onClick={() => setIsAdding(true)}
+          className="w-full bg-blue-600 text-white py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+          title="Sukurti naują užsakymą"
+          aria-label="Sukurti naują užsakymą"
+        >
+          <Plus size={18} />
+          Naujas užsakymas
+        </button>
       </div>
 
       <AnimatePresence>
