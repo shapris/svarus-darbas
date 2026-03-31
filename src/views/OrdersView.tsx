@@ -204,9 +204,10 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       if (status === 'atlikta' && !order.isRecurring) {
         showToast.success('Užsakymas pažymėtas kaip atliktas');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Status update failed:', error);
-      showToast.error('Nepavyko išsaugoti būsenos');
+      const details = typeof error?.message === 'string' ? ` (${error.message})` : '';
+      showToast.error(`Nepavyko išsaugoti būsenos${details}`);
     }
   };
 

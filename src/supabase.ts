@@ -207,7 +207,29 @@ function getOrderStatusDbCandidates(v: unknown): string[] {
         lower === 'vykdoma' ? 'in_progress' :
         lower === 'atlikta' ? 'completed' :
         raw;
-    return Array.from(new Set([raw, altEn, altLt]));
+    const altEn2 =
+        lower === 'suplanuota' ? 'planned' :
+        lower === 'vykdoma' ? 'inprogress' :
+        lower === 'atlikta' ? 'done' :
+        raw;
+    return Array.from(new Set([raw, altEn, altLt, altEn2]));
+}
+
+function normalizeNullableId(v: unknown): string | null {
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    return s ? s : null;
+}
+
+function isStatusValueError(error: PgLikeError): boolean {
+    const msg = String(error?.message ?? '').toLowerCase();
+    const code = String(error?.code ?? '');
+    return (
+        msg.includes('invalid input value for enum') ||
+        msg.includes('violates check constraint') ||
+        code === '22P02' ||
+        code === '23514'
+    );
 }
 
 function normalizeOrderDateFromDb(v: unknown): string {
@@ -827,9 +849,9 @@ export async function addData<T extends Record<string, unknown>>(
         const o = item as Record<string, unknown>;
         const services = (o.additionalServices ?? {}) as Record<string, unknown>;
         const modernInsert: Record<string, unknown> = {
-            client_id: o.clientId ?? o.client_id ?? null,
+            client_id: normalizeNullableId(o.clientId ?? o.client_id),
             client_name: o.clientName ?? o.client_name ?? '',
-            employee_id: o.employeeId ?? o.employee_id ?? null,
+            employee_id: normalizeNullableId(o.employeeId ?? o.employee_id),
             address: o.address ?? '',
             lat: o.lat ?? null,
             lng: o.lng ?? null,
@@ -848,7 +870,7 @@ export async function addData<T extends Record<string, unknown>>(
             created_at: String(o.createdAt ?? o.created_at ?? new Date().toISOString()),
         };
         const legacyInsert: Record<string, unknown> = {
-            client_id: o.clientId ?? o.client_id ?? null,
+            client_id: normalizeNullableId(o.clientId ?? o.client_id),
             date: o.date ?? new Date().toISOString().split('T')[0],
             time: o.time ?? '10:00',
             windows: Number(o.windowCount ?? o.window_count ?? 0),
@@ -1012,9 +1034,9 @@ export async function updateData<T extends Record<string, unknown>>(
         const u = updates as Record<string, unknown>;
         const services = (u.additionalServices ?? {}) as Record<string, unknown>;
         const modernBase: Record<string, unknown> = {};
-        if (u.clientId !== undefined) modernBase.client_id = u.clientId;
+        if (u.clientId !== undefined) modernBase.client_id = normalizeNullableId(u.clientId);
         if (u.clientName !== undefined) modernBase.client_name = u.clientName;
-        if (u.employeeId !== undefined) modernBase.employee_id = u.employeeId;
+        if (u.employeeId !== undefined) modernBase.employee_id = normalizeNullableId(u.employeeId);
         if (u.address !== undefined) modernBase.address = u.address;
         if (u.lat !== undefined) modernBase.lat = u.lat;
         if (u.lng !== undefined) modernBase.lng = u.lng;
@@ -1036,16 +1058,19 @@ export async function updateData<T extends Record<string, unknown>>(
             for (const candidate of statusCandidates) {
                 const modernPayload = { ...modernBase };
                 if (candidate !== '__no_status_change__') modernPayload.status = candidate;
-                error = await supabase.from('orders').update(modernPayload).eq('id', id).then((r) => r.error);
+                error = await updateWithColumnFallback('orders', id, modernPayload);
                 if (!error) {
                     ordersSchemaMode = 'modern';
+                    break;
+                }
+                if (candidate !== '__no_status_change__' && !isStatusValueError(error)) {
                     break;
                 }
             }
         }
         if (ordersSchemaMode === 'legacy' || (error && error.code === 'PGRST204')) {
             const legacyBase: Record<string, unknown> = {};
-            if (u.clientId !== undefined) legacyBase.client_id = u.clientId;
+            if (u.clientId !== undefined) legacyBase.client_id = normalizeNullableId(u.clientId);
             if (u.date !== undefined) legacyBase.date = u.date;
             if (u.time !== undefined) legacyBase.time = u.time;
             if (u.windowCount !== undefined) legacyBase.windows = u.windowCount;
