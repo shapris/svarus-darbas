@@ -31,6 +31,7 @@ interface OrdersViewProps {
 export default function OrdersView({ orders, clients, settings, user, employees }: OrdersViewProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
+  const [focusFilter, setFocusFilter] = useState<'all' | 'today' | 'overdue' | 'unassigned'>('all');
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState<string | null>(null);
@@ -56,11 +57,27 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     recurringInterval: 3,
   });
 
-  const filteredOrders = orders.filter(o =>
-    (statusFilter === 'all' || o.status === statusFilter) &&
-    ((o.clientName || "").toLowerCase().includes(search.toLowerCase()) ||
-      (o.address || "").toLowerCase().includes(search.toLowerCase()))
-  ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const today = new Date().toISOString().split('T')[0];
+  const overdueCount = orders.filter((o) => o.status !== 'atlikta' && o.date < today).length;
+  const todayCount = orders.filter((o) => o.date === today && o.status !== 'atlikta').length;
+  const unassignedCount = orders.filter((o) => o.status !== 'atlikta' && !o.employeeId).length;
+
+  const filteredOrders = orders.filter((o) => {
+    const statusMatch = statusFilter === 'all' || o.status === statusFilter;
+    const textMatch =
+      (o.clientName || "").toLowerCase().includes(search.toLowerCase()) ||
+      (o.address || "").toLowerCase().includes(search.toLowerCase());
+    const focusMatch =
+      focusFilter === 'all'
+        ? true
+        : focusFilter === 'today'
+          ? o.status !== 'atlikta' && o.date === today
+          : focusFilter === 'overdue'
+            ? o.status !== 'atlikta' && o.date < today
+            : o.status !== 'atlikta' && !o.employeeId;
+
+    return statusMatch && textMatch && focusMatch;
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const totalPrice = calculateOrderPrice(
     formData.windowCount,
@@ -251,6 +268,49 @@ export default function OrdersView({ orders, clients, settings, user, employees 
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setFocusFilter('all')}
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'all'
+              ? 'bg-slate-900 text-white'
+              : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
+            }`}
+        >
+          Visi darbai
+        </button>
+        <button
+          type="button"
+          onClick={() => setFocusFilter('today')}
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'today'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
+            }`}
+        >
+          Šiandien ({todayCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFocusFilter('overdue')}
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'overdue'
+              ? 'bg-red-600 text-white'
+              : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
+            }`}
+        >
+          Pavėluoti ({overdueCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFocusFilter('unassigned')}
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'unassigned'
+              ? 'bg-amber-600 text-white'
+              : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
+            }`}
+        >
+          Nepriskirti ({unassignedCount})
+        </button>
       </div>
 
       <div className="space-y-4">
