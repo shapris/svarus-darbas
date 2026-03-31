@@ -35,6 +35,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkEmployeeId, setBulkEmployeeId] = useState<string>('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState<string | null>(null);
@@ -290,6 +291,18 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     }
   };
 
+  const handleQuickAssign = async (order: Order, employeeId: string) => {
+    setAssigningOrderId(order.id);
+    try {
+      await updateData(TABLES.ORDERS, order.id, { employeeId: employeeId || '' } as any);
+      showToast.success(employeeId ? 'Darbuotojas priskirtas' : 'Priskyrimas pašalintas');
+    } catch {
+      showToast.error('Nepavyko atnaujinti darbuotojo priskyrimo');
+    } finally {
+      setAssigningOrderId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -525,6 +538,23 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               </div>
 
               <div className="flex gap-2 mt-4">
+                <div className="flex-1 min-w-[170px]">
+                  <select
+                    value={order.employeeId || ''}
+                    onChange={(e) => handleQuickAssign(order, e.target.value)}
+                    disabled={assigningOrderId === order.id}
+                    title="Greitas darbuotojo priskyrimas"
+                    aria-label={`Greitas darbuotojo priskyrimas užsakymui ${order.clientName}`}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3 px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
+                  >
+                    <option value="">Nepriskirtas</option>
+                    {employees.filter((e) => e.isActive).map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {order.status !== 'atlikta' && (
                   <button
                     onClick={() => handleStatusUpdate(order, order.status === 'suplanuota' ? 'vykdoma' : 'atlikta')}
