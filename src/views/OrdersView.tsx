@@ -166,8 +166,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         await addData(TABLES.ORDERS, user.uid, newOrderData as any);
         showToast.success(`Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`);
       }
-    } catch {
-      // Silent fail on status update
+      if (status === 'atlikta' && !order.isRecurring) {
+        showToast.success('Užsakymas pažymėtas kaip atliktas');
+      }
+    } catch (error) {
+      console.error('Status update failed:', error);
+      showToast.error('Nepavyko išsaugoti būsenos');
     }
   };
 

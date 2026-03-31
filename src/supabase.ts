@@ -193,6 +193,23 @@ function mapOrderStatusFromDb(v: unknown): Order['status'] {
     return 'suplanuota';
 }
 
+function getOrderStatusDbCandidates(v: unknown): string[] {
+    const raw = String(v ?? '').trim();
+    if (!raw) return [];
+    const lower = raw.toLowerCase();
+    const altLt =
+        lower === 'pending' ? 'suplanuota' :
+        lower === 'in_progress' ? 'vykdoma' :
+        lower === 'completed' || lower === 'done' ? 'atlikta' :
+        raw;
+    const altEn =
+        lower === 'suplanuota' ? 'pending' :
+        lower === 'vykdoma' ? 'in_progress' :
+        lower === 'atlikta' ? 'completed' :
+        raw;
+    return Array.from(new Set([raw, altEn, altLt]));
+}
+
 function normalizeOrderDateFromDb(v: unknown): string {
     const raw = String(v ?? '').trim();
     if (!raw) return '';
@@ -994,53 +1011,62 @@ export async function updateData<T extends Record<string, unknown>>(
     if (tableName === 'orders') {
         const u = updates as Record<string, unknown>;
         const services = (u.additionalServices ?? {}) as Record<string, unknown>;
-        const modern: Record<string, unknown> = {};
-        if (u.clientId !== undefined) modern.client_id = u.clientId;
-        if (u.clientName !== undefined) modern.client_name = u.clientName;
-        if (u.employeeId !== undefined) modern.employee_id = u.employeeId;
-        if (u.address !== undefined) modern.address = u.address;
-        if (u.lat !== undefined) modern.lat = u.lat;
-        if (u.lng !== undefined) modern.lng = u.lng;
-        if (u.date !== undefined) modern.date = u.date;
-        if (u.time !== undefined) modern.time = u.time;
-        if (u.windowCount !== undefined) modern.window_count = u.windowCount;
-        if (u.floor !== undefined) modern.floor = u.floor;
-        if (u.additionalServices !== undefined) modern.additional_services = services;
-        if (u.totalPrice !== undefined) modern.total_price = u.totalPrice;
-        if (u.status !== undefined) modern.status = u.status;
-        if (u.estimatedDuration !== undefined) modern.estimated_duration = u.estimatedDuration;
-        if (u.isRecurring !== undefined) modern.is_recurring = u.isRecurring;
-        if (u.recurringInterval !== undefined) modern.recurring_interval = u.recurringInterval;
-        if (u.notes !== undefined) modern.notes = u.notes;
-        modern.updated_at = new Date().toISOString();
+        const modernBase: Record<string, unknown> = {};
+        if (u.clientId !== undefined) modernBase.client_id = u.clientId;
+        if (u.clientName !== undefined) modernBase.client_name = u.clientName;
+        if (u.employeeId !== undefined) modernBase.employee_id = u.employeeId;
+        if (u.address !== undefined) modernBase.address = u.address;
+        if (u.lat !== undefined) modernBase.lat = u.lat;
+        if (u.lng !== undefined) modernBase.lng = u.lng;
+        if (u.date !== undefined) modernBase.date = u.date;
+        if (u.time !== undefined) modernBase.time = u.time;
+        if (u.windowCount !== undefined) modernBase.window_count = u.windowCount;
+        if (u.floor !== undefined) modernBase.floor = u.floor;
+        if (u.additionalServices !== undefined) modernBase.additional_services = services;
+        if (u.totalPrice !== undefined) modernBase.total_price = u.totalPrice;
+        if (u.estimatedDuration !== undefined) modernBase.estimated_duration = u.estimatedDuration;
+        if (u.isRecurring !== undefined) modernBase.is_recurring = u.isRecurring;
+        if (u.recurringInterval !== undefined) modernBase.recurring_interval = u.recurringInterval;
+        if (u.notes !== undefined) modernBase.notes = u.notes;
+        modernBase.updated_at = new Date().toISOString();
+        const statusCandidates = u.status !== undefined ? getOrderStatusDbCandidates(u.status) : ['__no_status_change__'];
 
         let error: PgLikeError = null;
         if (ordersSchemaMode !== 'legacy') {
-            error = await supabase.from('orders').update(modern).eq('id', id).then((r) => r.error);
-            if (!error) {
-                ordersSchemaMode = 'modern';
+            for (const candidate of statusCandidates) {
+                const modernPayload = { ...modernBase };
+                if (candidate !== '__no_status_change__') modernPayload.status = candidate;
+                error = await supabase.from('orders').update(modernPayload).eq('id', id).then((r) => r.error);
+                if (!error) {
+                    ordersSchemaMode = 'modern';
+                    break;
+                }
             }
         }
         if (ordersSchemaMode === 'legacy' || (error && error.code === 'PGRST204')) {
-            const legacy: Record<string, unknown> = {};
-            if (u.clientId !== undefined) legacy.client_id = u.clientId;
-            if (u.date !== undefined) legacy.date = u.date;
-            if (u.time !== undefined) legacy.time = u.time;
-            if (u.windowCount !== undefined) legacy.windows = u.windowCount;
-            if (u.floor !== undefined) legacy.floors = u.floor;
+            const legacyBase: Record<string, unknown> = {};
+            if (u.clientId !== undefined) legacyBase.client_id = u.clientId;
+            if (u.date !== undefined) legacyBase.date = u.date;
+            if (u.time !== undefined) legacyBase.time = u.time;
+            if (u.windowCount !== undefined) legacyBase.windows = u.windowCount;
+            if (u.floor !== undefined) legacyBase.floors = u.floor;
             if (u.additionalServices !== undefined) {
-                legacy.balkonai = services.balkonai ? 1 : 0;
-                legacy.vitrinos = services.vitrinos ? 1 : 0;
-                legacy.terasa = services.terasa ? 1 : 0;
-                legacy.kiti = services.kiti ? 'taip' : '';
+                legacyBase.balkonai = services.balkonai ? 1 : 0;
+                legacyBase.vitrinos = services.vitrinos ? 1 : 0;
+                legacyBase.terasa = services.terasa ? 1 : 0;
+                legacyBase.kiti = services.kiti ? 'taip' : '';
             }
-            if (u.totalPrice !== undefined) legacy.price = u.totalPrice;
-            if (u.status !== undefined) legacy.status = u.status;
-            if (u.notes !== undefined) legacy.notes = u.notes;
-            legacy.updated_at = new Date().toISOString();
-            error = await updateWithColumnFallback('orders', id, legacy);
-            if (!error) {
-                ordersSchemaMode = 'legacy';
+            if (u.totalPrice !== undefined) legacyBase.price = u.totalPrice;
+            if (u.notes !== undefined) legacyBase.notes = u.notes;
+            legacyBase.updated_at = new Date().toISOString();
+            for (const candidate of statusCandidates) {
+                const legacyPayload = { ...legacyBase };
+                if (candidate !== '__no_status_change__') legacyPayload.status = candidate;
+                error = await updateWithColumnFallback('orders', id, legacyPayload);
+                if (!error) {
+                    ordersSchemaMode = 'legacy';
+                    break;
+                }
             }
         }
         if (error) {
