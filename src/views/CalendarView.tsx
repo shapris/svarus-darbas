@@ -111,6 +111,7 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
     notes: '',
   });
   const { showToast } = useToast();
+  const allowedStatuses: OrderStatus[] = ['suplanuota', 'vykdoma', 'atlikta'];
 
   const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -320,6 +321,10 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
   };
 
   const updateOrderStatus = async (order: Order, status: OrderStatus) => {
+    if (!allowedStatuses.includes(status)) {
+      showToast.error('Nepalaikomas statusas');
+      return;
+    }
     try {
       await updateData(TABLES.ORDERS, order.id, { status } as any);
       showToast.success(`Statusas pakeistas į "${status}"`);
@@ -457,7 +462,6 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
               <option value="suplanuota">suplanuota</option>
               <option value="vykdoma">vykdoma</option>
               <option value="atlikta">atlikta</option>
-              <option value="atšaukta">atšaukta</option>
             </select>
             <input
               type="text"
@@ -751,7 +755,6 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                               <option value="suplanuota">suplanuota</option>
                               <option value="vykdoma">vykdoma</option>
                               <option value="atlikta">atlikta</option>
-                              <option value="atšaukta">atšaukta</option>
                             </select>
                             <select value={editForm.employeeId} onChange={(e) => setEditForm((p) => ({ ...p, employeeId: e.target.value }))} title="Priskirtas darbuotojas" className="bg-white border border-slate-200 rounded-xl p-2 text-xs">
                               <option value="">Be darbuotojo</option>
