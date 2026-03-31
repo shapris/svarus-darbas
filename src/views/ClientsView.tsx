@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Client, BuildingType, Order } from '../types';
 import { getData, addData, updateData, deleteData, TABLES } from '../supabase';
 import { Search, Plus, User as UserIcon, Phone, MapPin, Building, MoreVertical, X, Edit, Trash2, History, ChevronRight, Loader2, Star, Users, AlertTriangle, UserCheck } from 'lucide-react';
@@ -12,6 +12,7 @@ import { formatDate, formatCurrency } from '../utils';
 import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import { clientSegmentation, type ClientSegment } from '../services/clientSegmentation';
+import ClientAddressAutocomplete, { googleMapsSearchUrl } from '../components/ClientAddressAutocomplete';
 
 interface LocalUser {
   uid: string;
@@ -39,9 +40,19 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
     name: '',
     phone: 'nesutarta',
     address: '',
+    lat: undefined as number | undefined,
+    lng: undefined as number | undefined,
     buildingType: 'butas' as BuildingType,
     notes: '',
   });
+
+  const onAddressFieldChange = useCallback((address: string, coords?: { lat: number; lng: number }) => {
+    setFormData((prev) => ({
+      ...prev,
+      address,
+      ...(coords ? { lat: coords.lat, lng: coords.lng } : { lat: undefined, lng: undefined }),
+    }));
+  }, []);
 
   const filteredClients = clients.filter(c =>
     (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -79,7 +90,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       }
       setIsAdding(false);
       setEditingClient(null);
-      setFormData({ name: '', phone: 'nesutarta', address: '', buildingType: 'butas', notes: '' });
+      setFormData({ name: '', phone: 'nesutarta', address: '', lat: undefined, lng: undefined, buildingType: 'butas', notes: '' });
     } catch (error) {
       showToast.error('Nepavyko išsaugoti kliento. Bandykite dar kartą.');
       console.error('Error saving client:', error);
@@ -94,6 +105,8 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       name: client.name,
       phone: client.phone,
       address: client.address,
+      lat: client.lat,
+      lng: client.lng,
       buildingType: client.buildingType,
       notes: client.notes || '',
     });
@@ -216,9 +229,21 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 <Phone size={14} className="text-slate-400 shrink-0" />
                 <a href={`tel:${client.phone}`} className="hover:text-blue-600 truncate font-medium">{client.phone}</a>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
+              <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 min-w-0">
                 <MapPin size={14} className="text-slate-400 shrink-0" />
-                <span className="truncate font-medium">{client.address}</span>
+                <a
+                  href={
+                    client.lat != null && client.lng != null
+                      ? `https://www.google.com/maps?q=${client.lat},${client.lng}`
+                      : googleMapsSearchUrl(client.address)
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Atidaryti Google žemėlapyje"
+                  className="truncate font-medium hover:text-blue-600"
+                >
+                  {client.address}
+                </a>
               </div>
             </div>
 
@@ -279,13 +304,12 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Adresas</label>
-                  <input
-                    required
-                    type="text"
+                  <ClientAddressAutocomplete
+                    key={editingClient?.id ?? 'new-client'}
                     value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Gatvė, namas, miestas"
+                    onChange={onAddressFieldChange}
+                    disabled={isSubmitting}
+                    inputClassName="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                 </div>
                 <div>

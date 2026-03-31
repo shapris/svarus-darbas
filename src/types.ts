@@ -20,6 +20,9 @@ export interface Client {
   name: string;
   phone: string;
   address: string;
+  /** Jei DB turi stulpelius ir nustatyta per Google Places */
+  lat?: number;
+  lng?: number;
   buildingType: BuildingType;
   notes?: string;
   lastCleaningDate?: string;

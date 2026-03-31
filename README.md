@@ -6,6 +6,16 @@
 
 Progresyvus langų valymo verslo valdymo CRM su AI asistentu.
 
+## ⚠️ AGENT BOOTSTRAP (MANDATORY)
+
+Before performing any action:
+
+1. Load and follow `AGENT_PROTOCOL.md`
+2. Follow `.cursor/rules.md` (HARD RULES)
+3. Apply `.cursor/rules/*.mdc` (WORKFLOW RULES)
+
+Execution is not allowed without loading these rules.
+
 ## Funkcijos
 
 ### AI Asistentas

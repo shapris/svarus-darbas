@@ -152,16 +152,28 @@ export async function getSpeechAudio(
     return null;
   }
 
+  const keyTrim = String(apiKey ?? '').trim();
+  if (!keyTrim) {
+    return null;
+  }
+
   // Try ElevenLabs if API key looks like ElevenLabs (starts with sk_ but not sk-or-)
-  if (apiKey.startsWith('sk_') && !apiKey.startsWith('sk-or-')) {
+  if (keyTrim.startsWith('sk_') && !keyTrim.startsWith('sk-or-')) {
     const elevenResult = await getElevenLabsSpeech(text, voice);
     if (elevenResult) return elevenResult;
   }
 
-  // Default to Google Gemini TTS
-  const googleVoice = mapToGoogleVoice(voice);
+  // Default to Google Gemini TTS (reikia tikro Gemini rakto, ne OpenRouter)
+  if (isOpenRouterKey(keyTrim)) {
+    return null;
+  }
 
-  const ai = getAiInstance(apiKey);
+  let ai: ReturnType<typeof getAiInstance>;
+  try {
+    ai = getAiInstance(keyTrim);
+  } catch {
+    return null;
+  }
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
@@ -170,7 +182,7 @@ export async function getSpeechAudio(
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: voice },
+            prebuiltVoiceConfig: { voiceName: mapToGoogleVoice(voice) },
           },
         },
       },

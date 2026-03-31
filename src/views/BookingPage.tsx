@@ -139,7 +139,11 @@ export default function BookingPage({ userId }: BookingPageProps) {
       setIsBooked(true);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Rezervacija nepavyko';
-      if (String(msg).toLowerCase().includes('invalid_booking')) {
+      if (String(msg).toLowerCase().includes('booking_rpc_missing')) {
+        alert(
+          'Rezervacija dar nesukonfigūruota serveryje. Administratorius turi įkelti SQL failą supabase/public_booking_rpcs.sql į Supabase (SQL Editor).'
+        );
+      } else if (String(msg).toLowerCase().includes('invalid_booking')) {
         alert('Ši rezervacijos nuoroda nebegalioja arba verslas neaktyvus.');
       } else {
         alert('Apgailestaujame, įvyko klaida. Bandykite dar kartą.');

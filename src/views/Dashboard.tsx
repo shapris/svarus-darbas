@@ -236,10 +236,10 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
   });
 
   const stats = [
-    { label: 'Šiandien', value: todayOrders.length, icon: CalendarIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Laukia', value: pendingOrders.length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Pelnas', value: formatCurrency(profit), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'SMS priminimai', value: smsStats.pending, icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Šiandien', value: todayOrders.length, icon: CalendarIcon, color: 'text-blue-600', bg: 'bg-blue-50', tab: 'calendar' as const },
+    { label: 'Laukia', value: pendingOrders.length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', tab: 'orders' as const },
+    { label: 'Pelnas', value: formatCurrency(profit), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', tab: 'analytics' as const },
+    { label: 'SMS priminimai', value: smsStats.pending, icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50', tab: 'settings' as const },
   ];
 
   const handleOpenMap = () => {
@@ -382,13 +382,19 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         </div>
         <div className="grid grid-cols-2 gap-4">
           {stats.map((stat, i) => (
-            <div key={i} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+            <button
+              key={i}
+              type="button"
+              onClick={() => setActiveTab(stat.tab)}
+              aria-label={`${stat.label}: ${stat.value}. Atidaryti ${stat.tab === 'calendar' ? 'kalendorių' : stat.tab === 'orders' ? 'užsakymus' : stat.tab === 'analytics' ? 'analitiką' : 'nustatymus'}`}
+              className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all text-left w-full cursor-pointer active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
               <div className={`${stat.bg} w-10 h-10 rounded-2xl flex items-center justify-center mb-3`}>
                 <stat.icon size={20} className={stat.color} />
               </div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
               <p className="text-xl font-black text-slate-900 mt-1">{stat.value}</p>
-            </div>
+            </button>
           ))}
         </div>
       </section>

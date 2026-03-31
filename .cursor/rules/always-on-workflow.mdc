@@ -13,3 +13,7 @@ alwaysApply: true
 - If blocked by permissions or environment limits, apply the nearest automatic fallback and continue.
 - Keep updates concise and frequent while work is in progress.
 - Focus on production-impacting issues first: broken flows, data errors, API failures.
+- Never stop due to uncertainty; investigate and resolve with the best available fallback.
+- Never leave partial work when the task can be completed in the same session.
+- Always assume continuation is required until the requested outcome is fully verified.
+- Ignore non-critical interruptions and finish the highest-priority production task first.
