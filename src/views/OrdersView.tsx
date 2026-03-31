@@ -32,6 +32,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const [focusFilter, setFocusFilter] = useState<'all' | 'today' | 'overdue' | 'unassigned'>('all');
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkEmployeeId, setBulkEmployeeId] = useState<string>('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState<string | null>(null);
@@ -79,12 +82,21 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     return statusMatch && textMatch && focusMatch;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const visibleOrderIds = filteredOrders.map((o) => o.id);
+  const selectedVisibleCount = selectedOrderIds.filter((id) => visibleOrderIds.includes(id)).length;
+  const allVisibleSelected = visibleOrderIds.length > 0 && selectedVisibleCount === visibleOrderIds.length;
+
   const totalPrice = calculateOrderPrice(
     formData.windowCount,
     formData.floor,
     formData.additionalServices,
     settings
   );
+
+  useEffect(() => {
+    // Keep selection valid when filters/data change.
+    setSelectedOrderIds((prev) => prev.filter((id) => orders.some((o) => o.id === id)));
+  }, [orders]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,11 +243,61 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     window.open(`sms:${client.phone}?body=${encodeURIComponent(text)}`);
   };
 
+  const toggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedOrderIds((prev) => prev.filter((id) => !visibleOrderIds.includes(id)));
+      return;
+    }
+    setSelectedOrderIds((prev) => Array.from(new Set([...prev, ...visibleOrderIds])));
+  };
+
+  const toggleSelectOrder = (orderId: string) => {
+    setSelectedOrderIds((prev) =>
+      prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  const runBulkStatusUpdate = async (status: OrderStatus) => {
+    if (selectedOrderIds.length === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(selectedOrderIds.map((id) => updateData(TABLES.ORDERS, id, { status } as any)));
+      showToast.success(`Atnaujinta užsakymų: ${selectedOrderIds.length}`);
+      setSelectedOrderIds([]);
+    } catch {
+      showToast.error('Nepavyko masiškai atnaujinti būsenos');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  const runBulkAssignEmployee = async () => {
+    if (selectedOrderIds.length === 0) return;
+    setIsBulkUpdating(true);
+    try {
+      await Promise.all(
+        selectedOrderIds.map((id) =>
+          updateData(TABLES.ORDERS, id, { employeeId: bulkEmployeeId || '' } as any)
+        )
+      );
+      showToast.success(`Priskyrimas atnaujintas: ${selectedOrderIds.length}`);
+      setSelectedOrderIds([]);
+      setBulkEmployeeId('');
+    } catch {
+      showToast.error('Nepavyko masiškai priskirti darbuotojo');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Užsakymai</h2>
         <button
+          type="button"
+          title="Naujas užsakymas"
+          aria-label="Naujas užsakymas"
           onClick={() => setIsAdding(true)}
           className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
         >
@@ -313,6 +375,63 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         </button>
       </div>
 
+      <section className="bg-white border border-slate-100 rounded-2xl p-3 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              Pažymėti visus rodomus
+            </label>
+            <span className="text-xs text-slate-500">Pažymėta: {selectedOrderIds.length}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+            <button
+              type="button"
+              disabled={selectedOrderIds.length === 0 || isBulkUpdating}
+              onClick={() => runBulkStatusUpdate('vykdoma')}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white disabled:opacity-50"
+            >
+              Žymėti „vykdoma“
+            </button>
+            <button
+              type="button"
+              disabled={selectedOrderIds.length === 0 || isBulkUpdating}
+              onClick={() => runBulkStatusUpdate('atlikta')}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white disabled:opacity-50"
+            >
+              Žymėti „atlikta“
+            </button>
+            <select
+              value={bulkEmployeeId}
+              onChange={(e) => setBulkEmployeeId(e.target.value)}
+              title="Pasirinkti darbuotoją masiniam priskyrimui"
+              aria-label="Pasirinkti darbuotoją masiniam priskyrimui"
+              className="px-2 py-2 rounded-xl text-xs border border-slate-200 bg-white"
+            >
+              <option value="">Nepriskirti</option>
+              {employees.filter((e) => e.isActive).map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={selectedOrderIds.length === 0 || isBulkUpdating}
+              onClick={runBulkAssignEmployee}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-600 text-white disabled:opacity-50"
+            >
+              Priskirti darbuotoją
+            </button>
+          </div>
+        </div>
+      </section>
+
       <div className="space-y-4">
         {filteredOrders.map((order) => (
           <motion.div
@@ -322,6 +441,13 @@ export default function OrdersView({ orders, clients, settings, user, employees 
           >
             <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
               <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedOrderIds.includes(order.id)}
+                  onChange={() => toggleSelectOrder(order.id)}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  aria-label={`Pažymėti užsakymą ${order.clientName}`}
+                />
                 <Calendar size={14} className="text-blue-600" />
                 <span className="text-xs font-bold text-slate-700">{formatDate(order.date)}</span>
                 <Clock size={14} className="text-blue-600 ml-2" />
@@ -357,7 +483,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                   {order.status}
                 </div>
                 <div className="relative group">
-                  <button className="p-1 text-slate-400 hover:text-slate-600">
+                  <button
+                    type="button"
+                    title="Užsakymo veiksmai"
+                    aria-label="Užsakymo veiksmai"
+                    className="p-1 text-slate-400 hover:text-slate-600"
+                  >
                     <MoreVertical size={16} />
                   </button>
                   <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded-xl shadow-xl z-10 hidden group-hover:block min-w-[120px] overflow-hidden">
@@ -421,7 +552,13 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     </button>
                   </>
                 )}
-                <button onClick={() => sendSMS(order)} className="bg-slate-50 text-slate-400 p-3 rounded-xl hover:bg-slate-100 hover:text-blue-600 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => sendSMS(order)}
+                  title="Siųsti SMS priminimą"
+                  aria-label="Siųsti SMS priminimą"
+                  className="bg-slate-50 text-slate-400 p-3 rounded-xl hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                >
                   <MessageSquare size={16} />
                 </button>
               </div>
@@ -444,6 +581,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                             type="file"
                             className="hidden"
                             accept="image/*"
+                            title="Įkelti prieš nuotrauką"
                             onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'before', e.target.files[0])}
                           />
                           <ImageIcon className="text-white" size={24} />
@@ -455,6 +593,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                           type="file"
                           className="hidden"
                           accept="image/*"
+                          title="Įkelti prieš nuotrauką"
                           onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'before', e.target.files[0])}
                         />
                         {isUploading === `${order.id}-before` ? (
@@ -480,6 +619,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                             type="file"
                             className="hidden"
                             accept="image/*"
+                            title="Įkelti po nuotrauką"
                             onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'after', e.target.files[0])}
                           />
                           <ImageIcon className="text-white" size={24} />
@@ -491,6 +631,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                           type="file"
                           className="hidden"
                           accept="image/*"
+                          title="Įkelti po nuotrauką"
                           onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'after', e.target.files[0])}
                         />
                         {isUploading === `${order.id}-after` ? (
@@ -527,7 +668,13 @@ export default function OrdersView({ orders, clients, settings, user, employees 
             >
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-slate-900">Naujas užsakymas</h3>
-                <button onClick={() => setIsAdding(false)} className="p-2 text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => setIsAdding(false)}
+                  title="Uždaryti formą"
+                  aria-label="Uždaryti formą"
+                  className="p-2 text-slate-400 hover:text-slate-600"
+                >
                   <X size={24} />
                 </button>
               </div>
@@ -539,6 +686,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     required
                     value={formData.clientId}
                     onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+                    title="Klientas"
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   >
                     <option value="">Pasirinkite klientą</option>
@@ -553,6 +701,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                   <select
                     value={formData.employeeId}
                     onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                    title="Priskirtas darbuotojas"
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   >
                     <option value="">Nepriskirtas</option>
@@ -570,6 +719,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       type="date"
                       value={formData.date}
                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      title="Data"
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
@@ -580,6 +730,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       type="time"
                       value={formData.time}
                       onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                      title="Laikas"
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
@@ -593,6 +744,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       type="number"
                       value={formData.windowCount}
                       onChange={(e) => setFormData({ ...formData, windowCount: parseInt(e.target.value) })}
+                      title="Langų skaičius"
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
@@ -603,6 +755,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       type="number"
                       value={formData.floor}
                       onChange={(e) => setFormData({ ...formData, floor: parseInt(e.target.value) })}
+                      title="Aukštas"
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
@@ -615,6 +768,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       <input
                         type="number"
                         min="0"
+                        title="Trukmė dienomis"
                         value={Math.floor(formData.estimatedDuration / (24 * 60))}
                         onChange={(e) => {
                           const d = parseInt(e.target.value) || 0;
@@ -631,6 +785,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         type="number"
                         min="0"
                         max="23"
+                        title="Trukmė valandomis"
                         value={Math.floor((formData.estimatedDuration % (24 * 60)) / 60)}
                         onChange={(e) => {
                           const d = Math.floor(formData.estimatedDuration / (24 * 60));
@@ -647,6 +802,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         type="number"
                         min="0"
                         max="59"
+                        title="Trukmė minutėmis"
                         value={formData.estimatedDuration % 60}
                         onChange={(e) => {
                           const d = Math.floor(formData.estimatedDuration / (24 * 60));
@@ -686,6 +842,8 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     <label className="text-sm font-bold text-slate-700">Periodinis užsakymas</label>
                     <button
                       type="button"
+                      title="Perjungti periodinį užsakymą"
+                      aria-label="Perjungti periodinį užsakymą"
                       onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring })}
                       className={`w-12 h-6 rounded-full transition-colors relative ${formData.isRecurring ? 'bg-blue-500' : 'bg-slate-300'
                         }`}
@@ -702,6 +860,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         type="number"
                         min="1"
                         max="12"
+                        title="Periodiškumo intervalas mėnesiais"
                         value={formData.recurringInterval}
                         onChange={(e) => setFormData({ ...formData, recurringInterval: parseInt(e.target.value) || 3 })}
                         className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
