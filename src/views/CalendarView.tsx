@@ -329,6 +329,16 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
     }
   };
 
+  const getPrimaryStatusAction = (status: OrderStatus): { next: OrderStatus | null; label: string; className: string } => {
+    if (status === 'suplanuota') {
+      return { next: 'vykdoma', label: 'Pradėti darbą', className: 'bg-blue-600 text-white hover:bg-blue-700' };
+    }
+    if (status === 'vykdoma') {
+      return { next: 'atlikta', label: 'Pažymėti atlikta', className: 'bg-emerald-600 text-white hover:bg-emerald-700' };
+    }
+    return { next: null, label: 'Darbas užbaigtas', className: 'bg-slate-100 text-slate-500 cursor-default' };
+  };
+
   const handleDropSwap = async (targetOrder: Order) => {
     if (!draggedOrderId || draggedOrderId === targetOrder.id) return;
     const sourceOrder = selectedOrders.find((o) => o.id === draggedOrderId);
@@ -674,16 +684,42 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                         </div>
                       </div>
 
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className={`px-2 py-1 rounded-lg font-semibold ${
+                            order.status === 'atlikta'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : order.status === 'vykdoma'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-amber-50 text-amber-700'
+                          }`}>
+                            Statusas: {order.status}
+                          </span>
+                          <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700">
+                            Darbuotojas: {employee?.name || 'nepriskirtas'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          {(() => {
+                            const action = getPrimaryStatusAction(order.status);
+                            return (
+                              <button
+                                type="button"
+                                disabled={!action.next}
+                                onClick={() => action.next && updateOrderStatus(order, action.next)}
+                                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${action.className}`}
+                              >
+                                {action.label}
+                              </button>
+                            );
+                          })()}
+                          <button type="button" onClick={() => beginEdit(order)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200">
+                            Redaguoti
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold">
-                          Statusas: {order.status}
-                        </span>
-                        <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700">
-                          Darbuotojas: {employee?.name || 'nepriskirtas'}
-                        </span>
-                        <button type="button" onClick={() => updateOrderStatus(order, 'vykdoma')} className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold">Vykdoma</button>
-                        <button type="button" onClick={() => updateOrderStatus(order, 'atlikta')} className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-semibold">Atlikta</button>
-                        <button type="button" onClick={() => beginEdit(order)} className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold">Redaguoti</button>
                         <button
                           type="button"
                           onClick={() => {
