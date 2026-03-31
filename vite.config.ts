@@ -55,12 +55,28 @@ export default defineConfig(({mode}) => {
     build: {
       rollupOptions: {
         output: {
-          manualChunks: {
-            'vendor-charts': ['recharts'],
-            'vendor-ai': ['@google/genai'],
-            'vendor-pdf': ['jspdf', 'jspdf-autotable'],
-            'vendor-maps': ['leaflet', 'react-leaflet'],
-            'vendor-motion': ['motion'],
+          manualChunks(id) {
+            // Vendor buckets (stable caching)
+            if (id.includes('node_modules')) {
+              if (id.includes('@google/genai')) return 'vendor-ai';
+              if (id.includes('recharts')) return 'vendor-charts';
+              if (id.includes('jspdf') || id.includes('jspdf-autotable')) return 'vendor-pdf';
+              if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-maps';
+              if (id.includes('motion')) return 'vendor-motion';
+              // NOTE: keep React inside the general vendor chunk to avoid circular chunk warnings
+              // (some transitive deps reference each other across these boundaries).
+              return 'vendor';
+            }
+
+            // App buckets (reduce initial index chunk)
+            if (id.includes('/src/supabase')) return 'app-supabase';
+            if (id.includes('/src/services/')) return 'app-services';
+            if (id.includes('/src/views/')) return 'app-views';
+            if (id.includes('/src/components/')) return 'app-components';
+            if (id.includes('/src/hooks/')) return 'app-hooks';
+            if (id.includes('/src/utils')) return 'app-utils';
+
+            return undefined;
           },
         },
       },
