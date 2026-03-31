@@ -682,6 +682,19 @@ export default function App() {
               {renderContent()}
             </motion.div>
           </AnimatePresence>
+          <Suspense fallback={
+            <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+            </div>
+          }>
+            <ChatAssistant
+              user={user}
+              clients={clients}
+              orders={orders}
+              expenses={expenses}
+              settings={settings}
+            />
+          </Suspense>
         </Layout>
       )}
 

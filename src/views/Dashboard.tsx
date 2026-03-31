@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order, Client, Expense, Memory } from '../types';
 import { AuthUser } from '../supabase';
 import { formatCurrency, formatDate } from '../utils';
@@ -18,8 +18,6 @@ import {
 } from '../services/insightsService';
 import { smsService } from '../services/smsService';
 import { Volume2, Mic, Quote, VolumeX } from 'lucide-react';
-
-const ChatAssistant = lazy(() => import('../components/ChatAssistant'));
 
 interface DashboardProps {
   orders: Order[];
@@ -761,22 +759,6 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         )}
       </section>
 
-      {/* Chat Assistant */}
-      {user && (
-        <Suspense fallback={
-          <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-          </div>
-        }>
-          <ChatAssistant 
-            user={user}
-            clients={clients}
-            orders={orders}
-            expenses={expenses}
-            settings={settings || {}}
-          />
-        </Suspense>
-      )}
     </div>
   );
 }
