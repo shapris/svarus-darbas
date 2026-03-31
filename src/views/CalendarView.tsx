@@ -475,6 +475,9 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
             {filteredSelectedOrders.map((order) => {
               const employee = employees.find(e => e.id === order.employeeId);
               const client = clientsById.get(order.clientId);
+              const displayClientName = (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
+              const displayAddress = (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
+              const displayPhone = (client?.phone || '').trim() || 'nesutarta';
               const isEditing = editingOrderId === order.id;
               
               return (
@@ -500,10 +503,10 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                       <span className="text-[10px] font-bold opacity-60">{order.time.split(':')[1]}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-900 text-base truncate">{order.clientName}</h4>
+                      <h4 className="font-bold text-slate-900 text-base truncate">{displayClientName}</h4>
                       <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
                         <MapPin size={12} className="shrink-0" />
-                        <span className="truncate">{order.address}</span>
+                        <span className="truncate">{displayAddress}</span>
                       </div>
                       <div className="flex items-center gap-3 mt-1">
                         {employee && (
@@ -513,7 +516,7 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                           </div>
                         )}
                         <span className="text-xs text-slate-500">
-                          Tel.: {client?.phone || 'nesutarta'}
+                          Tel.: {displayPhone}
                         </span>
                       </div>
                     </div>
@@ -655,15 +658,18 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                 {filteredSelectedOrders.map((order) => {
                   const employee = employees.find(e => e.id === order.employeeId);
                   const client = clientsById.get(order.clientId);
+                  const displayClientName = (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
+                  const displayAddress = (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
+                  const displayPhone = (client?.phone || '').trim() || 'nesutarta';
                   const isEditing = editingOrderId === order.id;
 
                   return (
                     <div key={`modal-${order.id}`} className="border border-slate-100 rounded-2xl p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                          <p className="font-bold text-slate-900">{order.clientName}</p>
-                          <p className="text-xs text-slate-500">{order.address}</p>
-                          <p className="text-xs text-slate-500">Tel.: {client?.phone || 'nesutarta'}</p>
+                          <p className="font-bold text-slate-900">{displayClientName}</p>
+                          <p className="text-xs text-slate-500">{displayAddress}</p>
+                          <p className="text-xs text-slate-500">Tel.: {displayPhone}</p>
                         </div>
                         <div className="text-right">
                           <p
