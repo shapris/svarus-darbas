@@ -242,6 +242,50 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
     { label: 'SMS priminimai', value: smsStats.pending, icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50', tab: 'settings' as const },
   ];
 
+  const overduePlannedOrders = pendingOrders.filter((o) => o.date < today);
+  const todayUnassignedOrders = todayOrders.filter((o) => o.status !== 'atlikta' && !o.employeeId);
+  const staleClientsCount = clients.filter((client) => {
+    const clientOrders = orders.filter((o) => o.clientId === client.id);
+    if (clientOrders.length === 0) return false;
+    const lastOrderDate = new Date(Math.max(...clientOrders.map((o) => new Date(o.date).getTime())));
+    return lastOrderDate < threeMonthsAgo;
+  }).length;
+
+  const dayPriorityItems = [
+    {
+      id: 'overdue-orders',
+      label: 'Pavėluoti suplanuoti darbai',
+      value: overduePlannedOrders.length,
+      cta: 'Atidaryti užsakymus',
+      tab: 'orders' as const,
+      tone: 'text-red-700 bg-red-50 border-red-100',
+    },
+    {
+      id: 'unassigned-today',
+      label: 'Nepriskirti šiandienos darbai',
+      value: todayUnassignedOrders.length,
+      cta: 'Atidaryti kalendorių',
+      tab: 'calendar' as const,
+      tone: 'text-amber-700 bg-amber-50 border-amber-100',
+    },
+    {
+      id: 'stale-clients',
+      label: 'Klientai be užsakymo > 3 mėn.',
+      value: staleClientsCount,
+      cta: 'Atidaryti klientus',
+      tab: 'clients' as const,
+      tone: 'text-indigo-700 bg-indigo-50 border-indigo-100',
+    },
+    {
+      id: 'pending-sms',
+      label: 'Laukiantys SMS priminimai',
+      value: smsStats.pending,
+      cta: 'Atidaryti nustatymus',
+      tab: 'settings' as const,
+      tone: 'text-purple-700 bg-purple-50 border-purple-100',
+    },
+  ].filter((x) => x.value > 0);
+
   const handleOpenMap = () => {
     if (todayOrders.length === 0) return;
     const addresses = todayOrders.map(o => encodeURIComponent(o.address)).join('/');
@@ -397,6 +441,37 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900">Dienos prioritetai</h2>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Veiksmai dabar</span>
+        </div>
+        {dayPriorityItems.length === 0 ? (
+          <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+            Šiuo metu kritinių veiksmų nėra. Galite skirti laiką naujiems užsakymams arba klientų aptarnavimui.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {dayPriorityItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.tab)}
+                className={`w-full text-left border rounded-2xl p-4 transition-all hover:shadow-sm active:scale-[0.99] ${item.tone}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">{item.label}</p>
+                    <p className="text-2xl font-black mt-1">{item.value}</p>
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider">{item.cta}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       {reEngagementClients.length > 0 && (
