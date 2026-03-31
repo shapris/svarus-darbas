@@ -41,7 +41,14 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const [isUploading, setIsUploading] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
   const { showToast } = useToast();
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    buildingType: 'nesutarta' as Client['buildingType'],
+  });
   const [formData, setFormData] = useState({
     clientId: '',
     employeeId: '',
@@ -101,19 +108,44 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const client = clients.find(c => c.id === formData.clientId);
-    if (!client) return;
 
     setIsSaving(true);
     try {
-      const coords = await geocodeAddress(client.address);
+      let orderClient: Client | null = null;
+      if (clientMode === 'existing') {
+        orderClient = clients.find(c => c.id === formData.clientId) || null;
+        if (!orderClient) {
+          showToast.error('Pasirinkite klientą');
+          return;
+        }
+      } else {
+        const name = newClientData.name.trim();
+        const address = newClientData.address.trim();
+        if (!name || !address) {
+          showToast.error('Naujam klientui būtinas vardas ir adresas');
+          return;
+        }
+        const createdClient = await addData(TABLES.CLIENTS, user.uid, {
+          name,
+          phone: newClientData.phone.trim(),
+          address,
+          buildingType: newClientData.buildingType,
+          createdAt: new Date().toISOString(),
+        } as any);
+        orderClient = createdClient as unknown as Client;
+      }
+      const coords = await geocodeAddress(orderClient.address);
 
       const orderData = {
         ...formData,
-        clientName: client.name,
-        address: client.address,
+        clientId: orderClient.id,
+        clientName: orderClient.name,
+        address: orderClient.address,
         lat: coords?.lat || null,
         lng: coords?.lng || null,
+        windowCount: Math.max(1, Number(formData.windowCount) || 1),
+        floor: Math.max(1, Number(formData.floor) || 1),
+        estimatedDuration: Math.max(15, Number(formData.estimatedDuration) || 60),
         totalPrice,
         status: 'suplanuota' as OrderStatus,
         uid: user.uid,
@@ -127,6 +159,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       }
       setIsAdding(false);
       setEditingOrder(null);
+      setClientMode('existing');
+      setNewClientData({ name: '', phone: '', address: '', buildingType: 'nesutarta' });
+      showToast.success('Užsakymas išsaugotas');
     } catch {
       showToast.error('Klaida išsaugant užsakymą');
     } finally {
@@ -219,6 +254,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       recurringInterval: order.recurringInterval || 3,
     });
     setIsAdding(true);
+    setClientMode('existing');
   };
 
   const sendSMS = (order: Order) => {
@@ -714,6 +750,26 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {!editingOrder && (
+                  <div className="flex gap-2 bg-slate-50 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setClientMode('existing')}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold ${clientMode === 'existing' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                    >
+                      Esamas klientas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientMode('new')}
+                      className={`flex-1 py-2 rounded-lg text-xs font-bold ${clientMode === 'new' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+                    >
+                      Naujas klientas
+                    </button>
+                  </div>
+                )}
+
+                {clientMode === 'existing' || editingOrder ? (
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Klientas</label>
                   <select
@@ -729,6 +785,42 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     ))}
                   </select>
                 </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Kliento vardas</label>
+                      <input
+                        required
+                        type="text"
+                        value={newClientData.name}
+                        onChange={(e) => setNewClientData((prev) => ({ ...prev, name: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Pvz. Jonas Jonaitis"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Telefonas</label>
+                      <input
+                        type="text"
+                        value={newClientData.phone}
+                        onChange={(e) => setNewClientData((prev) => ({ ...prev, phone: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="+370..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Adresas</label>
+                      <input
+                        required
+                        type="text"
+                        value={newClientData.address}
+                        onChange={(e) => setNewClientData((prev) => ({ ...prev, address: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Gatvė, miestas"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priskirtas darbuotojas</label>
