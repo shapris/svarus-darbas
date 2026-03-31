@@ -11,6 +11,9 @@ export default defineConfig(({mode}) => {
       react(),
       tailwindcss(),
       VitePWA({
+        // Temporary hardening: force old service workers to self-unregister,
+        // because stale cached index/chunks are breaking module loading in production.
+        selfDestroying: true,
         registerType: 'autoUpdate',
         includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
         manifest: {
