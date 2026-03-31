@@ -8,6 +8,7 @@ import { Employee } from '../types';
 import { addData, updateData, deleteData, TABLES } from '../supabase';
 import { Users, Plus, Edit2, Trash2, X, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useToast } from '../hooks/useToast';
 
 interface LocalUser {
   uid: string;
@@ -21,6 +22,7 @@ interface TeamViewProps {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
 export default function TeamView({ employees, user }: TeamViewProps) {
+  const { showToast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -44,7 +46,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
       setEditingId(null);
       setFormData({ name: '', phone: '', color: COLORS[0], isActive: true });
     } catch {
-      alert('Klaida išsaugant darbuotoją');
+      showToast.error('Klaida išsaugant darbuotoją');
     }
   };
 
@@ -74,6 +76,9 @@ export default function TeamView({ employees, user }: TeamViewProps) {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Komanda</h2>
         <button
+          type="button"
+          title="Pridėti darbuotoją"
+          aria-label="Pridėti darbuotoją"
           onClick={() => {
             setEditingId(null);
             setFormData({ name: '', phone: '', color: COLORS[Math.floor(Math.random() * COLORS.length)], isActive: true });
@@ -113,10 +118,22 @@ export default function TeamView({ employees, user }: TeamViewProps) {
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={() => handleEdit(emp)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl">
+              <button
+                type="button"
+                title="Redaguoti"
+                aria-label="Redaguoti darbuotoją"
+                onClick={() => handleEdit(emp)}
+                className="p-2 text-slate-400 hover:text-blue-600 transition-colors bg-slate-50 rounded-xl"
+              >
                 <Edit2 size={16} />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); handleDelete(emp.id); }} className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-xl">
+              <button
+                type="button"
+                title="Ištrinti"
+                aria-label="Ištrinti darbuotoją"
+                onClick={(e) => { e.stopPropagation(); handleDelete(emp.id); }}
+                className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-xl"
+              >
                 <Trash2 size={16} />
               </button>
             </div>
@@ -152,7 +169,13 @@ export default function TeamView({ employees, user }: TeamViewProps) {
                 <h3 className="text-xl font-bold text-slate-900">
                   {editingId ? 'Redaguoti darbuotoją' : 'Naujas darbuotojas'}
                 </h3>
-                <button onClick={() => setIsAdding(false)} className="p-2 text-slate-400 hover:text-slate-600">
+                <button
+                  type="button"
+                  title="Uždaryti"
+                  aria-label="Uždaryti"
+                  onClick={() => setIsAdding(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600"
+                >
                   <X size={20} />
                 </button>
               </div>
@@ -189,6 +212,8 @@ export default function TeamView({ employees, user }: TeamViewProps) {
                       <button
                         key={color}
                         type="button"
+                        title="Pasirinkti spalvą"
+                        aria-label="Pasirinkti spalvą"
                         onClick={() => setFormData({ ...formData, color })}
                         className={`w-8 h-8 rounded-full transition-transform ${formData.color === color ? 'scale-125 ring-2 ring-offset-2 ring-slate-400' : 'hover:scale-110'}`}
                         style={{ backgroundColor: color }}

@@ -15,6 +15,7 @@ import { addData, updateData, deleteData, subscribeToData, getData, TABLES } fro
 import { calculateOrderPrice } from '../utils';
 
 import ReactMarkdown from 'react-markdown';
+import { useToast } from '../hooks/useToast';
 
 interface LocalUser {
   uid: string;
@@ -38,6 +39,7 @@ interface Message {
 }
 
 export default function ChatAssistant({ user, clients, orders, expenses, settings }: ChatAssistantProps) {
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
@@ -239,7 +241,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      alert('Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.');
+      showToast.error('Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.');
       return;
     }
 
@@ -306,7 +308,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           }
 
           console.error('Speech recognition error:', event.error);
-          alert(userMessage);
+          showToast.error(userMessage);
         };
 
         recognition.onend = () => {
@@ -326,7 +328,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       } catch (error) {
         console.error('Failed to start recognition', error);
         setIsRecording(false);
-        alert('Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.');
+        showToast.error('Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.');
         recognitionRef.current = null;
       }
     }

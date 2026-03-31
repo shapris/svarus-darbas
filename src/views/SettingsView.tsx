@@ -11,6 +11,7 @@ import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check
 import { motion } from 'motion/react';
 import { getAiBudgetStatus } from '../services/aiService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
+import { useToast } from '../hooks/useToast';
 
 interface LocalUser {
   uid: string;
@@ -24,6 +25,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({ settings, setSettings, user, memories = [] }: SettingsViewProps) {
+  const { showToast } = useToast();
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
   const [isCheckingSchema, setIsCheckingSchema] = useState(false);
@@ -45,9 +47,9 @@ export default function SettingsView({ settings, setSettings, user, memories = [
         await updateData(TABLES.SETTINGS, settings.id, formData as any);
       }
       setSettings(formData);
-      alert('Nustatymai išsaugoti!');
+      showToast.success('Nustatymai išsaugoti!');
     } catch {
-      alert('Nepavyko išsaugoti nustatymų');
+      showToast.error('Nepavyko išsaugoti nustatymų');
     } finally {
       setIsSaving(false);
     }
@@ -64,7 +66,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
 
   const handleExport = () => {
     downloadData();
-    alert('Duomenys išsaugoti į failą!');
+    showToast.success('Duomenys išsaugoti į failą!');
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,7 +77,8 @@ export default function SettingsView({ settings, setSettings, user, memories = [
     reader.onload = (event) => {
       const content = event.target?.result as string;
       const result = importData(content);
-      alert(result.message);
+      if (result.success) showToast.success(result.message);
+      else showToast.error(result.message);
       if (result.success) {
         window.location.reload();
       }
@@ -91,9 +94,10 @@ export default function SettingsView({ settings, setSettings, user, memories = [
     setIsCheckingSchema(true);
     try {
       const result = await checkOrdersSchemaHealth(user.uid);
-      alert(result.message);
+      if (result.ok) showToast.success(result.message);
+      else showToast.error(result.message);
     } catch (error: any) {
-      alert(`Schema check failed: ${error?.message || 'Unknown error'}`);
+      showToast.error(`Schema check failed: ${error?.message || 'Unknown error'}`);
     } finally {
       setIsCheckingSchema(false);
     }

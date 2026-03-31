@@ -19,6 +19,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
   const [isBooked, setIsBooked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     phone: 'nesutarta',
@@ -64,6 +65,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorBanner(null);
     try {
       const normalizedPhone = formData.phone.trim() || 'nesutarta';
       const coords = await geocodeAddress(formData.address);
@@ -140,13 +142,13 @@ export default function BookingPage({ userId }: BookingPageProps) {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Rezervacija nepavyko';
       if (String(msg).toLowerCase().includes('booking_rpc_missing')) {
-        alert(
+        setErrorBanner(
           'Rezervacija dar nesukonfigūruota serveryje. Administratorius turi įkelti SQL failą supabase/public_booking_rpcs.sql į Supabase (SQL Editor).'
         );
       } else if (String(msg).toLowerCase().includes('invalid_booking')) {
-        alert('Ši rezervacijos nuoroda nebegalioja arba verslas neaktyvus.');
+        setErrorBanner('Ši rezervacijos nuoroda nebegalioja arba verslas neaktyvus.');
       } else {
-        alert('Apgailestaujame, įvyko klaida. Bandykite dar kartą.');
+        setErrorBanner('Apgailestaujame, įvyko klaida. Bandykite dar kartą.');
       }
     } finally {
       setIsSubmitting(false);
@@ -203,6 +205,23 @@ export default function BookingPage({ userId }: BookingPageProps) {
         <h1 className="text-2xl font-black text-blue-600 tracking-tight mb-2">Langų Valymo Rezervacija</h1>
         <p className="text-slate-500 text-sm">Užpildykite formą ir sužinokite preliminarią kainą</p>
       </header>
+
+      <AnimatePresence>
+        {errorBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="mb-4 p-4 rounded-2xl border border-amber-200 bg-amber-50 text-amber-900"
+            role="alert"
+          >
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-amber-700 mt-0.5 shrink-0" aria-hidden />
+              <div className="text-sm leading-relaxed">{errorBanner}</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
@@ -274,8 +293,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data</label>
+              <label htmlFor="booking-date" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data</label>
               <input
+                id="booking-date"
                 required
                 type="date"
                 value={formData.date}
@@ -284,8 +304,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Laikas</label>
+              <label htmlFor="booking-time" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Laikas</label>
               <input
+                id="booking-time"
                 required
                 type="time"
                 value={formData.time}
@@ -297,8 +318,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Langų skaičius</label>
+              <label htmlFor="booking-window-count" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Langų skaičius</label>
               <input
+                id="booking-window-count"
                 required
                 type="number"
                 value={formData.windowCount}
@@ -307,8 +329,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Aukštas</label>
+              <label htmlFor="booking-floor" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Aukštas</label>
               <input
+                id="booking-floor"
                 required
                 type="number"
                 value={formData.floor}

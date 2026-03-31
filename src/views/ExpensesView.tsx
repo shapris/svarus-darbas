@@ -9,6 +9,7 @@ import { addData, deleteData, TABLES } from '../supabase';
 import { Plus, Trash2, Wallet, Calendar, Tag, Search, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatCurrency, formatDate } from '../utils';
+import { useToast } from '../hooks/useToast';
 
 interface LocalUser {
   uid: string;
@@ -20,6 +21,7 @@ interface ExpensesViewProps {
 }
 
 export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
+  const { showToast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [formData, setFormData] = useState({
@@ -47,8 +49,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
         category: 'kita',
         notes: '',
       });
+      showToast.success('Išlaida išsaugota');
     } catch {
-      alert('Klaida išsaugant išlaidą');
+      showToast.error('Klaida išsaugant išlaidą');
     }
   };
 
@@ -76,6 +79,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Išlaidos</h2>
         <button
+          type="button"
+          title="Pridėti išlaidas"
+          aria-label="Pridėti išlaidas"
           onClick={() => setIsAdding(true)}
           className="bg-red-600 text-white p-3 rounded-2xl shadow-lg shadow-red-200 hover:bg-red-700 transition-colors"
         >
@@ -115,6 +121,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
             <div className="text-right flex items-center gap-4">
               <p className="font-black text-red-600">-{formatCurrency(expense.amount)}</p>
               <button
+                type="button"
+                title="Ištrinti išlaidas"
+                aria-label="Ištrinti išlaidas"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDelete(expense.id);
@@ -144,7 +153,13 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
             >
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-xl font-black text-slate-900">Pridėti išlaidas</h3>
-                <button onClick={() => setIsAdding(false)} className="p-2 bg-slate-50 rounded-full text-slate-400">
+                <button
+                  type="button"
+                  title="Uždaryti"
+                  aria-label="Uždaryti"
+                  onClick={() => setIsAdding(false)}
+                  className="p-2 bg-slate-50 rounded-full text-slate-400"
+                >
                   <Plus size={20} className="rotate-45" />
                 </button>
               </div>
@@ -176,8 +191,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Data</label>
+                    <label htmlFor="expense-date" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Data</label>
                     <input
+                      id="expense-date"
                       required
                       type="date"
                       value={formData.date}
@@ -252,7 +268,13 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{categories[selectedExpense.category].label}</p>
                   </div>
                 </div>
-                <button onClick={() => setSelectedExpense(null)} className="p-2 bg-slate-50 rounded-full text-slate-400">
+                <button
+                  type="button"
+                  title="Uždaryti"
+                  aria-label="Uždaryti"
+                  onClick={() => setSelectedExpense(null)}
+                  className="p-2 bg-slate-50 rounded-full text-slate-400"
+                >
                   <Plus size={20} className="rotate-45" />
                 </button>
               </div>

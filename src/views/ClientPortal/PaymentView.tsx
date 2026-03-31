@@ -18,6 +18,7 @@ import {
   type PaymentFormData
 } from '../../services/paymentService';
 import { motion } from 'motion/react';
+import { useToast } from '../../hooks/useToast';
 
 interface PaymentViewProps {
   order: Order;
@@ -25,6 +26,7 @@ interface PaymentViewProps {
 }
 
 export default function PaymentView({ order, onPaymentComplete }: PaymentViewProps) {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -86,7 +88,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Mokėjimas nepavyko';
-      alert(msg);
+      showToast.error(msg);
     } finally {
       setPaymentProcessing(false);
     }
@@ -128,7 +130,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch {
-      alert('Nepavyko atsisiųsti sąskaitos');
+      showToast.error('Nepavyko atsisiųsti sąskaitos');
     }
   };
 

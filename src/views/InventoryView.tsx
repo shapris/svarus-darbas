@@ -3,12 +3,14 @@ import { InventoryItem } from '../types';
 import { getData, addData, updateData, deleteData, subscribeToData, TABLES } from '../supabase';
 import { Package, Plus, Search, AlertTriangle, Edit2, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useToast } from '../hooks/useToast';
 
 interface InventoryViewProps {
   userId: string;
 }
 
 export default function InventoryView({ userId }: InventoryViewProps) {
+  const { showToast } = useToast();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -49,8 +51,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
       setIsAddingItem(false);
       setEditingItem(null);
       setFormData({ name: '', quantity: 0, unit: 'vnt', minQuantity: 5, category: 'valikliai' });
+      showToast.success(editingItem ? 'Inventorius atnaujintas' : 'Inventorius išsaugotas');
     } catch {
-      alert('Klaida išsaugant inventorių.');
+      showToast.error('Klaida išsaugant inventorių.');
     }
   };
 
@@ -104,6 +107,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
           <p className="text-sm text-slate-500">Valiklių ir įrankių likučiai</p>
         </div>
         <button
+          type="button"
+          title="Pridėti prekę"
+          aria-label="Pridėti prekę"
           onClick={() => {
             setEditingItem(null);
             setFormData({ name: '', quantity: 0, unit: 'vnt', minQuantity: 5, category: 'valikliai' });
@@ -221,12 +227,18 @@ export default function InventoryView({ userId }: InventoryViewProps) {
               {/* Hover Actions */}
               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
+                  type="button"
+                  title="Redaguoti"
+                  aria-label="Redaguoti prekę"
                   onClick={() => startEdit(item)}
                   className="p-2 bg-white shadow-sm border border-slate-100 rounded-xl text-blue-600 hover:bg-blue-50 transition-colors"
                 >
                   <Edit2 size={16} />
                 </button>
                 <button
+                  type="button"
+                  title="Ištrinti"
+                  aria-label="Ištrinti prekę"
                   onClick={() => handleDelete(item.id)}
                   className="p-2 bg-white shadow-sm border border-slate-100 rounded-xl text-red-600 hover:bg-red-50 transition-colors"
                 >
@@ -257,6 +269,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                   {editingItem ? 'Redaguoti prekę' : 'Nauja prekė'}
                 </h3>
                 <button
+                  type="button"
+                  title="Uždaryti"
+                  aria-label="Uždaryti"
                   onClick={() => {
                     setIsAddingItem(false);
                     setEditingItem(null);
@@ -269,10 +284,11 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  <label htmlFor="inventory-name" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                     Pavadinimas
                   </label>
                   <input
+                    id="inventory-name"
                     required
                     type="text"
                     value={formData.name}
@@ -284,10 +300,11 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label htmlFor="inventory-quantity" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                       Kiekis
                     </label>
                     <input
+                      id="inventory-quantity"
                       required
                       type="number"
                       min="0"
@@ -298,10 +315,11 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label htmlFor="inventory-unit" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                       Matavimo vnt.
                     </label>
                     <input
+                      id="inventory-unit"
                       required
                       type="text"
                       value={formData.unit}
@@ -314,10 +332,11 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label htmlFor="inventory-category" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                       Kategorija
                     </label>
                     <select
+                      id="inventory-category"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
@@ -328,10 +347,11 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label htmlFor="inventory-min-quantity" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                       Kritinis likutis
                     </label>
                     <input
+                      id="inventory-min-quantity"
                       required
                       type="number"
                       min="0"

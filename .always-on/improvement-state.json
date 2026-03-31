@@ -1,10 +1,10 @@
 ﻿{
-    "auditHigh":  0,
+    "auditHigh":  4,
     "anyCount":  106,
     "consoleErrorCount":  60,
     "auditModerate":  0,
     "alertCount":  19,
-    "score":  65,
+    "score":  53,
     "todoCount":  0,
-    "generatedAt":  "2026-03-31 09:18:13"
+    "generatedAt":  "2026-03-31 09:43:37"
 }

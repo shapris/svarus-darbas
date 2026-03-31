@@ -8,12 +8,14 @@ import { CreditCard, DollarSign, FileText, Download, RefreshCw, AlertCircle, Che
 import { Invoice, Transaction } from '../types';
 import { formatAmountFromEur, getInvoiceStatusText, getInvoiceStatusColor } from '../services/paymentService';
 import { motion } from 'motion/react';
+import { useToast } from '../hooks/useToast';
 
 interface PaymentsViewProps {
   user: any;
 }
 
 export default function PaymentsView({ user }: PaymentsViewProps) {
+  const { showToast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +135,7 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch {
-      alert('Nepavyko atsisiųsti sąskaitos');
+      showToast.error('Nepavyko atsisiųsti sąskaitos');
     }
   };
 
@@ -153,9 +155,10 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
           inv.id === invoiceId ? updatedInvoice : inv
         ));
         setSelectedInvoice(null);
+        showToast.success('Sąskaitos statusas atnaujintas');
       }
     } catch {
-      alert('Nepavyko atnaujinti sąskaitos statuso');
+      showToast.error('Nepavyko atnaujinti sąskaitos statuso');
     }
   };
 
@@ -456,6 +459,9 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Keisti Sąskaitos Būseną</h3>
               <button
+                type="button"
+                title="Uždaryti"
+                aria-label="Uždaryti"
                 onClick={() => setSelectedInvoice(null)}
                 className="text-gray-400 hover:text-gray-600"
               >
