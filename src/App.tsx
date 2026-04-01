@@ -743,6 +743,7 @@ export default function App() {
               orders={orders}
               expenses={expenses}
               settings={settings}
+              activeTab={activeTab}
             />
           </Suspense>
         </Layout>

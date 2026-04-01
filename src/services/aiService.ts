@@ -131,9 +131,18 @@ async function autoGeocodeAddress(address: string): Promise<{ lat: number, lng: 
 /**
  * Simple, effective system prompt that works well
  */
+type AssistantDataContext = {
+  clients: Client[];
+  orders: Order[];
+  expenses: Expense[];
+  memories: Memory[];
+  /** Pvz. „Užsakymai“ — vartotojas gali klausti apie tai, ką mato šioje skiltyje */
+  activeViewLabel?: string;
+};
+
 function buildSystemInstruction(
   message: string,
-  context: { clients: Client[]; orders: Order[]; expenses: Expense[]; memories: Memory[] },
+  context: AssistantDataContext,
   history: any[],
   businessMetrics: { totalRevenue: number; totalExpenses: number; profit: number }
 ): string {
@@ -144,11 +153,15 @@ function buildSystemInstruction(
     conversationHistory: history.map(h => h.parts[0]?.text || '').filter(Boolean)
   });
   const memoriesContext = formatMemoriesForContext(relevantMemories);
-  
+
+  const uiContext =
+    context.activeViewLabel?.trim() &&
+    `DABARTINĖ CRM SKILTIS: ${context.activeViewLabel.trim()}. Vartotojas naršo tarp skilčių; pokalbis išlieka atviras. Kai klausia apie „čia“, „šį ekraną“ ar konkrečią eilutę — laikykite, kad tai susiję su šia skiltimi ir matomais sąrašais / forma.\n\n`;
+
   // Build a clean, focused system prompt
   return `Jūs esate AI asistentas "Švarus Darbas" - langų valymo verslo valdymo sistemos.
 
-JŪSŲ ŠIUOŠIO KONTEKSTO:
+${uiContext || ''}JŪSŲ ŠIUOŠIO KONTEKSTO:
 - Klientai: ${context.clients.length} žmonių
 - Aktyvūs užsakymai: ${context.orders.filter(o => o.status !== 'atlikta').length}
 - Išlaidų įrašai: ${context.expenses.length}
@@ -361,7 +374,7 @@ async function runOpenRouterAssistantChat(
 export async function chatWithAssistant(
   message: string,
   history: any[],
-  context: { clients: Client[]; orders: Order[]; expenses: Expense[]; memories: Memory[] }
+  context: AssistantDataContext
 ) {
   try {
       const preferredGeminiKey = getGeminiApiKeyForSdk();

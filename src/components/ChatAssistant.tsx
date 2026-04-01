@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageSquare, Send, X, Bot, User as UserIcon, Trash2, Mic, MicOff, Volume2, VolumeX, Brain, AlertTriangle, Settings2, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { chatWithAssistant, getAiInstance, getGeminiApiKeyForSdk, isOpenRouterKey } from '../services/aiService';
@@ -23,12 +23,28 @@ interface LocalUser {
   displayName: string | null;
 }
 
+const CRM_TAB_LABEL_LT: Record<string, string> = {
+  dashboard: 'Apžvalga',
+  orders: 'Užsakymai',
+  calendar: 'Kalendorius',
+  clients: 'Klientai',
+  expenses: 'Išlaidos',
+  payments: 'Mokėjimai',
+  settings: 'Nustatymai',
+  analytics: 'Analitika',
+  logistics: 'Logistika',
+  team: 'Komanda',
+  inventory: 'Atsargos',
+};
+
 interface ChatAssistantProps {
   user: LocalUser;
   clients: Client[];
   orders: Order[];
   expenses: Expense[];
   settings: AppSettings;
+  /** Aktyvi CRM skiltis — rodoma asistente ir perduodama AI kaip kontekstas */
+  activeTab: string;
 }
 
 interface Message {
@@ -38,11 +54,43 @@ interface Message {
   failed?: boolean;
 }
 
-export default function ChatAssistant({ user, clients, orders, expenses, settings }: ChatAssistantProps) {
+function chatPanelOpenKey(uid: string) {
+  return `chat_assistant_open_${uid}`;
+}
+function chatPanelMessagesKey(uid: string) {
+  return `chat_assistant_messages_${uid}`;
+}
+
+export default function ChatAssistant({ user, clients, orders, expenses, settings, activeTab }: ChatAssistantProps) {
   const { showToast } = useToast();
-  const [isOpen, setIsOpen] = useState(false);
+  const activeViewLabel = CRM_TAB_LABEL_LT[activeTab] ?? activeTab;
+
+  const [isOpen, setIsOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem(chatPanelOpenKey(user.uid)) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const raw = sessionStorage.getItem(chatPanelMessagesKey(user.uid));
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (m): m is Message =>
+          m &&
+          typeof m === 'object' &&
+          (m as Message).role !== undefined &&
+          ['user', 'model'].includes((m as Message).role) &&
+          typeof (m as Message).text === 'string'
+      );
+    } catch {
+      return [];
+    }
+  });
   const [history, setHistory] = useState<any[]>(() => {
     const saved = localStorage.getItem('chat_history_' + user.uid);
     return saved ? JSON.parse(saved) : [];
@@ -63,6 +111,17 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [showPreviewMicHint, setShowPreviewMicHint] = useState(false);
+
+  const assistantDataContext = useMemo(
+    () => ({
+      clients,
+      orders,
+      expenses,
+      memories,
+      activeViewLabel,
+    }),
+    [clients, orders, expenses, memories, activeViewLabel]
+  );
 
   const sanitizeHistoryForGemini = (history: any[]) => {
     return (history || [])
@@ -236,6 +295,25 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       }
     };
   }, [user.uid]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(chatPanelOpenKey(user.uid), isOpen ? '1' : '0');
+    } catch {
+      /* naršyklės privatumo režimas */
+    }
+  }, [isOpen, user.uid]);
+
+  useEffect(() => {
+    try {
+      const trimmed = messages.slice(-50);
+      const serial = JSON.stringify(trimmed);
+      if (serial.length > 500_000) return;
+      sessionStorage.setItem(chatPanelMessagesKey(user.uid), serial);
+    } catch {
+      /* kvota / privatumas */
+    }
+  }, [messages, user.uid]);
 
   const toggleRecording = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -705,7 +783,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         localStorage.getItem('custom_api_key') ||
         (window as any).aistudio?.getApiKey?.() ||
         getGeminiKeyFromEnv();
-      const result = await chatWithAssistant(textToSend, history, { clients, orders, expenses, memories });
+      const result = await chatWithAssistant(textToSend, history, assistantDataContext);
 
       // Check if we hit fallback
       if (result.text?.includes("AI smegenys ilsisi") || result.text?.includes("modeliai yra perkrauti")) {
@@ -755,7 +833,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           if (isOpenRouterKey(apiKey)) {
             // For OpenRouter, we just call chatWithAssistant again with the updated history
             // We use an empty message because the history now contains the tool responses
-            const secondResult = await chatWithAssistant("", updatedHistory, { clients, orders, expenses, memories });
+            const secondResult = await chatWithAssistant("", updatedHistory, assistantDataContext);
             finalResponse = secondResult.text;
             currentHistory = secondResult.history;
           } else {
@@ -924,6 +1002,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                   <h3 id="chat-assistant-title" className="font-semibold text-sm">Asistentas</h3>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="text-[10px] opacity-80">Klausimai apie užsakymus ir duomenis</p>
+                    <span
+                      className="text-[9px] px-2 py-0.5 rounded-md font-medium bg-white/20 text-white max-w-[11rem] truncate"
+                      title={`Dabar atidaryta: ${activeViewLabel}`}
+                    >
+                      {activeViewLabel}
+                    </span>
                     <span className={`text-[9px] px-2 py-0.5 rounded-md font-medium ${isAiOffline ? 'bg-amber-500/25 text-amber-100' :
                       apiKeyProvider === 'openrouter' ? 'bg-white/15 text-white' :
                         apiKeyProvider === 'google' ? 'bg-white/15 text-white' :
@@ -932,6 +1016,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                       {isAiOffline ? 'Neprijungta' : apiKeyProvider === 'openrouter' ? 'OpenRouter' : apiKeyProvider === 'google' ? 'Google API' : 'Numatytasis'}
                     </span>
                   </div>
+                  <p className="text-[9px] opacity-85 mt-1.5 leading-snug pr-2">
+                    Naršykite kitas skiltis — langas ir pokalbis lieka. Apie „čia matomą“ galite klausti pagal
+                    viršuje rodomą skiltį.
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -963,6 +1051,11 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                       setHistory([]);
                       setLastFailedMessage(null);
                       localStorage.removeItem('chat_history_' + user.uid);
+                      try {
+                        sessionStorage.removeItem(chatPanelMessagesKey(user.uid));
+                      } catch {
+                        /* */
+                      }
                     }}
                     className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/60 hover:text-white"
                     title="Išvalyti pokalbį"
