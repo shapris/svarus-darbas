@@ -717,7 +717,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       let currentHistory = result.history;
       let finalResponse = result.text;
 
-      const toolCalls = 'functionCalls' in result ? result.functionCalls : undefined;
+      const rawFunctionCalls =
+        'functionCalls' in result ? (result as { functionCalls?: unknown }).functionCalls : undefined;
+      const toolCalls = Array.isArray(rawFunctionCalls) ? rawFunctionCalls : undefined;
       if (toolCalls?.length) {
         const functionResponses = [];
         for (const call of toolCalls) {
@@ -763,9 +765,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
             } else {
             const ai = getAiInstance(geminiKey);
             const modelsToTry = [
+              'gemini-2.0-flash',
               'gemini-2.5-flash',
               'gemini-flash-latest',
-              'gemini-2.0-flash',
               'gemini-1.5-flash',
               'gemini-1.5-flash-8b',
             ];
@@ -902,19 +904,24 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            key="chat-panel"
+            initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed inset-0 md:inset-auto md:bottom-20 md:right-4 md:w-96 md:h-[600px] bg-white z-50 flex flex-col shadow-xl md:rounded-2xl overflow-hidden border border-slate-200"
+            exit={{ opacity: 0, y: 24, scale: 0.98 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+            className="fixed z-50 left-0 right-0 bottom-0 h-[min(92dvh,640px)] flex flex-col bg-white shadow-2xl border-t border-slate-200 rounded-t-2xl overflow-hidden md:left-auto md:right-4 md:bottom-20 md:top-auto md:w-96 md:h-[600px] md:rounded-2xl md:border"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-assistant-title"
           >
             {/* Header */}
-            <div className="bg-blue-600 px-4 py-4 text-white flex justify-between items-center">
+            <div className="bg-blue-600 px-4 py-4 text-white flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
                   <Bot size={22} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">Asistentas</h3>
+                  <h3 id="chat-assistant-title" className="font-semibold text-sm">Asistentas</h3>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="text-[10px] opacity-80">Klausimai apie užsakymus ir duomenis</p>
                     <span className={`text-[9px] px-2 py-0.5 rounded-md font-medium ${isAiOffline ? 'bg-amber-500/25 text-amber-100' :

@@ -5,7 +5,8 @@ export const isOpenRouterKey = (key: string) => key?.startsWith('sk-or-v1-');
 let openRouterGlobalCooldownUntil = 0;
 
 // Get OpenRouter API key - enhanced for multiple environments
-const getOpenRouterKey = () => {
+/** Viešas eksportas: ar yra OpenRouter raktas (env / localStorage). */
+export const getOpenRouterKey = () => {
   const envOr =
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENROUTER_API_KEY) ||
     (typeof process !== 'undefined' && process.env?.VITE_OPENROUTER_API_KEY) ||

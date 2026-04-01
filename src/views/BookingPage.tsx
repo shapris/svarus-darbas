@@ -141,14 +141,25 @@ export default function BookingPage({ userId }: BookingPageProps) {
       setIsBooked(true);
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Rezervacija nepavyko';
-      if (String(msg).toLowerCase().includes('booking_rpc_missing')) {
+      const low = String(msg).toLowerCase();
+      if (low.includes('booking_rpc_missing')) {
         setErrorBanner(
           'Rezervacija dar nesukonfigūruota serveryje. Administratorius turi įkelti SQL failą supabase/public_booking_rpcs.sql į Supabase (SQL Editor).'
         );
-      } else if (String(msg).toLowerCase().includes('invalid_booking')) {
+      } else if (low.includes('invalid_booking_owner')) {
+        setErrorBanner(
+          'Ši rezervacijos nuoroda neatitinka paskyros: trūksta įmonės nustatymų (settings) šiam savininkui. Prisijunkite prie CRM ir atidarykite Nustatymai (bus sukurtas settings įrašas), tada bandykite vėl.'
+        );
+      } else if (low.includes('invalid_phone')) {
+        setErrorBanner('Įrašykite telefoną bent 5 simbolių (arba palikite „nesutarta“).');
+      } else if (low.includes('invalid_booking')) {
         setErrorBanner('Ši rezervacijos nuoroda nebegalioja arba verslas neaktyvus.');
       } else {
-        setErrorBanner('Apgailestaujame, įvyko klaida. Bandykite dar kartą.');
+        setErrorBanner(
+          import.meta.env.DEV
+            ? msg
+            : 'Apgailestaujame, įvyko klaida. Bandykite dar kartą. (Detalės tik dev režime.)'
+        );
       }
     } finally {
       setIsSubmitting(false);

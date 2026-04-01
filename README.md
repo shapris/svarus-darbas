@@ -94,7 +94,7 @@ Naudoja hibridinį metodą:
 ## Komandos
 
 ```bash
-npm run dev      # Paleisti dev serverį (port 3000)
+npm run dev      # Paleisti dev serverį (port 5173; API server.cjs — 3001)
 npm run build    # Buildinti produkcijai
 npm run preview  # Peržiūrėti buildą
 npm run lint     # TypeScript tikrinimas

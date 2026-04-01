@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Client, BuildingType, Order } from '../types';
+import { Client, BuildingType, Order, OrderStatus } from '../types';
 import { getData, addData, updateData, deleteData, TABLES } from '../supabase';
 import { Search, Plus, User as UserIcon, Phone, MapPin, Building, MoreVertical, X, Edit, Trash2, History, ChevronRight, Loader2, Star, Users, AlertTriangle, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -27,6 +27,19 @@ interface ClientsViewProps {
   user: LocalUser;
 }
 
+const ORDER_STATUS_LABEL_LT: Record<OrderStatus, string> = {
+  suplanuota: 'Suplanuota',
+  vykdoma: 'Vykdoma',
+  atlikta: 'Atlikta',
+};
+
+function formatClientSaveError(err: unknown): string {
+  const msg = err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+    ? (err as { message: string }).message
+    : '';
+  return msg ? ` (${msg})` : '';
+}
+
 export default function ClientsView({ clients, orders, user }: ClientsViewProps) {
   const [search, setSearch] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -39,6 +52,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   const [formData, setFormData] = useState({
     name: '',
     phone: 'nesutarta',
+    email: '',
     address: '',
     lat: undefined as number | undefined,
     lng: undefined as number | undefined,
@@ -57,7 +71,8 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   const filteredClients = clients.filter(c =>
     (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (c.address || "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone || "").includes(search)
+    (c.phone || "").includes(search) ||
+    (c.email || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -90,9 +105,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       }
       setIsAdding(false);
       setEditingClient(null);
-      setFormData({ name: '', phone: 'nesutarta', address: '', lat: undefined, lng: undefined, buildingType: 'butas', notes: '' });
+      setFormData({ name: '', phone: 'nesutarta', email: '', address: '', lat: undefined, lng: undefined, buildingType: 'butas', notes: '' });
     } catch (error) {
-      showToast.error('Nepavyko išsaugoti kliento. Bandykite dar kartą.');
+      showToast.error(`Nepavyko išsaugoti kliento${formatClientSaveError(error)}`);
       console.error('Error saving client:', error);
     } finally {
       setIsSubmitting(false);
@@ -104,6 +119,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
     setFormData({
       name: client.name,
       phone: client.phone,
+      email: client.email ?? '',
       address: client.address,
       lat: client.lat,
       lng: client.lng,
@@ -121,7 +137,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       await deleteData(TABLES.CLIENTS, id);
       showToast.success('Klientas sėkmingai ištrintas');
     } catch (error) {
-      showToast.error('Nepavyko ištrinti kliento');
+      showToast.error(`Nepavyko ištrinti kliento${formatClientSaveError(error)}`);
       console.error('Error deleting client:', error);
     } finally {
       setIsDeleting(null);
@@ -159,8 +175,10 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Klientai</h2>
         <button
+          type="button"
           onClick={() => setIsAdding(true)}
           title="Pridėti klientą"
+          aria-label="Pridėti klientą"
           className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
         >
           <Plus size={20} />
@@ -179,6 +197,19 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       </div>
 
       <div className="space-y-3">
+        {filteredClients.length === 0 && (
+          <div className="bg-white border border-slate-100 rounded-3xl p-10 text-center shadow-sm">
+            <Users className="w-12 h-12 text-slate-200 mx-auto mb-3" aria-hidden />
+            <p className="text-slate-700 font-semibold text-sm">
+              {clients.length === 0 ? 'Dar nėra klientų' : 'Klientų nerasta'}
+            </p>
+            <p className="text-slate-500 text-xs mt-2 max-w-xs mx-auto">
+              {clients.length === 0
+                ? 'Pridėkite pirmą klientą mygtuku viršuje.'
+                : 'Pakeiskite paieškos frazę arba išvalykite lauką.'}
+            </p>
+          </div>
+        )}
         {filteredClients.map((client) => (
           <motion.div
             layout
@@ -212,14 +243,33 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 </div>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => setViewingHistory(client)} title="Peržiūrėti istoriją" className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                  <History size={18} />
+                <button
+                  type="button"
+                  onClick={() => setViewingHistory(client)}
+                  title="Peržiūrėti istoriją"
+                  aria-label={`Peržiūrėti ${client.name || 'kliento'} užsakymų istoriją`}
+                  className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                >
+                  <History size={18} aria-hidden />
                 </button>
-                <button onClick={() => handleEdit(client)} title="Redaguoti klientą" className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
-                  <Edit size={18} />
+                <button
+                  type="button"
+                  onClick={() => handleEdit(client)}
+                  title="Redaguoti klientą"
+                  aria-label={`Redaguoti klientą ${client.name || ''}`}
+                  className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                >
+                  <Edit size={18} aria-hidden />
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }} title="Ištrinti klientą" className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50" disabled={isDeleting === client.id}>
-                  {isDeleting === client.id ? <LoadingSpinner size="sm" /> : <Trash2 size={18} />}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }}
+                  title="Ištrinti klientą"
+                  aria-label={`Ištrinti klientą ${client.name || ''}`}
+                  className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                  disabled={isDeleting === client.id}
+                >
+                  {isDeleting === client.id ? <LoadingSpinner size="sm" /> : <Trash2 size={18} aria-hidden />}
                 </button>
               </div>
             </div>
@@ -275,8 +325,14 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 <h3 className="text-xl font-bold text-slate-900">
                   {editingClient ? 'Redaguoti klientą' : 'Pridėti klientą'}
                 </h3>
-                <button onClick={() => { setIsAdding(false); setEditingClient(null); }} title="Uždaryti" className="p-2 text-slate-400 hover:text-slate-600">
-                  <X size={24} />
+                <button
+                  type="button"
+                  onClick={() => { setIsAdding(false); setEditingClient(null); }}
+                  title="Uždaryti"
+                  aria-label="Uždaryti kliento formą"
+                  className="p-2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={24} aria-hidden />
                 </button>
               </div>
 
@@ -300,6 +356,18 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     placeholder="+370 600 00000 arba nesutarta"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">El. paštas (sąskaitoms)</label>
+                  <input
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="vardas@pastas.lt (neprivaloma)"
                   />
                 </div>
                 <div>
@@ -377,8 +445,14 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   <h3 className="text-xl font-bold text-slate-900">Užsakymų istorija</h3>
                   <p className="text-xs text-slate-400 font-medium">{viewingHistory.name}</p>
                 </div>
-                <button onClick={() => setViewingHistory(null)} title="Uždaryti istoriją" className="p-2 text-slate-400 hover:text-slate-600">
-                  <X size={24} />
+                <button
+                  type="button"
+                  onClick={() => setViewingHistory(null)}
+                  title="Uždaryti istoriją"
+                  aria-label="Uždaryti užsakymų istoriją"
+                  className="p-2 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={24} aria-hidden />
                 </button>
               </div>
 
@@ -388,7 +462,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                     <div key={order.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
                       <div>
                         <p className="text-xs font-bold text-slate-900">{formatDate(order.date)}</p>
-                        <p className="text-[10px] text-slate-400 font-medium">{order.windowCount} langai • {order.status}</p>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          {order.windowCount} langai • {ORDER_STATUS_LABEL_LT[order.status] ?? order.status}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-black text-slate-900">{formatCurrency(order.totalPrice)}</p>

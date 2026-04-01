@@ -9,9 +9,9 @@
 - [x] Created `AGENT_PROTOCOL.md` + bootstrap rules in `README.md`
 - [x] Added hard rules in `.cursor/rules.md` and strengthened `.cursor/rules/always-on-workflow.mdc`
 
-## NEXT STEPS
-- [ ] Populate current project goals (Vercel env vars, Supabase setup, key rotation, smoke tests)
-- [ ] Run an end-to-end smoke test in production and fix any runtime errors
+## NEXT STEPS (eilė)
+- **Pagrindinis šaltinis:** `.always-on/work-queue.md` — P0 → P1, atnaujinamas po kiekvieno uždaro punkto.
+- Šiame faile laikykitės tik trumpų nuorodų; detalės ir checkbox’ai — `work-queue.md`.
 
 ## KNOWN ISSUES
 - Dashboard “stats cards” clickability fix needs deployment verification on Vercel

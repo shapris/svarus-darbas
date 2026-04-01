@@ -19,6 +19,8 @@ export interface Client {
   id: string;
   name: string;
   phone: string;
+  /** Neprivaloma — jei yra, sąskaitą galima siųsti per el. paštą. */
+  email?: string;
   address: string;
   /** Jei DB turi stulpelius ir nustatyta per Google Places */
   lat?: number;
@@ -81,6 +83,8 @@ export interface AppSettings {
   priceTerasa: number;
   priceKiti: number;
   smsTemplate: string;
+  /** server.cjs bazinis URL (pvz. http://127.0.0.1:3001) – saugomas naršyklėje automatinio sąskaitų siuntimo el. paštu keliui. */
+  invoiceApiBaseUrl?: string;
 }
 
 export interface Memory {
@@ -157,6 +161,9 @@ export interface Transaction {
   processed_at?: string;
 }
 
+/** localStorage raktas – CRM API adresas sąskaitų el. paštu siuntimui (suderinamas su server.cjs). */
+export const INVOICE_API_STORAGE_KEY = 'svarus_invoice_api_base_url';
+
 export const DEFAULT_SETTINGS: AppSettings = {
   pricePerWindow: 5,
   pricePerFloor: 2,
@@ -165,4 +172,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   priceTerasa: 25,
   priceKiti: 10,
   smsTemplate: "Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!",
+  invoiceApiBaseUrl: '',
 };

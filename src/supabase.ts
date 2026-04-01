@@ -16,7 +16,17 @@ import {
     registerUser as localRegisterUser
 } from './localDb';
 import * as FirebaseBackend from './firebaseBridge';
-import { DEFAULT_SETTINGS, type AppSettings, type UserProfile, type UserRole, type Client, type Order, type Memory } from './types';
+import {
+    DEFAULT_SETTINGS,
+    type AppSettings,
+    type UserProfile,
+    type UserRole,
+    type Client,
+    type Order,
+    type Memory,
+    type Invoice,
+    type Transaction,
+} from './types';
 
 const forceDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -66,6 +76,8 @@ export const TABLES = {
     SETTINGS: 'settings',
     INVENTORY: 'inventory',
     PROFILES: 'profiles',
+    INVOICES: 'invoices',
+    TRANSACTIONS: 'transactions',
 } as const;
 
 // Type definitions for database records
@@ -157,14 +169,19 @@ function coerceBuildingType(v: unknown): Client['buildingType'] {
     return 'nesutarta';
 }
 
-/** SQL `clients`: name, phone, address, building_type, owner_id, created_at (no `notes` in default schema). */
+/** SQL `clients`: name, phone, email, address, building_type, owner_id, created_at (no `notes` in default schema). */
 function normalizeClientFromDb(row: Record<string, unknown>): Client {
     const latRaw = typeof row.lat === 'string' ? parseFloat(row.lat) : row.lat;
     const lngRaw = typeof row.lng === 'string' ? parseFloat(row.lng) : row.lng;
+    const emailRaw = row.email ?? row.Email ?? row.e_mail;
     return {
         id: String(row.id ?? ''),
         name: String(row.name ?? ''),
         phone: String(row.phone ?? ''),
+        email:
+            emailRaw != null && String(emailRaw).trim() !== ''
+                ? String(emailRaw).trim()
+                : undefined,
         address: String(row.address ?? ''),
         buildingType: coerceBuildingType(row.building_type ?? row.buildingType),
         notes: row.notes != null ? String(row.notes) : undefined,
@@ -219,6 +236,35 @@ function normalizeNullableId(v: unknown): string | null {
     if (v === null || v === undefined) return null;
     const s = String(v).trim();
     return s ? s : null;
+}
+
+/** `orders.date` dažnai `timestamptz`; vieną datą (YYYY-MM-DD) rašykime kaip ISO su laiku. */
+function coerceOrderDateForDbWrite(v: unknown): unknown {
+    if (v === null || v === undefined) return v;
+    const s = String(v).trim();
+    if (!s) return v;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        return `${s}T00:00:00.000Z`;
+    }
+    return v;
+}
+
+function shouldTryLegacyOrderUpdateAfterModernFailure(error: PgLikeError): boolean {
+    if (!error) return false;
+    if (error.code === 'PGRST204') return true;
+    const msg = String(error.message ?? '').toLowerCase();
+    const details = String((error as { details?: string }).details ?? '').toLowerCase();
+    const hint = String((error as { hint?: string }).hint ?? '').toLowerCase();
+    const t = `${msg} ${details} ${hint}`;
+    if (t.includes('42804')) return true;
+    if (t.includes('22p02')) return true;
+    if (t.includes('invalid input syntax')) return true;
+    if (t.includes('could not find') && t.includes('column')) return true;
+    if ((t.includes('does not exist') || t.includes('undefined column')) && (t.includes('column') || t.includes('field'))) {
+        return true;
+    }
+    if (/is of type .* but expression/.test(t)) return true;
+    return false;
 }
 
 function isStatusValueError(error: PgLikeError): boolean {
@@ -294,13 +340,155 @@ function normalizeOrderFromDb(row: Record<string, unknown>): Order {
     };
 }
 
+const INVOICE_STATUSES = new Set<string>(['pending', 'paid', 'cancelled', 'refunded']);
+
+function coerceInvoiceStatus(v: unknown): Invoice['status'] {
+    const s = typeof v === 'string' ? v.toLowerCase().trim() : '';
+    if (INVOICE_STATUSES.has(s)) return s as Invoice['status'];
+    return 'pending';
+}
+
+const TRANSACTION_TYPES = new Set<string>(['payment', 'refund', 'partial_refund']);
+
+function coerceTransactionType(v: unknown): Transaction['type'] {
+    const s = typeof v === 'string' ? v.toLowerCase().trim() : '';
+    if (TRANSACTION_TYPES.has(s)) return s as Transaction['type'];
+    return 'payment';
+}
+
+/** Normalizuoja `invoices` eilutę į [Invoice](types.ts). */
+export function normalizeInvoiceFromDb(row: Record<string, unknown>): Invoice {
+    return {
+        id: String(row.id ?? ''),
+        order_id: String(row.order_id ?? ''),
+        client_id: String(row.client_id ?? ''),
+        amount: Number(row.amount ?? 0),
+        status: coerceInvoiceStatus(row.status),
+        due_date: row.due_date != null ? String(row.due_date) : '',
+        created_at: row.created_at != null ? String(row.created_at) : new Date().toISOString(),
+        paid_at: row.paid_at != null ? String(row.paid_at) : undefined,
+        stripe_payment_intent_id:
+            row.stripe_payment_intent_id != null ? String(row.stripe_payment_intent_id) : undefined,
+        invoice_url: row.invoice_url != null ? String(row.invoice_url) : undefined,
+    };
+}
+
+/** Normalizuoja `transactions` eilutę į [Transaction](types.ts). */
+export function normalizeTransactionFromDb(row: Record<string, unknown>): Transaction {
+    return {
+        id: String(row.id ?? ''),
+        invoice_id: row.invoice_id != null ? String(row.invoice_id) : undefined,
+        payment_intent_id: row.payment_intent_id != null ? String(row.payment_intent_id) : undefined,
+        client_id: String(row.client_id ?? ''),
+        amount: Number(row.amount ?? 0),
+        currency: String(row.currency ?? 'eur'),
+        status: String(row.status ?? ''),
+        type: coerceTransactionType(row.type),
+        stripe_charge_id: row.stripe_charge_id != null ? String(row.stripe_charge_id) : undefined,
+        failure_reason: row.failure_reason != null ? String(row.failure_reason) : undefined,
+        created_at: row.created_at != null ? String(row.created_at) : new Date().toISOString(),
+        processed_at: row.processed_at != null ? String(row.processed_at) : undefined,
+    };
+}
+
+export function isPaymentsTableUnavailableError(
+    error: unknown,
+    table: 'invoices' | 'transactions'
+): boolean {
+    const e = error as { code?: string; message?: string };
+    const code = String(e?.code ?? '');
+    const msg = String(e?.message ?? '').toLowerCase();
+    const needle = table;
+    if ((code === 'PGRST205' || code === '42P01') && (msg.includes(needle) || msg.includes(`public.${needle}`)))
+        return true;
+    if (msg.includes('schema cache') && msg.includes(needle)) return true;
+    if (msg.includes(needle) && (msg.includes('does not exist') || msg.includes('could not find'))) return true;
+    return false;
+}
+
+/** @deprecated Naudokite isPaymentsTableUnavailableError(err, 'invoices') */
+export function isInvoicesTableUnavailableError(error: unknown): boolean {
+    return isPaymentsTableUnavailableError(error, 'invoices');
+}
+
+export interface FetchPaymentsWorkspaceResult {
+    invoices: Invoice[];
+    transactions: Transaction[];
+    /** `invoices` lentelė neegzistuoja arba nepasiekiama schema cache. */
+    tablesMissing: boolean;
+    queryError?: string;
+}
+
+/**
+ * Darbuotojo CRM: sąskaitos ir transakcijos iš Supabase (RLS pagal staff/admin).
+ * Demo / Firebase / be Supabase — tušti masyvai.
+ */
+export async function fetchPaymentsWorkspaceData(_userId: string): Promise<FetchPaymentsWorkspaceResult> {
+    if (usesFirebase || isDemoMode || !supabase) {
+        return { invoices: [], transactions: [], tablesMissing: false };
+    }
+
+    const invRes = await supabase.from(TABLES.INVOICES).select('*').order('created_at', { ascending: false });
+    if (invRes.error) {
+        if (isPaymentsTableUnavailableError(invRes.error, 'invoices')) {
+            return { invoices: [], transactions: [], tablesMissing: true, queryError: invRes.error.message };
+        }
+        return { invoices: [], transactions: [], tablesMissing: false, queryError: invRes.error.message };
+    }
+
+    const invoices = (invRes.data || []).map((r) => normalizeInvoiceFromDb(r as Record<string, unknown>));
+
+    const txnRes = await supabase.from(TABLES.TRANSACTIONS).select('*').order('created_at', { ascending: false });
+    if (txnRes.error) {
+        if (isPaymentsTableUnavailableError(txnRes.error, 'transactions')) {
+            return {
+                invoices,
+                transactions: [],
+                tablesMissing: false,
+                queryError: txnRes.error.message,
+            };
+        }
+        return { invoices, transactions: [], tablesMissing: false, queryError: txnRes.error.message };
+    }
+
+    const transactions = (txnRes.data || []).map((r) => normalizeTransactionFromDb(r as Record<string, unknown>));
+    return { invoices, transactions, tablesMissing: false };
+}
+
+export async function updateInvoiceStatusInSupabase(invoiceId: string, status: Invoice['status']): Promise<Invoice> {
+    if (usesFirebase || isDemoMode || !supabase) {
+        throw new Error('Sąskaitų atnaujinimas galimas tik su prijungta Supabase duomenų baze.');
+    }
+    const payload: Record<string, unknown> = { status };
+    if (status === 'paid') {
+        payload.paid_at = new Date().toISOString();
+    } else {
+        payload.paid_at = null;
+    }
+
+    const { data, error } = await supabase
+        .from(TABLES.INVOICES)
+        .update(payload)
+        .eq('id', invoiceId)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return normalizeInvoiceFromDb(data as Record<string, unknown>);
+}
+
 type PgLikeError = { code?: string; message?: string } | null;
 const tableMissingColumnsCache = new Map<string, Set<string>>();
 
 function precacheRemoveMissingColumns(tableName: string, payload: Record<string, unknown>) {
     const set = tableMissingColumnsCache.get(tableName);
     if (!set) return;
-    for (const col of set) delete payload[col];
+    for (const col of set) {
+        // `email` stulpelis dažnai pridedamas vėliau per SQL; nenaikinti iš anksto,
+        // kad po ALTER TABLE nereikėtų perkrauti visos programos.
+        if (tableName === 'clients' && col === 'email') continue;
+        delete payload[col];
+    }
 }
 
 function recordMissingColumn(tableName: string, col: string) {
@@ -333,7 +521,9 @@ async function insertWithColumnFallback(
         if (error.code !== 'PGRST204' || !missing || !(missing in payload)) {
             return { data: null, error };
         }
-        recordMissingColumn(tableName, missing);
+        if (!(tableName === 'clients' && missing === 'email')) {
+            recordMissingColumn(tableName, missing);
+        }
         delete payload[missing];
     }
     return { data: null, error: { code: 'PGRST204', message: 'Too many missing-column retries' } };
@@ -355,7 +545,9 @@ async function updateWithColumnFallback(
         if (error.code !== 'PGRST204' || !missing || !(missing in payload)) {
             return error;
         }
-        recordMissingColumn(tableName, missing);
+        if (!(tableName === 'clients' && missing === 'email')) {
+            recordMissingColumn(tableName, missing);
+        }
         delete payload[missing];
     }
     return { code: 'PGRST204', message: 'Too many missing-column retries' };
@@ -822,6 +1014,8 @@ export async function addData<T extends Record<string, unknown>>(
             owner_id: userId,
             created_at: String(c.createdAt ?? c.created_at ?? new Date().toISOString()),
         };
+        const em = c.email != null ? String(c.email).trim() : '';
+        insertData.email = em === '' ? null : em;
         const la = c.lat ?? c.latitude;
         const ln = c.lng ?? c.longitude;
         if (typeof la === 'number' && !Number.isNaN(la)) insertData.lat = la;
@@ -855,7 +1049,7 @@ export async function addData<T extends Record<string, unknown>>(
             address: o.address ?? '',
             lat: o.lat ?? null,
             lng: o.lng ?? null,
-            date: o.date ?? new Date().toISOString().split('T')[0],
+            date: coerceOrderDateForDbWrite(o.date ?? new Date().toISOString().split('T')[0]),
             time: o.time ?? '10:00',
             window_count: Number(o.windowCount ?? o.window_count ?? 0),
             floor: Number(o.floor ?? 1),
@@ -871,7 +1065,7 @@ export async function addData<T extends Record<string, unknown>>(
         };
         const legacyInsert: Record<string, unknown> = {
             client_id: normalizeNullableId(o.clientId ?? o.client_id),
-            date: o.date ?? new Date().toISOString().split('T')[0],
+            date: coerceOrderDateForDbWrite(o.date ?? new Date().toISOString().split('T')[0]),
             time: o.time ?? '10:00',
             windows: Number(o.windowCount ?? o.window_count ?? 0),
             floors: Number(o.floor ?? 1),
@@ -1013,6 +1207,7 @@ export async function updateData<T extends Record<string, unknown>>(
         const snake: Record<string, unknown> = {};
         if (u.name !== undefined) snake.name = u.name;
         if (u.phone !== undefined) snake.phone = u.phone;
+        if (u.email !== undefined) snake.email = u.email === '' ? null : u.email;
         if (u.address !== undefined) snake.address = u.address;
         if (u.buildingType !== undefined) snake.building_type = coerceBuildingType(u.buildingType);
         if (u.building_type !== undefined) snake.building_type = coerceBuildingType(u.building_type);
@@ -1040,7 +1235,7 @@ export async function updateData<T extends Record<string, unknown>>(
         if (u.address !== undefined) modernBase.address = u.address;
         if (u.lat !== undefined) modernBase.lat = u.lat;
         if (u.lng !== undefined) modernBase.lng = u.lng;
-        if (u.date !== undefined) modernBase.date = u.date;
+        if (u.date !== undefined) modernBase.date = coerceOrderDateForDbWrite(u.date);
         if (u.time !== undefined) modernBase.time = u.time;
         if (u.windowCount !== undefined) modernBase.window_count = u.windowCount;
         if (u.floor !== undefined) modernBase.floor = u.floor;
@@ -1050,6 +1245,8 @@ export async function updateData<T extends Record<string, unknown>>(
         if (u.isRecurring !== undefined) modernBase.is_recurring = u.isRecurring;
         if (u.recurringInterval !== undefined) modernBase.recurring_interval = u.recurringInterval;
         if (u.notes !== undefined) modernBase.notes = u.notes;
+        if (u.photoBefore !== undefined) modernBase.photo_before = u.photoBefore;
+        if (u.photoAfter !== undefined) modernBase.photo_after = u.photoAfter;
         modernBase.updated_at = new Date().toISOString();
         const statusCandidates = u.status !== undefined ? getOrderStatusDbCandidates(u.status) : ['__no_status_change__'];
 
@@ -1068,10 +1265,10 @@ export async function updateData<T extends Record<string, unknown>>(
                 }
             }
         }
-        if (ordersSchemaMode === 'legacy' || (error && error.code === 'PGRST204')) {
+        if (ordersSchemaMode === 'legacy' || (error && shouldTryLegacyOrderUpdateAfterModernFailure(error))) {
             const legacyBase: Record<string, unknown> = {};
             if (u.clientId !== undefined) legacyBase.client_id = normalizeNullableId(u.clientId);
-            if (u.date !== undefined) legacyBase.date = u.date;
+            if (u.date !== undefined) legacyBase.date = coerceOrderDateForDbWrite(u.date);
             if (u.time !== undefined) legacyBase.time = u.time;
             if (u.windowCount !== undefined) legacyBase.windows = u.windowCount;
             if (u.floor !== undefined) legacyBase.floors = u.floor;
@@ -1245,7 +1442,12 @@ export async function submitPublicBooking(
                 'booking_rpc_missing: Supabase SQL Editor įkelkite supabase/public_booking_rpcs.sql (funkcijos get_booking_settings ir submit_public_booking).'
             );
         }
-        throw error;
+        const d = error as { message?: string; details?: string; hint?: string; code?: string };
+        if (import.meta.env.DEV) {
+            console.warn('[Booking] submit_public_booking:', d.message, d.details || '', d.hint || '', d.code || '');
+        }
+        const text = [d.message, d.details, d.hint].filter(Boolean).join(' · ') || 'submit_public_booking failed';
+        throw new Error(text);
     }
 }
 

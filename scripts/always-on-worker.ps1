@@ -18,7 +18,7 @@ function Write-Log {
 function Get-ViteProcess {
     $processes = Get-CimInstance Win32_Process -Filter "Name = 'node.exe'"
     return $processes | Where-Object {
-        $_.CommandLine -like "*vite*" -and $_.CommandLine -like "*--port=3000*"
+        $_.CommandLine -like "*vite*" -and $_.CommandLine -like "*--port=5173*"
     }
 }
 
@@ -84,7 +84,7 @@ try {
                 $viteCount = @(Get-ViteProcess).Count
                 $health = "down"
                 try {
-                    $resp = Invoke-WebRequest -Uri "http://localhost:3000/" -UseBasicParsing -TimeoutSec 4
+                    $resp = Invoke-WebRequest -Uri "http://localhost:5173/" -UseBasicParsing -TimeoutSec 4
                     if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400) { $health = "ok" }
                 }
                 catch { }

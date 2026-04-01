@@ -35,8 +35,13 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
           <h1 className="text-lg font-semibold text-slate-900 tracking-tight">Švarus Darbas</h1>
         </div>
         {onLogout && (
-          <button onClick={onLogout} className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-            <LogOut size={20} />
+          <button
+            type="button"
+            onClick={onLogout}
+            className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+            aria-label="Atsijungti"
+          >
+            <LogOut size={20} aria-hidden />
           </button>
         )}
       </header>
@@ -54,9 +59,11 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
             const isActive = activeTab === tab.id;
             return (
               <button
+                type="button"
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
+                aria-current={isActive ? 'true' : undefined}
+                className={`relative flex flex-col items-center justify-center w-full h-full transition-colors ${
                   isActive ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
                 }`}
               >

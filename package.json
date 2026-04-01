@@ -3,16 +3,21 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "overrides": {
+    "serialize-javascript": "7.0.5"
+  },
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "vite --port=5173 --strictPort --host=0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "vite preview --port 4173 --host 127.0.0.1",
     "clean": "node -e \"try{require('fs').rmSync('dist',{recursive:true,force:true})}catch(e){}\"",
     "lint": "tsc --noEmit",
     "scout:improvements": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/improvement-scout.ps1\"",
+    "dev:chrome": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/dev-open-chrome.ps1\"",
     "test": "node --import tsx src/services/test-memory.ts",
     "server": "node server.cjs",
-    "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
+    "dev:kill": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/kill-dev-ports.ps1\"",
+    "dev:full": "npm run dev:kill && concurrently \"npm run server\" \"npm run dev\"",
     "deploy:vercel": "vercel deploy --prod"
   },
   "dependencies": {
@@ -23,6 +28,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "cors": "^2.8.6",
     "date-fns": "^4.1.0",
+    "dejavu-fonts-ttf": "^2.37.3",
     "dotenv": "^17.3.1",
     "express": "^4.22.1",
     "firebase": "^12.11.0",
@@ -36,6 +42,7 @@
     "react-leaflet": "^5.0.0",
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.0",
+    "resend": "^6.10.0",
     "stripe": "^21.0.1"
   },
   "devDependencies": {

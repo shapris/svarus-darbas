@@ -3,10 +3,47 @@
 -- Problema: 404 ant /rest/v1/rpc/get_booking_settings arba submit_public_booking
 -- Sprendimas: Supabase → SQL Editor → įklijuokite ir paleiskite VISĄ šį skriptą.
 --
--- Tikėtina schema (kaip CRM kode): settings.owner_id, clients.owner_id, orders.owner_id
--- (UUID), kainų stulpeliai price_per_window, … orders: client_id, client_name, date (text),
--- time, window_count, floor, additional_services (jsonb), total_price, …
+-- SVARBU — dvi schemos repo:
+-- • Jei DB sukurta iš supabase/migrations/20250322120000_crm_schema.sql (stulpelis uid,
+--   kabantys camelCase vardai) — toje migracijoje JAU yra get_booking_settings / submit_public_booking.
+--   Šio failo nevykdykite ant tokios DB (perrašysite funkcijas kita konvencija).
+-- • Jei lentelės kaip šiuolaikiniame app (owner_id + snake_case: price_per_window, client_name, …)
+--   — naudokite ŠĮ failą; tai atitinka src/supabase.ts užklausas su owner_id.
+--
+-- Diagnostika (SQL Editor), jei submit grąžina 400:
+--   SELECT id, owner_id FROM public.settings;  -- owner_id = UUID iš /booking/... nuorodos
+--   SELECT column_name, data_type FROM information_schema.columns
+--     WHERE table_schema='public' AND table_name='orders' ORDER BY ordinal_position;
 -- =============================================================================
+
+-- Jūsų DB gali būti „sensesnė“ (pvz. be client_name). Pridedame trūkstamus
+-- stulpelius, kad RPC INSERT veiktų kartu su dabartiniu CRM (src/supabase addData orders).
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS client_name text DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS address text DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS lat double precision;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS lng double precision;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS "time" text DEFAULT '10:00';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS window_count integer DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS floor integer DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS additional_services jsonb DEFAULT '{}'::jsonb;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS total_price numeric DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS notes text;
+
+-- data: tipas dažnai timestamptz — jei stulpelio nėra, kuriam tokį; RPC įrašą castina.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS date timestamptz;
+
+-- clients: senesnėse DB gali trūkti building_type (žr. SIMPLE_SETUP.sql).
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS building_type text DEFAULT 'butas';
+-- el. paštas CRM / sąskaitoms (trūksta senesnėse DB — be stulpelio CRM jo neišsaugos)
+ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS email text;
+
+-- settings: get_booking_settings skaito visus kainų laukus + sms_template.
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_per_floor numeric DEFAULT 2;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_balkonai numeric DEFAULT 8;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_vitrinos numeric DEFAULT 12;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_terasa numeric DEFAULT 15;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_kiti numeric DEFAULT 10;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS sms_template text DEFAULT '';
 
 CREATE OR REPLACE FUNCTION public.get_booking_settings(p_owner_uid text)
 RETURNS jsonb
@@ -43,12 +80,13 @@ SET search_path = public
 AS $$
 DECLARE
   v_owner uuid;
-  v_cid uuid;
+  v_cid text;
   v_phone text := trim(coalesce(p_client->>'phone', ''));
   v_services jsonb := coalesce(p_order->'additionalServices', '{}'::jsonb);
+  v_owner_txt text := trim(p_owner_uid);
 BEGIN
   BEGIN
-    v_owner := trim(p_owner_uid)::uuid;
+    v_owner := v_owner_txt::uuid;
   EXCEPTION WHEN invalid_text_representation THEN
     RAISE EXCEPTION 'invalid_booking_owner';
   END;
@@ -61,7 +99,7 @@ BEGIN
     RAISE EXCEPTION 'invalid_phone';
   END IF;
 
-  SELECT c.id INTO v_cid
+  SELECT c.id::text INTO v_cid
   FROM public.clients c
   WHERE c.owner_id = v_owner
     AND trim(coalesce(c.phone, '')) = v_phone
@@ -71,6 +109,7 @@ BEGIN
     INSERT INTO public.clients (
       name,
       phone,
+      email,
       address,
       building_type,
       owner_id,
@@ -78,14 +117,16 @@ BEGIN
     ) VALUES (
       coalesce(p_client->>'name', ''),
       v_phone,
+      nullif(trim(coalesce(p_client->>'email', '')), ''),
       coalesce(p_client->>'address', ''),
       coalesce(nullif(trim(p_client->>'buildingType'), ''), 'butas'),
       v_owner,
       coalesce((p_client->>'createdAt')::timestamptz, now())
     )
-    RETURNING id INTO v_cid;
+    RETURNING id::text INTO v_cid;
   END IF;
 
+  -- „Mažiausias“ INSERT (be employee_id / estimated_*), kad mažiau konfliktų su skirtingomis migracijomis
   INSERT INTO public.orders (
     owner_id,
     client_id,
@@ -94,7 +135,7 @@ BEGIN
     lat,
     lng,
     date,
-    time,
+    "time",
     window_count,
     floor,
     additional_services,
@@ -104,7 +145,7 @@ BEGIN
     created_at
   ) VALUES (
     v_owner,
-    v_cid,
+    v_cid::uuid,
     coalesce(p_order->>'clientName', p_client->>'name', ''),
     coalesce(p_order->>'address', ''),
     CASE
@@ -119,7 +160,12 @@ BEGIN
         THEN (p_order->>'lng')::double precision
       ELSE NULL
     END,
-    coalesce(p_order->>'date', to_char(now(), 'YYYY-MM-DD')),
+    -- orders.date DB laukas dažnai timestamptz (ne text); tekstą kombinuojam su laiku.
+    (
+      trim(coalesce(p_order->>'date', to_char(now(), 'YYYY-MM-DD')))
+      || ' '
+      || trim(coalesce(nullif(p_order->>'time', ''), '10:00'))
+    )::timestamptz,
     coalesce(nullif(p_order->>'time', ''), '10:00'),
     coalesce((p_order->>'windowCount')::integer, 0),
     coalesce((p_order->>'floor')::integer, 1),

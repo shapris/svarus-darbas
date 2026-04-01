@@ -118,3 +118,15 @@ Agent must:
 - Break tasks into smaller subtasks.
 - Execute subtasks sequentially.
 - Continue until all subtasks are completed and verified.
+
+---
+
+## 12. CONTINUOUS WORK QUEUE (no new user task)
+
+When the user does **not** specify a single concrete task (e.g. asks to keep going, stay autonomous, or says nothing new for this session):
+
+1. Open **`.always-on/work-queue.md`**.
+2. Run the **first unchecked** item in **P0**, then **P1**, following the instructions in that file (verify with lint/build where applicable, update checkboxes and the journal table).
+3. Do **not** wait for permission to start the next queue item unless the queue file itself says the step is blocked on a human (e.g. production Supabase login).
+
+This supplements `TASK_MEMORY.md` and `.cursor/rules/always-on-workflow.mdc`.

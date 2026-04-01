@@ -8,7 +8,7 @@ import { Order, Client, Expense, Memory } from "../types.js";
 import { geocodeAddress } from "../utils.js";
 import { classifyIntentHybrid } from './hybridClassifier.js';
 import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority.js';
-import { isOpenRouterKey, callOpenRouter } from './openRouterService.js';
+import { isOpenRouterKey, callOpenRouter, getOpenRouterKey } from './openRouterService.js';
 import { ALL_TOOLS } from './toolDefinitions.js';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
 
@@ -189,11 +189,21 @@ function handleAIError(error: any, message: string, history: any[]): { text: str
   if (
     error.message?.includes("429") ||
     error.message?.includes("quota") ||
-    error.message?.toLowerCase().includes("rate limit")
+    error.message?.toLowerCase().includes("rate limit") ||
+    error.message?.toLowerCase().includes("resource_exhausted")
   ) {
+    const quotaHint =
+      "Nemokama Google Gemini kvota išnaudota arba laikinai ribota (dažnai ~20 užklausų per dieną vienam modeliui). " +
+      "Galite: palaukti maždaug minutę ir bandyti vėl — sistema bando kelis modelius; " +
+      "įvesti OpenRouter raktą pokalbio nustatymuose; arba įjungti mokamą Gemini planą. " +
+      "Daugiau: https://ai.google.dev/gemini-api/docs/rate-limits";
     return {
-      text: "Atsiprašau, šiuo metu AI paslauga yra per užėmta dėl didelio užklausų kiekio. Prašome palaukti kaišias minutes ir bandyti dar kartą.",
-      history: [...history, { role: 'user', parts: [{ text: message }] }, { role: 'model', parts: [{ text: "Atsiprašau, šiuo metu AI paslauga yra per užėmta dėl didelio užklausų kiekio. Prašome palaukti kaišias minutes ir bandyti dar kartą." }] }]
+      text: `Atsiprašau, AI užklausa atmesta dėl kvotos (429).\n\n${quotaHint}`,
+      history: [
+        ...history,
+        { role: 'user', parts: [{ text: message }] },
+        { role: 'model', parts: [{ text: `Kvotos riba. ${quotaHint}` }] },
+      ],
     };
   }
   
@@ -218,8 +228,8 @@ function handleAIError(error: any, message: string, history: any[]): { text: str
   
   // Generic fallback
   return {
-    text: "Atsiprašau, įvyko tekninė problema su AI paslauga. Prašome bandyti paprastesnę užklausą arba kartoti šią užklausą po kaišių sekundžių.",
-    history: [...history, { role: 'user', parts: [{ text: message }] }, { role: 'model', parts: [{ text: "Atsiprašau, įvyko tekninė problema su AI paslauga. Prašome bandyti paprastesnę užklausą arba kartoti šią užklausą po kaišių sekundžių." }] }]
+    text: "Atsiprašau, įvyko techninė problema su AI paslauga. Bandykite paprastesnę užklausą arba pakartokite po kelių sekundžių.",
+    history: [...history, { role: 'user', parts: [{ text: message }] }, { role: 'model', parts: [{ text: "Atsiprašau, įvyko techninė problema su AI paslauga. Bandykite paprastesnę užklausą arba pakartokite po kelių sekundžių." }] }]
   };
 }
 
@@ -228,10 +238,29 @@ function getGeminiCooldownMs(errorMessage: string): number {
   if (m.includes('perday') || m.includes('per day') || m.includes('limit: 0')) {
     return 6 * 60 * 60 * 1000;
   }
+  const retryIn = errorMessage.match(/retry in\s+([0-9]+(?:\.[0-9]+)?)\s*s/i);
+  if (retryIn) {
+    const sec = Number(retryIn[1]);
+    if (Number.isFinite(sec) && sec > 0) return Math.min(Math.ceil(sec * 1000), 120_000);
+  }
   const retryMatch = errorMessage.match(/retry(?:Delay)?["\s:]*([0-9]+)(?:\.[0-9]+)?s/i);
   const sec = retryMatch ? Number(retryMatch[1]) : NaN;
   if (Number.isFinite(sec) && sec > 0) return sec * 1000;
   return 60 * 1000;
+}
+
+/** Ar 429 greičiausiai taikomas tik tam pačiam modeliui (kiti Gemini modeliai gali dar veikti). */
+function isLikelyPerModelQuotaError(errorText: string, modelTried: string): boolean {
+  const t = errorText.toLowerCase();
+  if (!t.includes('429') && !t.includes('resource_exhausted') && !t.includes('quota')) return false;
+  const slug = modelTried.toLowerCase();
+  if (t.includes(`model: ${slug}`) || t.includes(`"model":"${slug}"`) || t.includes(`"model": "${slug}"`)) {
+    return true;
+  }
+  if (/generate_content_free_tier|generate_content.*per.*model/i.test(t) && t.includes(slug.split('-')[0])) {
+    return true;
+  }
+  return false;
 }
 
 /** Google Gemini key for @google/genai — never use an OpenRouter `sk-or-v1-` key here. */
@@ -249,6 +278,81 @@ export function getGeminiApiKeyForSdk(): string {
     }
   }
   return '';
+}
+
+/** OpenRouter pokalbis (įrankiai perduodami į callOpenRouter). */
+async function runOpenRouterAssistantChat(
+  message: string,
+  history: any[],
+  systemInstruction: string,
+  tools: FunctionDeclaration[]
+): Promise<{ text: string; functionCalls?: any[]; history: any[] }> {
+  const messages: any[] = [{ role: 'system', content: systemInstruction }];
+
+  for (const h of history) {
+    const part = h.parts?.[0];
+    if (!part) continue;
+    if (part.text) {
+      messages.push({
+        role: h.role === 'model' ? 'assistant' : h.role === 'function' ? 'tool' : 'user',
+        content: part.text,
+      });
+    } else if (part.functionCall) {
+      messages.push({
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: part.functionCall.id || 'call_' + Math.random().toString(36).substring(7),
+            type: 'function',
+            function: {
+              name: part.functionCall.name,
+              arguments: toolArgumentsAsJsonString(part.functionCall.args),
+            },
+          },
+        ],
+      });
+    } else if (part.functionResponse) {
+      messages.push({
+        role: 'tool',
+        tool_call_id: part.functionResponse.id || 'unknown_call_id',
+        name: part.functionResponse.name,
+        content: JSON.stringify(part.functionResponse.response),
+      });
+    }
+  }
+
+  if (message) {
+    messages.push({ role: 'user', content: message });
+  }
+
+  const result = await callOpenRouter('free-auto', messages, tools);
+  if (!result.choices || result.choices.length === 0) {
+    throw new Error('Tuščias atsakymas iš OpenRouter');
+  }
+
+  const choice = result.choices[0].message;
+  let functionCalls: any[] = [];
+  if (choice.tool_calls) {
+    functionCalls = choice.tool_calls.map((tc: any) => {
+      const args = parseToolArgumentsToObject(tc?.function?.arguments);
+      return {
+        name: tc.function.name,
+        args,
+        id: tc.id,
+      };
+    });
+  }
+
+  return {
+    text: choice.content || 'Atsiprašau, nepavyko gauti atsakymo.',
+    functionCalls,
+    history: [
+      ...history,
+      { role: 'user', parts: [{ text: message }] },
+      { role: 'model', parts: [{ text: choice.content || '' }] },
+    ],
+  };
 }
 
 /**
@@ -296,76 +400,10 @@ export async function chatWithAssistant(
 
     const tools = ALL_TOOLS;
 
-     // Try OpenRouter first if it looks like an OpenRouter key
+     // Jei įvestas tik OpenRouter raktas — pirmiausia OpenRouter
      if (!preferredGeminiKey && isOpenRouterKey(apiKey)) {
        try {
-         // OpenRouter flow
-         const messages: any[] = [
-           { role: "system", content: systemInstruction }
-         ];
-
-         // Add conversation history
-         for (const h of history) {
-           const part = h.parts[0];
-           if (part.text) {
-             messages.push({
-               role: h.role === 'model' ? 'assistant' : (h.role === 'function' ? 'tool' : 'user'),
-               content: part.text
-             });
-           } else if (part.functionCall) {
-             messages.push({
-               role: "assistant",
-               content: "",
-               tool_calls: [{
-                 id: part.functionCall.id || "call_" + Math.random().toString(36).substring(7),
-                 type: "function",
-                 function: {
-                   name: part.functionCall.name,
-                   arguments: toolArgumentsAsJsonString(part.functionCall.args),
-                 }
-               }]
-             });
-           } else if (part.functionResponse) {
-             messages.push({
-               role: "tool",
-               tool_call_id: part.functionResponse.id || "unknown_call_id",
-               name: part.functionResponse.name,
-               content: JSON.stringify(part.functionResponse.response)
-             });
-           }
-         }
-
-         // Add current user message
-         if (message) {
-           messages.push({ role: "user", content: message });
-         }
-
-         const result = await callOpenRouter("free-auto", messages, tools);
-
-          if (!result.choices || result.choices.length === 0) {
-            throw new Error("Empty response from AI");
-          }
-         
-         const choice = result.choices[0].message;
-         
-         // Safely parse function calls
-         let functionCalls: any[] = [];
-         if (choice.tool_calls) {
-           functionCalls = choice.tool_calls.map((tc: any) => {
-             const args = parseToolArgumentsToObject(tc?.function?.arguments);
-             return {
-               name: tc.function.name,
-               args,
-               id: tc.id,
-             };
-           });
-         }
-
-         return {
-           text: choice.content || "Atsiprašau, nepavyko gauti atsakymo. Prašome bandyti dar kartą.",
-           functionCalls,
-           history: [...history, { role: 'user', parts: [{ text: message }] }, { role: 'model', parts: [{ text: choice.content || "" }] }]
-         };
+         return await runOpenRouterAssistantChat(message, history, systemInstruction, tools);
        } catch (openRouterError: unknown) {
          const orMsg =
            openRouterError instanceof Error
@@ -374,15 +412,21 @@ export async function chatWithAssistant(
                ? openRouterError
                : JSON.stringify(openRouterError);
          console.warn('OpenRouter failed, falling back to Google SDK:', orMsg);
-         // Continue to Google SDK flow below
        }
      }
      
       // Google SDK — must use a real Gemini key (OpenRouter keys are invalid here)
       try {
         if (Date.now() < geminiChatCooldownUntil) {
+          if (getOpenRouterKey()) {
+            try {
+              return await runOpenRouterAssistantChat(message, history, systemInstruction, tools);
+            } catch (e) {
+              console.warn('OpenRouter (Gemini „cooldown“ metu) nepavyko:', e);
+            }
+          }
           return {
-            text: "Gemini AI laikinai sustabdytas dėl kvotos (429). Pabandykite po kelių minučių arba naudokite kitą API raktą.",
+            text: "Gemini AI laikinai sustabdytas dėl kvotos (429). Pabandykite po kelių minučių, įveskite OpenRouter raktą arba naudokite kitą API raktą.",
             history: [...history, { role: 'user', parts: [{ text: message }] }, { role: 'model', parts: [{ text: "Gemini laikinai nepasiekiamas dėl kvotos." }] }]
           };
         }
@@ -403,14 +447,16 @@ export async function chatWithAssistant(
         }
 
         const ai = getAiInstance(geminiKey);
+        // Pirmiausia pigesni / alternatyvūs modeliai — kai 2.5-flash kvota pilna, kiti dažnai dar pasiekiami
         const modelsToTry = [
+          "gemini-2.0-flash",
           "gemini-2.5-flash",
           "gemini-flash-latest",
-          "gemini-2.0-flash",
           "gemini-1.5-flash",
           "gemini-1.5-flash-8b",
         ];
         let lastError: any = null;
+        let quotaCooldownMs = 0;
 
         // Convert history to Google SDK compatible format
         const googleCompatibleHistory = sanitizeHistoryForGemini(history);
@@ -452,18 +498,34 @@ export async function chatWithAssistant(
           } catch (error: any) {
             lastError = error;
             const errorText = error?.message || String(error);
-            const isQuota = errorText.toLowerCase().includes('429') || errorText.toLowerCase().includes('resource_exhausted') || errorText.toLowerCase().includes('quota');
+            const isQuota =
+              errorText.toLowerCase().includes('429') ||
+              errorText.toLowerCase().includes('resource_exhausted') ||
+              errorText.toLowerCase().includes('quota');
             if (isQuota) {
-              geminiChatCooldownUntil = Math.max(geminiChatCooldownUntil, Date.now() + getGeminiCooldownMs(errorText));
-              break; // stop hammering multiple Gemini models on quota errors
+              quotaCooldownMs = Math.max(quotaCooldownMs, getGeminiCooldownMs(errorText));
+              if (isLikelyPerModelQuotaError(errorText, modelName)) {
+                continue;
+              }
             }
-            continue; // Try next model
+            continue;
           }
         }
 
-         // If all models failed
+        if (quotaCooldownMs > 0) {
+          geminiChatCooldownUntil = Math.max(geminiChatCooldownUntil, Date.now() + quotaCooldownMs);
+        }
+
+         // Visi Gemini modeliai nepavyko — OpenRouter atsarginis kelias (jei VITE_OPENROUTER_API_KEY arba sk-or raktas)
+         if (getOpenRouterKey()) {
+           try {
+             return await runOpenRouterAssistantChat(message, history, systemInstruction, tools);
+           } catch (orErr) {
+             console.warn('OpenRouter atsarginis variantas po Gemini klaidų nepavyko:', orErr);
+           }
+         }
+
          const errorToHandle = lastError || new Error("All AI models failed");
-         // Ensure we have a proper error message for handleAIError
          const errorMessage = errorToHandle.message || errorToHandle.toString() || "Unknown AI error";
          return handleAIError(new Error(errorMessage), message, history);
        } catch (googleError) {

@@ -3,182 +3,136 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { CreditCard, DollarSign, FileText, Download, RefreshCw, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
-import { Invoice, Transaction } from '../types';
+import { Client, Invoice, Order, Transaction } from '../types';
 import { formatAmountFromEur, getInvoiceStatusText, getInvoiceStatusColor } from '../services/paymentService';
+import { fetchPaymentsWorkspaceData, updateInvoiceStatusInSupabase } from '../supabase';
 import { motion } from 'motion/react';
 import { useToast } from '../hooks/useToast';
+import { generateInvoicePDF } from '../utils';
 
 interface PaymentsViewProps {
-  user: any;
+  user: { uid: string };
+  clients: Client[];
+  orders: Order[];
 }
 
-export default function PaymentsView({ user }: PaymentsViewProps) {
+export default function PaymentsView({ user, clients, orders }: PaymentsViewProps) {
   const { showToast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tablesMissing, setTablesMissing] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'invoices' | 'transactions'>('invoices');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    pendingPayments: 0,
-    paidInvoices: 0,
-    pendingInvoices: 0
-  });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const stats = useMemo(() => {
+    const totalRevenue = transactions
+      .filter((t) => t.type === 'payment' && t.status === 'succeeded')
+      .reduce((sum, t) => sum + t.amount, 0);
 
-  const loadData = async () => {
+    const pendingPayments = invoices
+      .filter((inv) => inv.status === 'pending')
+      .reduce((sum, inv) => sum + inv.amount, 0);
+
+    return {
+      totalRevenue,
+      pendingPayments,
+      paidInvoices: invoices.filter((inv) => inv.status === 'paid').length,
+      pendingInvoices: invoices.filter((inv) => inv.status === 'pending').length,
+    };
+  }, [invoices, transactions]);
+
+  const loadData = useCallback(async () => {
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setWorkspaceError(null);
+    setTablesMissing(false);
     try {
-      // Simulate API calls - in real app, these would be actual API calls
-      const mockInvoices: Invoice[] = [
-        {
-          id: 'inv_001',
-          order_id: 'order_001',
-          client_id: 'client_001',
-          amount: 50.00,
-          status: 'paid',
-          due_date: '2026-04-11T00:00:00Z',
-          created_at: '2026-03-28T10:00:00Z',
-          paid_at: '2026-03-29T14:30:00Z',
-          stripe_payment_intent_id: 'pi_001'
-        },
-        {
-          id: 'inv_002',
-          order_id: 'order_002',
-          client_id: 'client_002',
-          amount: 75.00,
-          status: 'pending',
-          due_date: '2026-04-15T00:00:00Z',
-          created_at: '2026-03-28T12:00:00Z'
-        },
-        {
-          id: 'inv_003',
-          order_id: 'order_003',
-          client_id: 'client_003',
-          amount: 120.00,
-          status: 'cancelled',
-          due_date: '2026-04-10T00:00:00Z',
-          created_at: '2026-03-25T09:00:00Z'
-        }
-      ];
-
-      const mockTransactions: Transaction[] = [
-        {
-          id: 'txn_001',
-          invoice_id: 'inv_001',
-          client_id: 'client_001',
-          amount: 50.00,
-          currency: 'EUR',
-          status: 'succeeded',
-          type: 'payment',
-          stripe_charge_id: 'ch_001',
-          created_at: '2026-03-29T14:30:00Z',
-          processed_at: '2026-03-29T14:30:00Z'
-        },
-        {
-          id: 'txn_002',
-          invoice_id: 'inv_001',
-          client_id: 'client_001',
-          amount: 10.00,
-          currency: 'EUR',
-          status: 'succeeded',
-          type: 'refund',
-          stripe_charge_id: 're_001',
-          created_at: '2026-03-30T10:00:00Z',
-          processed_at: '2026-03-30T10:15:00Z'
-        }
-      ];
-
-      setInvoices(mockInvoices);
-      setTransactions(mockTransactions);
-
-      // Calculate stats
-      const totalRevenue = mockTransactions
-        .filter(t => t.type === 'payment' && t.status === 'succeeded')
-        .reduce((sum, t) => sum + t.amount, 0);
-
-      const pendingPayments = mockInvoices
-        .filter(inv => inv.status === 'pending')
-        .reduce((sum, inv) => sum + inv.amount, 0);
-
-      const paidInvoices = mockInvoices.filter(inv => inv.status === 'paid').length;
-      const pendingInvoices = mockInvoices.filter(inv => inv.status === 'pending').length;
-
-      setStats({
-        totalRevenue,
-        pendingPayments,
-        paidInvoices,
-        pendingInvoices
-      });
-    } catch {
-      // Failed to load payments data silently
+      const result = await fetchPaymentsWorkspaceData(user.uid);
+      setTablesMissing(result.tablesMissing);
+      setWorkspaceError(result.queryError ?? null);
+      setInvoices(result.invoices);
+      setTransactions(result.transactions);
+    } catch (err) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '';
+      showToast.error(msg ? `Nepavyko įkelti mokėjimų: ${msg}` : 'Nepavyko įkelti mokėjimų');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const clientNameForInvoice = useCallback(
+    (invoice: Invoice) => clients.find((c) => c.id === invoice.client_id)?.name ?? invoice.client_id,
+    [clients]
+  );
 
   const downloadInvoice = async (invoice: Invoice) => {
-    try {
-      const response = await fetch(`/api/invoices/${invoice.id}/pdf`);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `saskaita-${invoice.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch {
-      showToast.error('Nepavyko atsisiųsti sąskaitos');
+    const rawUrl = invoice.invoice_url?.trim();
+    if (rawUrl) {
+      window.open(rawUrl, '_blank', 'noopener,noreferrer');
+      return;
     }
+    const order = orders.find((o) => o.id === invoice.order_id);
+    const client =
+      order != null
+        ? clients.find((c) => c.id === order.clientId) ?? clients.find((c) => c.id === invoice.client_id)
+        : clients.find((c) => c.id === invoice.client_id);
+    if (order && client) {
+      try {
+        const result = await generateInvoicePDF(order, client);
+        showToast.success(
+          `${result.detail} (Sąskaitos nuoroda DB nebuvo — duomenys iš užsakymo.)`
+        );
+      } catch (e) {
+        console.error(e);
+        showToast.error('Nepavyko sugeneruoti PDF.');
+      }
+      return;
+    }
+    showToast.error(
+      'Nėra išsaugotos sąskaitos nuorodos. PDF negalima sugeneruoti — nerastas susietas užsakymas ar klientas.'
+    );
   };
 
   const updateInvoiceStatus = async (invoiceId: string, status: Invoice['status']) => {
     try {
-      const response = await fetch(`/api/invoices/${invoiceId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status }),
-      });
-
-      if (response.ok) {
-        const updatedInvoice = await response.json();
-        setInvoices(prev => prev.map(inv => 
-          inv.id === invoiceId ? updatedInvoice : inv
-        ));
-        setSelectedInvoice(null);
-        showToast.success('Sąskaitos statusas atnaujintas');
-      }
-    } catch {
-      showToast.error('Nepavyko atnaujinti sąskaitos statuso');
+      const updated = await updateInvoiceStatusInSupabase(invoiceId, status);
+      setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? updated : inv)));
+      setSelectedInvoice(null);
+      showToast.success('Sąskaitos statusas atnaujintas');
+    } catch (err) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '';
+      showToast.error(msg ? `Nepavyko atnaujinti sąskaitos: ${msg}` : 'Nepavyko atnaujinti sąskaitos statuso');
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'paid':
-        return <CheckCircle className="w-4 h-4" />;
+        return <CheckCircle className="w-4 h-4" aria-hidden />;
       case 'pending':
-        return <Clock className="w-4 h-4" />;
+        return <Clock className="w-4 h-4" aria-hidden />;
       case 'cancelled':
-        return <X className="w-4 h-4" />;
+        return <X className="w-4 h-4" aria-hidden />;
       default:
-        return <AlertCircle className="w-4 h-4" />;
+        return <AlertCircle className="w-4 h-4" aria-hidden />;
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         <p className="ml-2 text-gray-500">Kraunami mokėjimai...</p>
       </div>
     );
@@ -186,6 +140,23 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
 
   return (
     <div className="space-y-6">
+      {tablesMissing && (
+        <div
+          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          Mokėjimų lentelės nesukonfigūruotos arba nepasiekiamos. Supabase SQL editor įkelkite{' '}
+          <code className="rounded bg-amber-100 px-1">payments-schema.sql</code> (lentelės{' '}
+          <code className="rounded bg-amber-100 px-1">invoices</code> ir{' '}
+          <code className="rounded bg-amber-100 px-1">transactions</code>).
+        </div>
+      )}
+      {!tablesMissing && workspaceError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+          {workspaceError}
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <motion.div
@@ -200,7 +171,7 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
                 {formatAmountFromEur(stats.totalRevenue)}
               </p>
             </div>
-            <DollarSign className="w-8 h-8 text-green-600" />
+            <DollarSign className="w-8 h-8 text-green-600" aria-hidden />
           </div>
         </motion.div>
 
@@ -217,7 +188,7 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
                 {formatAmountFromEur(stats.pendingPayments)}
               </p>
             </div>
-            <Clock className="w-8 h-8 text-orange-600" />
+            <Clock className="w-8 h-8 text-orange-600" aria-hidden />
           </div>
         </motion.div>
 
@@ -232,7 +203,7 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
               <p className="text-sm font-medium text-gray-600">Apmokėtos Sąskaitos</p>
               <p className="text-2xl font-semibold text-green-600">{stats.paidInvoices}</p>
             </div>
-            <CheckCircle className="w-8 h-8 text-green-600" />
+            <CheckCircle className="w-8 h-8 text-green-600" aria-hidden />
           </div>
         </motion.div>
 
@@ -247,7 +218,7 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
               <p className="text-sm font-medium text-gray-600">Laukiančios Sąskaitos</p>
               <p className="text-2xl font-semibold text-yellow-600">{stats.pendingInvoices}</p>
             </div>
-            <FileText className="w-8 h-8 text-yellow-600" />
+            <FileText className="w-8 h-8 text-yellow-600" aria-hidden />
           </div>
         </motion.div>
       </div>
@@ -255,8 +226,9 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
       {/* Navigation Tabs */}
       <div className="bg-white rounded-lg shadow">
         <div className="border-b border-gray-200">
-          <nav className="flex space-x-8 px-6">
+          <nav className="flex space-x-8 px-6" aria-label="Mokėjimų skiltys">
             <button
+              type="button"
               onClick={() => setActiveTab('invoices')}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'invoices'
@@ -265,11 +237,12 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4" aria-hidden />
                 <span>Sąskaitos</span>
               </div>
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('transactions')}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'transactions'
@@ -278,7 +251,7 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <CreditCard className="w-4 h-4" />
+                <CreditCard className="w-4 h-4" aria-hidden />
                 <span>Transakcijos</span>
               </div>
             </button>
@@ -292,17 +265,18 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-gray-900">Sąskaitų Sąrašas</h3>
                 <button
-                  onClick={loadData}
+                  type="button"
+                  onClick={() => void loadData()}
                   className="flex items-center space-x-2 px-3 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4" aria-hidden />
                   <span>Atnaujinti</span>
                 </button>
               </div>
 
               {invoices.length === 0 ? (
                 <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" aria-hidden />
                   <p className="text-gray-500">Sąskaitų nerasta</p>
                 </div>
               ) : (
@@ -340,39 +314,45 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
                             #{invoice.id.slice(-8)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {invoice.client_id}
+                            {clientNameForInvoice(invoice)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {formatAmountFromEur(invoice.amount)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusColor(invoice.status)}`}>
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusColor(invoice.status)}`}
+                            >
                               {getStatusIcon(invoice.status)}
                               <span className="ml-1">{getInvoiceStatusText(invoice.status)}</span>
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(invoice.created_at).toLocaleDateString('lt-LT')}
+                            {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('lt-LT') : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(invoice.due_date).toLocaleDateString('lt-LT')}
+                            {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('lt-LT') : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => downloadInvoice(invoice)}
+                                type="button"
+                                onClick={() => void downloadInvoice(invoice)}
                                 className="text-blue-600 hover:text-blue-900"
-                                title="Atsisiųsti PDF"
+                                title="Atsisiųsti / atidaryti PDF"
+                                aria-label={`Atsisiųsti arba atidaryti sąskaitą ${invoice.id.slice(-8)}`}
                               >
-                                <Download className="w-4 h-4" />
+                                <Download className="w-4 h-4" aria-hidden />
                               </button>
                               {invoice.status === 'pending' && (
                                 <button
+                                  type="button"
                                   onClick={() => setSelectedInvoice(invoice)}
                                   className="text-green-600 hover:text-green-900"
                                   title="Keisti būseną"
+                                  aria-label={`Keisti sąskaitos ${invoice.id.slice(-8)} būseną`}
                                 >
-                                  <RefreshCw className="w-4 h-4" />
+                                  <RefreshCw className="w-4 h-4" aria-hidden />
                                 </button>
                               )}
                             </div>
@@ -391,17 +371,18 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium text-gray-900">Transakcijų Istorija</h3>
                 <button
-                  onClick={loadData}
+                  type="button"
+                  onClick={() => void loadData()}
                   className="flex items-center space-x-2 px-3 py-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className="w-4 h-4" aria-hidden />
                   <span>Atnaujinti</span>
                 </button>
               </div>
 
               {transactions.length === 0 ? (
                 <div className="text-center py-8">
-                  <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <CreditCard className="w-12 h-12 text-gray-400 mx-auto mb-4" aria-hidden />
                   <p className="text-gray-500">Transakcijų nerasta</p>
                 </div>
               ) : (
@@ -411,13 +392,15 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              transaction.type === 'payment' ? 'bg-green-100' : 'bg-red-100'
-                            }`}>
+                            <div
+                              className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                transaction.type === 'payment' ? 'bg-green-100' : 'bg-red-100'
+                              }`}
+                            >
                               {transaction.type === 'payment' ? (
-                                <DollarSign className="w-4 h-4 text-green-600" />
+                                <DollarSign className="w-4 h-4 text-green-600" aria-hidden />
                               ) : (
-                                <RefreshCw className="w-4 h-4 text-red-600" />
+                                <RefreshCw className="w-4 h-4 text-red-600" aria-hidden />
                               )}
                             </div>
                             <div>
@@ -425,16 +408,20 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
                                 {transaction.type === 'payment' ? 'Mokėjimas' : 'Grąžinimas'}
                               </p>
                               <p className="text-sm text-gray-500">
-                                {new Date(transaction.created_at).toLocaleDateString('lt-LT')} {new Date(transaction.created_at).toLocaleTimeString('lt-LT')}
+                                {new Date(transaction.created_at).toLocaleDateString('lt-LT')}{' '}
+                                {new Date(transaction.created_at).toLocaleTimeString('lt-LT')}
                               </p>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className={`text-lg font-semibold ${
-                            transaction.type === 'payment' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {transaction.type === 'payment' ? '+' : '-'}{formatAmountFromEur(transaction.amount)}
+                          <p
+                            className={`text-lg font-semibold ${
+                              transaction.type === 'payment' ? 'text-green-600' : 'text-red-600'
+                            }`}
+                          >
+                            {transaction.type === 'payment' ? '+' : '-'}
+                            {formatAmountFromEur(transaction.amount)}
                           </p>
                           <p className="text-sm text-gray-500">{transaction.status}</p>
                         </div>
@@ -455,9 +442,14 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="bg-white rounded-lg p-6 max-w-md w-full"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invoice-status-title"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Keisti Sąskaitos Būseną</h3>
+              <h3 id="invoice-status-title" className="text-lg font-medium text-gray-900">
+                Keisti Sąskaitos Būseną
+              </h3>
               <button
                 type="button"
                 title="Uždaryti"
@@ -465,25 +457,23 @@ export default function PaymentsView({ user }: PaymentsViewProps) {
                 onClick={() => setSelectedInvoice(null)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden />
               </button>
             </div>
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                Sąskaita #{selectedInvoice.id.slice(-8)}
-              </p>
-              <p className="text-sm text-gray-600">
-                Suma: {formatAmountFromEur(selectedInvoice.amount)}
-              </p>
+              <p className="text-sm text-gray-600">Sąskaita #{selectedInvoice.id.slice(-8)}</p>
+              <p className="text-sm text-gray-600">Suma: {formatAmountFromEur(selectedInvoice.amount)}</p>
               <div className="flex space-x-3">
                 <button
-                  onClick={() => updateInvoiceStatus(selectedInvoice.id, 'paid')}
+                  type="button"
+                  onClick={() => void updateInvoiceStatus(selectedInvoice.id, 'paid')}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                   Pažymėti kaip Apmokėta
                 </button>
                 <button
-                  onClick={() => updateInvoiceStatus(selectedInvoice.id, 'cancelled')}
+                  type="button"
+                  onClick={() => void updateInvoiceStatus(selectedInvoice.id, 'cancelled')}
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                 >
                   Atšaukti

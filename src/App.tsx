@@ -3,17 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, lazy, Suspense, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense, useCallback, useMemo } from 'react';
 import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase, getUserProfile, createDefaultProfile, requestPasswordResetEmail } from './supabase';
 import Layout from './components/Layout';
 import ErrorBoundary from './components/ErrorBoundary';
 import { FullPageLoader } from './components/LoadingSpinner';
-import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory, UserProfile } from './types';
+import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory, UserProfile, INVOICE_API_STORAGE_KEY } from './types';
 import { Droplets } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastContainer } from './components/Toast';
 import { useToast } from './hooks/useToast';
 import { formatAuthErrorForUser, AUTH_FALLBACK, AUTH_INVITE_HELP } from './utils/authMessages';
+import { formatNewOrderAlert, showNewOrderBrowserNotification } from './utils/bookingNotifications';
 
 const BookingPage = lazy(() => import('./views/BookingPage'));
 const ChatAssistant = lazy(() => import('./components/ChatAssistant'));
@@ -59,6 +60,8 @@ export default function App() {
 
   // Toast system
   const { toasts, removeToast, showToast } = useToast();
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
 
   // Client Portal State
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -206,11 +209,37 @@ export default function App() {
 
     // Load Settings
     getData<any>(TABLES.SETTINGS, user.uid).then(settingsData => {
+      let fromLs = '';
+      try {
+        fromLs = localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim() ?? '';
+      } catch {
+        /* */
+      }
       if (settingsData.length > 0) {
-        setSettings({ ...DEFAULT_SETTINGS, ...settingsData[0] });
+        const row = settingsData[0] as AppSettings & { invoice_api_base_url?: string };
+        setSettings({
+          ...DEFAULT_SETTINGS,
+          ...row,
+          invoiceApiBaseUrl:
+            row.invoiceApiBaseUrl?.trim() ||
+            (typeof row.invoice_api_base_url === 'string' ? row.invoice_api_base_url.trim() : '') ||
+            fromLs,
+        });
       } else {
-        addData(TABLES.SETTINGS, user.uid, { ...DEFAULT_SETTINGS }).then(newSettings => {
-          setSettings({ ...DEFAULT_SETTINGS, ...newSettings } as AppSettings);
+        addData(TABLES.SETTINGS, user.uid, {
+          pricePerWindow: DEFAULT_SETTINGS.pricePerWindow,
+          pricePerFloor: DEFAULT_SETTINGS.pricePerFloor,
+          priceBalkonai: DEFAULT_SETTINGS.priceBalkonai,
+          priceVitrinos: DEFAULT_SETTINGS.priceVitrinos,
+          priceTerasa: DEFAULT_SETTINGS.priceTerasa,
+          priceKiti: DEFAULT_SETTINGS.priceKiti,
+          smsTemplate: DEFAULT_SETTINGS.smsTemplate,
+        }).then((newSettings) => {
+          setSettings({
+            ...(DEFAULT_SETTINGS as AppSettings),
+            ...(newSettings as AppSettings),
+            invoiceApiBaseUrl: fromLs || (newSettings as AppSettings).invoiceApiBaseUrl || '',
+          });
         });
       }
     });
@@ -220,9 +249,30 @@ export default function App() {
       setClients(data);
     });
 
-    // Subscribe to Orders
+    // Subscribe to Orders (+ perspėjimas naujai rezervacijai / užsakymui)
+    const ordersHydratedRef = { current: false };
+    const prevOrderIdsRef = { current: new Set<string>() };
+
     const unsubOrders = subscribeToData<Order>(TABLES.ORDERS, user.uid, (data) => {
+      const nextIds = new Set(data.map((o) => o.id));
+
+      if (!ordersHydratedRef.current) {
+        ordersHydratedRef.current = true;
+        prevOrderIdsRef.current = nextIds;
+        setOrders(data);
+        return;
+      }
+
+      const prev = prevOrderIdsRef.current;
+      const newOrders = data.filter((o) => !prev.has(o.id));
+      prevOrderIdsRef.current = nextIds;
       setOrders(data);
+
+      for (const o of newOrders) {
+        const detail = formatNewOrderAlert(o);
+        showToastRef.current.success(`Nauja rezervacija: ${detail}`, 10_000);
+        showNewOrderBrowserNotification(o, detail);
+      }
     });
 
     // Subscribe to Expenses
@@ -633,7 +683,7 @@ export default function App() {
         case 'inventory':
           return <InventoryView userId={user.uid} />;
         case 'payments':
-          return <PaymentsView user={user} />;
+          return <PaymentsView user={user} clients={clients} orders={orders} />;
         default:
           return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
       }

@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AppSettings, Memory } from '../types';
+import { AppSettings, Memory, INVOICE_API_STORAGE_KEY } from '../types';
 import { updateData, addData, deleteData, getData, TABLES, isDemoMode, checkOrdersSchemaHealth, testConnection, usesFirebase } from '../supabase';
 import { downloadData, importData } from '../localDb';
-import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check, Brain, Plus, Trash2, Star, Edit } from 'lucide-react';
+import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check, Brain, Plus, Trash2, Star, Edit, Bell, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getAiBudgetStatus } from '../services/aiService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
@@ -30,6 +30,9 @@ export default function SettingsView({ settings, setSettings, user, memories = [
   const [isSaving, setIsSaving] = useState(false);
   const [isCheckingSchema, setIsCheckingSchema] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<
+    NotificationPermission | 'unsupported'
+  >(() => (typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'));
   const [readiness, setReadiness] = useState({
     backend: 'checking' as 'checking' | 'ok' | 'fail',
     aiKey: false,
@@ -38,20 +41,72 @@ export default function SettingsView({ settings, setSettings, user, memories = [
     bookingUrl: false,
     mode: isDemoMode ? 'demo' : (usesFirebase ? 'firebase' : 'supabase'),
   });
+  const [invoiceServerCheck, setInvoiceServerCheck] = useState<'idle' | 'checking' | 'ok' | 'fail'>('idle');
+  const [invoiceServerHint, setInvoiceServerHint] = useState<string>('');
+
+  useEffect(() => {
+    let inv = settings.invoiceApiBaseUrl?.trim() ?? '';
+    if (!inv) {
+      try {
+        inv = localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim() ?? '';
+      } catch {
+        /* */
+      }
+    }
+    setFormData({ ...settings, invoiceApiBaseUrl: inv });
+  }, [settings]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
-      if (settings.id) {
-        await updateData(TABLES.SETTINGS, settings.id, formData as any);
+      const { invoiceApiBaseUrl, ...dbPayload } = formData;
+      try {
+        localStorage.setItem(INVOICE_API_STORAGE_KEY, (invoiceApiBaseUrl ?? '').trim());
+      } catch {
+        /* */
       }
-      setSettings(formData);
+      if (settings.id) {
+        await updateData(TABLES.SETTINGS, settings.id, dbPayload as any);
+      }
+      setSettings({ ...formData });
       showToast.success('Nustatymai išsaugoti!');
     } catch {
       showToast.error('Nepavyko išsaugoti nustatymų');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCheckInvoiceServer = async () => {
+    const raw = formData.invoiceApiBaseUrl?.trim();
+    const healthUrl = raw
+      ? `${raw.replace(/\/$/, '')}/health`
+      : import.meta.env.DEV
+        ? '/health'
+        : '';
+    if (!healthUrl) {
+      showToast.error('Produkcijoje įrašykite serverio adresą. Lokaliai – paleiskite `npm run server` arba `npm run dev:full`.');
+      return;
+    }
+    setInvoiceServerCheck('checking');
+    setInvoiceServerHint('');
+    try {
+      const r = await fetch(healthUrl);
+      const j = (await r.json().catch(() => ({}))) as { status?: string; invoiceEmail?: boolean };
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const emailOk = j.invoiceEmail === true;
+      setInvoiceServerCheck('ok');
+      setInvoiceServerHint(
+        emailOk
+          ? 'Serveris veikia; Resend API raktas serveryje nustatytas — sąskaitos bus siunčiamos automatiškai.'
+          : 'Serveris atsako, bet serveryje trūksta RESEND_API_KEY (.env) — automatinis el. paštas neveiks, kol jį pridėsite.'
+      );
+      showToast.success('Ryšys su serveriu patikrintas');
+    } catch {
+      setInvoiceServerCheck('fail');
+      setInvoiceServerHint('Nepavyko pasiekti serverio. Paleiskite `npm run server` ir patikrinkite adresą.');
+      showToast.error('Serveris nepasiekiamas');
     }
   };
 
@@ -87,6 +142,24 @@ export default function SettingsView({ settings, setSettings, user, memories = [
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRequestBookingNotifications = async () => {
+    if (typeof Notification === 'undefined') {
+      showToast.error('Ši naršyklė nepalaiko darbalaukio pranešimų.');
+      return;
+    }
+    try {
+      const r = await Notification.requestPermission();
+      setNotifPermission(r);
+      if (r === 'granted') {
+        showToast.success('Įjungta: gausite sistemos pranešimą apie naują rezervaciją (kai CRM atnaujina duomenis).');
+      } else if (r === 'denied') {
+        showToast.warning('Pranešimai atmesti — vis tiek matysite žalią pranešimą programėlės viduje, kai esate prisijungę.');
+      }
+    } catch {
+      showToast.error('Nepavyko paprašyti pranešimų leidimo.');
     }
   };
 
@@ -202,6 +275,71 @@ export default function SettingsView({ settings, setSettings, user, memories = [
             Booking URL: <span className={readiness.bookingUrl ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>{readiness.bookingUrl ? 'ok' : 'klaida'}</span>
           </div>
         </div>
+      </section>
+
+      <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center text-violet-600">
+            <Mail size={20} />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900">Sąskaitų siuntimas el. paštu</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Vienas mygtukas užsakyme: PDF automatiškai išsiunčiamas į kliento el. paštą (jei jis įrašytas kliento kortelėje).
+            </p>
+          </div>
+        </div>
+        <ol className="text-xs text-slate-600 space-y-2 mb-4 list-decimal list-inside">
+          <li>
+            Sukurkite nemokamą paskyrą{' '}
+            <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-violet-600 font-semibold underline">
+              resend.com
+            </a>
+            , gaukite API raktą.
+          </li>
+          <li>
+            Į projekto <span className="font-mono bg-slate-100 px-1 rounded">.env</span> įrašykite{' '}
+            <span className="font-mono bg-slate-100 px-1 rounded">RESEND_API_KEY</span> ir{' '}
+            <span className="font-mono bg-slate-100 px-1 rounded">RESEND_FROM_EMAIL</span> (patvirtintas siuntėjas).
+          </li>
+          <li>
+            Paleiskite backendą:{' '}
+            <span className="font-mono bg-slate-100 px-1 rounded">npm run server</span> (atskirame lange) arba{' '}
+            <span className="font-mono bg-slate-100 px-1 rounded">npm run dev:full</span> (CRM + serveris kartu).
+          </li>
+          <li>
+            Kūrimo režime (<span className="font-mono bg-slate-100 px-1 rounded">npm run dev</span>) serverio adreso lauką galite
+            palikti tuščią — užklausos eina per <span className="font-mono bg-slate-100 px-1 rounded">/api</span> į prievadą 3001 (kai
+            serveris veikia).
+          </li>
+          <li>Produkcijoje žemiau įrašykite tikrą API adresą. Prisijunkite prie CRM per Supabase.</li>
+        </ol>
+        <div className="flex flex-col sm:flex-row gap-2 mb-2">
+          <input
+            type="url"
+            placeholder="http://127.0.0.1:3001"
+            value={formData.invoiceApiBaseUrl ?? ''}
+            onChange={(e) => setFormData({ ...formData, invoiceApiBaseUrl: e.target.value })}
+            title="API serverio bazinis URL (be / pabaigoje)"
+            className="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+          />
+          <button
+            type="button"
+            onClick={handleCheckInvoiceServer}
+            className="shrink-0 px-4 py-3 rounded-xl bg-violet-600 text-white text-sm font-bold hover:bg-violet-700"
+          >
+            Tikrinti serverį
+          </button>
+        </div>
+        {invoiceServerCheck !== 'idle' && (
+          <p
+            className={`text-xs mt-2 ${
+              invoiceServerCheck === 'ok' ? 'text-emerald-700' : invoiceServerCheck === 'fail' ? 'text-rose-600' : 'text-slate-500'
+            }`}
+          >
+            {invoiceServerCheck === 'checking' ? 'Tikrinama…' : invoiceServerHint}
+          </p>
+        )}
       </section>
 
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
@@ -346,6 +484,39 @@ export default function SettingsView({ settings, setSettings, user, memories = [
             <ExternalLink size={18} />
             Atidaryti rezervacijos puslapį
           </a>
+
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-700 shrink-0">
+                <Bell size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-slate-900">Perspėjimas apie naują rezervaciją</p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Kai klientas užrezervuoja per jūsų nuorodą ir esate prisijungę prie CRM, viršuje pasirodys žalias pranešimas su vardu ir data.
+                  Norėdami matyti sistemos pranešimą net kito skirtuko fone, įjunkite leidimą žemiau. Reikia, kad Supabase būtų įjungtas Realtime įrašams lentelėje{' '}
+                  <code className="text-[10px] bg-slate-100 px-1 rounded">orders</code> (Dashboard → Database → Replication).
+                </p>
+                {notifPermission === 'unsupported' ? (
+                  <p className="text-xs text-slate-400 mt-2">Naršyklėje nėra pranešimų API.</p>
+                ) : notifPermission === 'granted' ? (
+                  <p className="text-xs text-emerald-700 font-bold mt-2">Darbalaukio pranešimai leidžiami.</p>
+                ) : notifPermission === 'denied' ? (
+                  <p className="text-xs text-rose-600 mt-2">
+                    Naršyklė blokuoja pranešimus — patikrinkite svetainės leidimus adreso juostoje. Programėlėje vis tiek rodysime žalią juostą viršuje.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleRequestBookingNotifications}
+                    className="mt-3 w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors"
+                  >
+                    Leisti darbalaukio pranešimus
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

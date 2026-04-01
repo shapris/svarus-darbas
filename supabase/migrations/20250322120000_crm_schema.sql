@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS public.clients (
   uid text NOT NULL,
   name text NOT NULL DEFAULT '',
   phone text NOT NULL DEFAULT '',
+  email text,
   address text NOT NULL DEFAULT '',
   "buildingType" text NOT NULL DEFAULT 'butas',
   notes text,
@@ -141,6 +142,8 @@ BEGIN
 END $$;
 
 -- --- Public booking (anonymous visitors): pricing + submit via RPC only -----
+-- Jei vėliau perėjote prie owner_id + snake_case (kaip dabartiniame CRM kode), vietoj šitų
+-- funkcijų naudokite supabase/public_booking_rpcs.sql (perrašo šias RPC tinkama schema).
 
 CREATE OR REPLACE FUNCTION public.get_booking_settings(p_owner_uid text)
 RETURNS jsonb

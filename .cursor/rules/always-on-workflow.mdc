@@ -17,3 +17,51 @@ alwaysApply: true
 - Never leave partial work when the task can be completed in the same session.
 - Always assume continuation is required until the requested outcome is fully verified.
 - Ignore non-critical interruptions and finish the highest-priority production task first.
+
+---
+
+## Darbotvarkė be naujos užduoties („tylus“ režimas)
+
+**Kai vartotojas neįvardija konkrečios užduoties** (pvz. „tęsk“, „dirbk savarankiškai“, tyliai tęsiama sesija) **arba** prašoma nuolatinio progreso be single-task fokuso:
+
+1. Atverti **`.always-on/work-queue.md`**.
+2. Vykdyti **pirmą nepažymėtą** `- [ ]` punktą nuo **P0**; jei P0 tuščią ar visi atlikti — **P1**.
+3. Užduotį užbaigti pagal skyrių „Kaip vykdyti“ tame faile (lint/build, atnaujinimas, žurnalas).
+4. **Nebeiškoti leidimo** pradėti eilės punktą — tai numatytasis darbas, kol eilė neištuštėjo.
+
+Papildomi signalai: **`.always-on/improvement-backlog.md`** (scout metrika) — naudoti kaip foninę diagnostiką, ne kaip vienintelį šaltinį; eilės šaltinis yra **`work-queue.md`**.
+
+---
+
+## Užduočių vykdymo eiga (mažiau diskusijų, daugiau progreso)
+
+**Numatytasis agento elgesys:** trumpai įvardinti 1–3 žingsnius (viena pastraipa ar sąrašas), tada iš karto vykdyti įrankiais (kodas, build, testai). Ilgų alternatyvų palyginimų ir „kas manote?“ nebevedinti, jei užduotyje nėra explicit „palygink variantus“.
+
+**Standartinė eiga kiekvienai užduočiai**
+
+1. **Apimtis** — kas turi pasikeisti vienu sakiniu.
+2. **Įgyvendinimas** — minimalus diff, be šalutinių refaktorių.
+3. **Patikra** — `npm run build` ir (kai tinka) trumpas smoke / rankinis kelias.
+4. **Ataskaita** — kas padaryta, kur failai; žinomos rizikos vienu sakiniu.
+
+**Kai neaišku:** ne daugiau kaip **vienas** tikslinimas; tada pasirinkti saugiausią numatytąją praktiką, įgyvendinti ir ataskaitoje pažymėti prielaidą.
+
+**Vartotojo šablonas žinutei (kopijuojamas)**
+
+```text
+Tikslas: [vienas sakinys — ką turiu matyti / veikti]
+Ribos: [failai, technologija, ko nedaryti — jei yra]
+Prioritetas: [P0/P1]  |  Vykdyti: taip
+```
+
+Jei parašyta **„Vykdyti: taip“** arba aiškiai „daryk / implementuok“ — agentas nebeklausia ar pradėti; pradeda ir užbaigia su patikra.
+
+---
+
+## „OS + naršyklė“ efektas (kiek leidžia Cursor)
+
+**Vietinis dev (automatinė naršyklė):** `npm run dev` — Vite pagal numatymą **atidaro** sistemos naršyklę (`vite.config.ts` → `server.open`). Išjungti atidarymą: `VITE_OPEN_BROWSER=false` prieš komandą (PowerShell: `$env:VITE_OPEN_BROWSER='false'; npm run dev`). Kitas terminalas, jei norite būtent Chrome langą: `npm run dev:chrome` (skriptas `scripts/dev-open-chrome.ps1`, numatytas URL `http://127.0.0.1:3000/`; kitas portas: `$env:DEV_URL='http://127.0.0.1:5173/'; npm run dev:chrome`).
+
+**Production build peržiūra:** `npm run build` tada `npm run preview` — taip pat gali atidaryti naršyklę (`preview.open` tame pačiame config).
+
+**Agentas + „gyva“ naršyklė Cursor projekte:** kai taisomas web UI ar srautai, naudoti **cursor-ide-browser** MCP: `browser_navigate` → `browser_snapshot` → problemoms **`browser_console_messages`** (konsolės efektas be rankinio kopijavimo). Teisinga eiga: navigate → lock (jei reikia) → veiksmai → konsolė → unlock.

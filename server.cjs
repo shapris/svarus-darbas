@@ -4,17 +4,162 @@
  */
 
 const express = require('express');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder');
+const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
+const stripe = require('stripe')(stripeSecret || 'sk_test_placeholder');
 const cors = require('cors');
 const { jsPDF } = require('jspdf');
+const { Resend } = require('resend');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+function buildCorsOrigin() {
+  const raw = (process.env.CORS_ORIGINS || '').trim();
+  if (raw === '*') return true;
+  if (raw) {
+    const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    if (list.length) return list;
+  }
+  return [
+    'http://127.0.0.1:3000',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://localhost:5173',
+  ];
+}
+
+const stripeIsPlaceholder =
+  !stripeSecret || stripeSecret === 'sk_test_placeholder' || /placeholder/i.test(stripeSecret);
+if (stripeIsPlaceholder && process.env.NODE_ENV === 'production') {
+  console.warn(
+    '[server] STRIPE_SECRET_KEY nenustatytas arba ne tikras raktas — Payment Intent API gali netikti.',
+  );
+}
+
+// Middleware (didelis limitas PDF base64 inline siuntimui)
+app.use(cors({ origin: buildCorsOrigin() }));
+app.use(express.json({ limit: '12mb' }));
+
+const SUPABASE_URL_RAW = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim().replace(/\/$/, '');
+const SUPABASE_ANON_KEY = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+async function verifySupabaseUserJwt(authHeader) {
+  const m = typeof authHeader === 'string' ? /^Bearer\s+(.+)$/i.exec(authHeader) : null;
+  const token = m && m[1];
+  if (!token || !SUPABASE_URL_RAW || !SUPABASE_ANON_KEY) {
+    return { ok: false, status: 401, message: 'Nėra prieigos rakto arba serveris neprijungtas prie Supabase.' };
+  }
+  try {
+    const r = await fetch(`${SUPABASE_URL_RAW}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
+    });
+    if (!r.ok) {
+      return { ok: false, status: 401, message: 'Sesija nebegalioja — prisijunkite iš naujo.' };
+    }
+    const user = await r.json();
+    return { ok: true, user };
+  } catch (e) {
+    console.error('[send-invoice-email] Supabase auth check failed:', e);
+    return { ok: false, status: 502, message: 'Nepavyko patikrinti prisijungimo.' };
+  }
+}
+
+function looksLikeEmail(s) {
+  return typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+}
+
+/** Resend „from“: rodomas vardas dėžutėje (pvz. „Švarus Darbas“), ne tik onboarding@… */
+function buildResendFromHeader() {
+  const raw = (process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev').trim();
+  if (raw.includes('<') && raw.includes('>')) {
+    return raw.slice(0, 320);
+  }
+  const displayName = (
+    (process.env.RESEND_FROM_NAME ?? 'Švarus Darbas').trim() || 'Švarus Darbas'
+  )
+    .replace(/[\r\n<>]/g, '')
+    .slice(0, 100);
+  return `${displayName} <${raw}>`;
+}
+
+/**
+ * Automatinis sąskaitos PDF siuntimas į kliento el. paštą (Resend).
+ * Reikalauja: RESEND_API_KEY, RESEND_FROM_EMAIL (arba pilnas „Vardas <paštas>“); vartotojas prisijungęs per Supabase.
+ */
+app.post('/api/send-invoice-email', async (req, res) => {
+  try {
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+    const fromHeader = buildResendFromHeader();
+    if (!resendKey) {
+      return res.status(503).json({
+        error:
+          'El. pašto siuntimas nesukonfigūruotas. Nustatykite RESEND_API_KEY ir paleiskite server.cjs (žr. .env.example).',
+      });
+    }
+
+    const auth = await verifySupabaseUserJwt(req.headers.authorization);
+    if (!auth.ok) {
+      return res.status(auth.status || 401).json({ error: auth.message });
+    }
+
+    const { to, subject, text, pdfBase64, filename } = req.body || {};
+    if (!looksLikeEmail(to)) {
+      return res.status(400).json({ error: 'Nenurodytas arba neteisingas gavėjo el. paštas.' });
+    }
+    if (typeof pdfBase64 !== 'string' || pdfBase64.length < 100) {
+      return res.status(400).json({ error: 'Trūksta PDF duomenų.' });
+    }
+    const rawB64 = pdfBase64.includes(',') ? pdfBase64.split(',').pop() : pdfBase64;
+    if (!rawB64 || rawB64.length < 100) {
+      return res.status(400).json({ error: 'Netinkamas PDF (base64).' });
+    }
+
+    const safeName =
+      typeof filename === 'string' && filename.trim()
+        ? filename.trim().replace(/[^\w.\u00C0-\u024f-]+/g, '_').slice(0, 180)
+        : 'saskaita.pdf';
+    if (!safeName.toLowerCase().endsWith('.pdf')) {
+      return res.status(400).json({ error: 'Failo vardas turi baigtis .pdf' });
+    }
+
+    const subj =
+      typeof subject === 'string' && subject.trim()
+        ? subject.trim().slice(0, 200)
+        : `Sąskaita · ${safeName.replace(/\.pdf$/i, '')}`;
+    const defaultInvoiceBody =
+      'Sveiki,\n\nPridedame sąskaitą PDF formatu už suteiktas paslaugas.\n\nKlausimus galite užduoti atsakydami į šį laišką.\n\n' +
+      'Pagarbiai,\nŠvarus darbas\n\n' +
+      '—\n' +
+      'Profesionalios valymo paslaugos Klaipėdoje ir Vakarų Lietuvoje\n' +
+      'info@svarusdarbas.lt · +370 6774 1151 · https://svarusdarbas.lt';
+    const bodyText =
+      typeof text === 'string' && text.trim()
+        ? text.trim().slice(0, 8000)
+        : defaultInvoiceBody;
+
+    // API raktas: .env → RESEND_API_KEY (įrašykite savo raktą vietoj pavyzdžio re_xxxxxxxxx)
+    const resend = new Resend(resendKey);
+    const { data: sent, error: sendErr } = await resend.emails.send({
+      from: fromHeader,
+      to: to.trim(),
+      subject: subj,
+      text: bodyText,
+      attachments: [{ filename: safeName, content: rawB64 }],
+    });
+
+    if (sendErr) {
+      console.error('[send-invoice-email] Resend error:', sendErr);
+      const msg = sendErr.message || 'Resend klaida';
+      return res.status(502).json({ error: String(msg) });
+    }
+
+    return res.json({ ok: true, id: sent?.id });
+  } catch (error) {
+    console.error('[send-invoice-email]', error);
+    return res.status(500).json({ error: error.message || 'Serverio klaida' });
+  }
+});
 
 // In-memory storage (in production, use a proper database)
 let invoices = [];
@@ -226,7 +371,11 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    invoiceEmail: !!(process.env.RESEND_API_KEY || '').trim(),
+  });
 });
 
 app.listen(PORT, () => {

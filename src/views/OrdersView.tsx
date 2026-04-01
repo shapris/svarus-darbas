@@ -3,22 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Order, Client, AppSettings, OrderStatus, Employee } from '../types';
 import { addData, updateData, deleteData, TABLES } from '../supabase';
-import { calculateOrderPrice, formatCurrency, formatDate, formatDuration, geocodeAddress, generateInvoicePDF } from '../utils';
+import {
+  calculateOrderPrice,
+  formatCurrency,
+  formatDate,
+  formatDuration,
+  geocodeAddress,
+  generateInvoicePDF,
+  looksLikeValidEmail,
+  compressImageToJpegDataUrl,
+} from '../utils';
 import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
-
-interface LocalUser {
-  uid: string;
-}
-import { Plus, Search, Calendar, Clock, MapPin, User as UserIcon, CheckCircle2, MoreVertical, X, FileText, Camera, MessageSquare, Star, Users, Download, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Plus, Search, Calendar, Clock, MapPin, User as UserIcon, CheckCircle2, MoreVertical, X, FileText, Camera, MessageSquare, Star, Users, Download, Mail, Image as ImageIcon, Loader2, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LocalUser {
   uid: string;
 }
+
+const ORDER_STATUS_LABEL_LT: Record<OrderStatus, string> = {
+  suplanuota: 'Suplanuota',
+  vykdoma: 'Vykdoma',
+  atlikta: 'Atlikta',
+};
+
+const MAX_PHOTO_DATA_URL_LENGTH = 900_000;
 
 interface OrdersViewProps {
   orders: Order[];
@@ -41,11 +54,16 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const [isUploading, setIsUploading] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [actionsMenuOrderId, setActionsMenuOrderId] = useState<string | null>(null);
+  const [statusUpdatingOrderId, setStatusUpdatingOrderId] = useState<string | null>(null);
+  const [invoiceActionOrderId, setInvoiceActionOrderId] = useState<string | null>(null);
+  const [invoiceEmailSentOrderId, setInvoiceEmailSentOrderId] = useState<string | null>(null);
   const [clientMode, setClientMode] = useState<'existing' | 'new'>('existing');
   const { showToast } = useToast();
   const [newClientData, setNewClientData] = useState({
     name: '',
     phone: '',
+    email: '',
     address: '',
     buildingType: 'nesutarta' as Client['buildingType'],
   });
@@ -67,6 +85,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     isRecurring: false,
     recurringInterval: 3,
   });
+
+  useEffect(() => {
+    if (!invoiceEmailSentOrderId) return;
+    const t = window.setTimeout(() => setInvoiceEmailSentOrderId(null), 5500);
+    return () => clearTimeout(t);
+  }, [invoiceEmailSentOrderId]);
 
   const today = new Date().toISOString().split('T')[0];
   const overdueCount = orders.filter((o) => o.status !== 'atlikta' && o.date < today).length;
@@ -106,6 +130,58 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     setSelectedOrderIds((prev) => prev.filter((id) => orders.some((o) => o.id === id)));
   }, [orders]);
 
+  useEffect(() => {
+    if (!actionsMenuOrderId) return;
+    const onDocClick = () => setActionsMenuOrderId(null);
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [actionsMenuOrderId]);
+
+  const orderDisplayAddress = useCallback(
+    (order: Order) => {
+      const fromOrder = order.address?.trim();
+      if (fromOrder) return fromOrder;
+      return clients.find((c) => c.id === order.clientId)?.address?.trim() || '';
+    },
+    [clients]
+  );
+
+  /** Rodoma eilutėje: jei užsakyme `clientName` tuščias (seni/ vieši įrašai), imama iš kliento kortelės. */
+  const resolveOrderClientName = useCallback(
+    (order: Order): string => {
+      const fromOrder = (order.clientName ?? '').trim();
+      if (fromOrder) return fromOrder;
+      return (clients.find((c) => c.id === order.clientId)?.name ?? '').trim();
+    },
+    [clients]
+  );
+
+  /**
+   * Sąskaitai / „El. paštas“: pirmiausia klientas pagal užsakymo clientId.
+   * Jei ten nėra tinkamo el. pašto, bet egzistuoja tik vienas klientas su tuo pačiu vardu ir galiojančiu el. paštu —
+   * naudojame jį (dažnas atvejis: dublikatas DB arba senas clientId po kliento sujungimo).
+   * Jei keli to paties vardo su skirtingais paštais — lieka susiejimas pagal id (geltonas mygtukas kol neištaisysite).
+   */
+  const resolveClientForOrder = useCallback(
+    (order: Order): Client | undefined => {
+      const byId = clients.find((c) => c.id === order.clientId);
+      if (byId && looksLikeValidEmail((byId.email ?? '').trim())) {
+        return byId;
+      }
+      const nameKey = (order.clientName ?? '').trim().toLowerCase();
+      if (!nameKey) return byId;
+
+      const sameName = clients.filter((c) => (c.name ?? '').trim().toLowerCase() === nameKey);
+      const withEmail = sameName.filter((c) => looksLikeValidEmail((c.email ?? '').trim()));
+
+      if (withEmail.length === 1) {
+        return withEmail[0];
+      }
+      return byId;
+    },
+    [clients]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -128,6 +204,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         const createdClient = await addData(TABLES.CLIENTS, user.uid, {
           name,
           phone: newClientData.phone.trim(),
+          email: newClientData.email.trim() || undefined,
           address,
           buildingType: newClientData.buildingType,
           createdAt: new Date().toISOString(),
@@ -160,7 +237,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       setIsAdding(false);
       setEditingOrder(null);
       setClientMode('existing');
-      setNewClientData({ name: '', phone: '', address: '', buildingType: 'nesutarta' });
+      setNewClientData({ name: '', phone: '', email: '', address: '', buildingType: 'nesutarta' });
       showToast.success('Užsakymas išsaugotas');
     } catch {
       showToast.error('Klaida išsaugant užsakymą');
@@ -170,6 +247,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   };
 
   const handleStatusUpdate = async (order: Order, status: OrderStatus) => {
+    setStatusUpdatingOrderId(order.id);
     try {
       await updateData(TABLES.ORDERS, order.id, { status } as any);
 
@@ -180,9 +258,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
         const newOrderData = {
           clientId: order.clientId,
-          clientName: order.clientName,
+          clientName: resolveOrderClientName(order),
           employeeId: order.employeeId || '',
-          address: order.address,
+          address: orderDisplayAddress(order),
           date: nextDate.toISOString().split('T')[0],
           time: order.time,
           windowCount: order.windowCount,
@@ -208,20 +286,72 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       console.error('Status update failed:', error);
       const details = typeof error?.message === 'string' ? ` (${error.message})` : '';
       showToast.error(`Nepavyko išsaugoti būsenos${details}`);
+    } finally {
+      setStatusUpdatingOrderId(null);
     }
   };
 
   const handlePhotoUpload = async (order: Order, type: 'before' | 'after', file: File) => {
+    if (file.size > 12 * 1024 * 1024) {
+      showToast.error('Failas per didelis (daugiausia ~12 MB).');
+      return;
+    }
     setIsUploading(`${order.id}-${type}`);
-    showToast.info('Nuotraukų įkėlimas nėra galimas naudojant vietinę duomenų saugyklą.');
-    setIsUploading(null);
+    try {
+      const dataUrl = await compressImageToJpegDataUrl(file);
+      if (dataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
+        showToast.error('Nuotrauka per didelė po suspaudimo. Bandykite mažesnę raišką arba kitą kadrą.');
+        return;
+      }
+      const patch = type === 'before' ? { photoBefore: dataUrl } : { photoAfter: dataUrl };
+      await updateData(TABLES.ORDERS, order.id, patch as Record<string, unknown>);
+      showToast.success(type === 'before' ? '„Prieš“ nuotrauka įrašyta' : '„Po“ nuotrauka įrašyta');
+    } catch (e: unknown) {
+      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : '';
+      showToast.error(msg ? `Nepavyko įkelti: ${msg}` : 'Nepavyko įkelti nuotraukos');
+    } finally {
+      setIsUploading(null);
+    }
   };
 
-  const handleGenerateInvoice = (order: Order) => {
-    const client = clients.find(c => c.id === order.clientId);
-    if (client) {
-      generateInvoicePDF(order, client);
+  const handleGenerateInvoice = async (order: Order, opts?: { fromEmailButton?: boolean }) => {
+    const client = resolveClientForOrder(order);
+    if (!client) {
+      showToast.error('Nerastas klientas — negalima sugeneruoti sąskaitos. Redaguokite užsakymą.');
+      return;
     }
+    setInvoiceActionOrderId(order.id);
+    try {
+      const result = await generateInvoicePDF(order, client);
+      if (result.method === 'email') {
+        showToast.success(result.detail, 10_000);
+        setInvoiceEmailSentOrderId(order.id);
+      } else if (opts?.fromEmailButton) {
+        showToast.success(result.detail, 9000);
+      } else {
+        showToast.success(result.detail);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast.error('Nepavyko sugeneruoti PDF (šriftas ar naršyklės klaida).');
+    } finally {
+      setInvoiceActionOrderId(null);
+    }
+  };
+
+  /** Aiškus kelias į el. paštą (automatinis per Resend arba Outlook / mailto su priedu). */
+  const handleSendInvoiceByEmail = async (order: Order) => {
+    const client = resolveClientForOrder(order);
+    if (!client) {
+      showToast.error('Nerastas klientas.');
+      return;
+    }
+    const em = client.email?.trim() ?? '';
+    if (!em || !looksLikeValidEmail(em)) {
+      showToast.error('Kliento kortelėje nėra el. pašto. Skiltyje „Klientai“ redaguokite klientą ir įrašykite adresą.');
+      return;
+    }
+    await handleGenerateInvoice(order, { fromEmailButton: true });
   };
 
   const handleDelete = async (id: string) => {
@@ -266,7 +396,8 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     }
 
     let text = settings.smsTemplate || "Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!";
-    text = text.replace('{vardas}', order.clientName)
+    const vardas = resolveOrderClientName(order) || client.name || 'kliente';
+    text = text.replace('{vardas}', vardas)
       .replace('{data}', formatDate(order.date))
       .replace('{laikas}', order.time)
       .replace('{kaina}', formatCurrency(order.totalPrice));
@@ -281,7 +412,8 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       return;
     }
 
-    const text = `Sveiki, ${order.clientName}! Dėkojame, kad naudojatės mūsų paslaugomis. Būtume labai dėkingi, jei paliktumėte atsiliepimą: https://g.page/r/your-google-review-link/review`;
+    const vardas = resolveOrderClientName(order) || client.name || 'kliente';
+    const text = `Sveiki, ${vardas}! Dėkojame, kad naudojatės mūsų paslaugomis. Būtume labai dėkingi, jei paliktumėte atsiliepimą: https://g.page/r/your-google-review-link/review`;
     window.open(`sms:${client.phone}?body=${encodeURIComponent(text)}`);
   };
 
@@ -346,6 +478,31 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
   return (
     <div className="space-y-6">
+      <details className="group bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-sm text-slate-900 [&::-webkit-details-marker]:hidden">
+          <HelpCircle className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
+          Kaip naudotis užsakymais
+          <span className="ml-auto text-xs font-normal text-slate-500 group-open:hidden">(bakstelėkite)</span>
+        </summary>
+        <ul className="mt-3 space-y-2 text-xs text-slate-600 leading-relaxed border-t border-slate-200/80 pt-3">
+          <li>
+            <strong className="text-slate-800">Pradėti</strong> — pažymi, kad vykstate į objektą (būsena „Vykdoma“).
+          </li>
+          <li>
+            <strong className="text-slate-800">Baigti</strong> — darbas atliktas (būsena „Atlikta“; tada galite „Sąskaita“ ir SMS).
+          </li>
+          <li>
+            <strong className="text-slate-800">Nepriskirtas</strong> — pasirinkite darbuotoją iš sąrašo šalia.
+          </li>
+          <li>
+            <strong className="text-slate-800">Įkelti</strong> prie „Prieš / Po“ — nuotrauka suspaudžiama ir išsaugoma prie užsakymo.
+          </li>
+          <li>
+            <strong className="text-slate-800">Trys taškai (⋮)</strong> — redaguoti arba ištrinti užsakymą (bakstelėkite piktogramą).
+          </li>
+        </ul>
+      </details>
+
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Užsakymai</h2>
         <div className="flex items-center gap-2">
@@ -386,13 +543,14 @@ export default function OrdersView({ orders, clients, settings, user, employees 
           {(['all', 'suplanuota', 'vykdoma', 'atlikta'] as const).map((status) => (
             <button
               key={status}
+              type="button"
               onClick={() => setStatusFilter(status)}
               className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${statusFilter === status
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                 : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
                 }`}
             >
-              {status === 'all' ? 'Visi' : status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === 'all' ? 'Visi' : ORDER_STATUS_LABEL_LT[status]}
             </button>
           ))}
         </div>
@@ -512,7 +670,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                   checked={selectedOrderIds.includes(order.id)}
                   onChange={() => toggleSelectOrder(order.id)}
                   className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  aria-label={`Pažymėti užsakymą ${order.clientName}`}
+                  aria-label={`Pažymėti užsakymą ${resolveOrderClientName(order) || 'užsakymą'}`}
                 />
                 <Calendar size={14} className="text-blue-600" />
                 <span className="text-xs font-bold text-slate-700">{formatDate(order.date)}</span>
@@ -543,34 +701,56 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <div className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${order.status === 'atlikta' ? 'bg-emerald-50 text-emerald-600' :
+                <div
+                  className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider ${order.status === 'atlikta' ? 'bg-emerald-50 text-emerald-600' :
                   order.status === 'vykdoma' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
-                  }`}>
-                  {order.status}
+                  }`}
+                >
+                  {ORDER_STATUS_LABEL_LT[order.status]}
                 </div>
-                <div className="relative group">
+                <div className="relative">
                   <button
                     type="button"
                     title="Užsakymo veiksmai"
-                    aria-label="Užsakymo veiksmai"
-                    className="p-1 text-slate-400 hover:text-slate-600"
+                    aria-label={`Užsakymo veiksmai: ${resolveOrderClientName(order) || 'užsakymas'}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActionsMenuOrderId((id) => (id === order.id ? null : order.id));
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 min-w-[40px] min-h-[40px] flex items-center justify-center"
                   >
-                    <MoreVertical size={16} />
+                    <MoreVertical size={18} aria-hidden />
                   </button>
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded-xl shadow-xl z-10 hidden group-hover:block min-w-[120px] overflow-hidden">
-                    <button
-                      onClick={() => startEdit(order)}
-                      className="w-full text-left px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  {actionsMenuOrderId === order.id && (
+                    <div
+                      role="menu"
+                      className="absolute right-0 top-full mt-1 bg-white border border-slate-100 rounded-xl shadow-xl z-20 min-w-[160px] overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Redaguoti
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(order.id); }}
-                      className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50"
-                    >
-                      Ištrinti
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          startEdit(order);
+                          setActionsMenuOrderId(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Redaguoti užsakymą
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          handleDelete(order.id);
+                          setActionsMenuOrderId(null);
+                        }}
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-red-600 hover:bg-red-50"
+                      >
+                        Ištrinti
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -578,10 +758,16 @@ export default function OrdersView({ orders, clients, settings, user, employees 
             <div className="p-4">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-lg">{order.clientName}</h3>
-                  <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
-                    <MapPin size={12} />
-                    <span>{order.address}</span>
+                  <h3 className="font-bold text-slate-900 text-lg">
+                    {resolveOrderClientName(order) || 'Klientas nenurodytas'}
+                  </h3>
+                  <div className="flex items-start gap-1 text-xs text-slate-500 mt-1 min-w-0">
+                    <MapPin size={12} className="shrink-0 mt-0.5" aria-hidden />
+                    <span className="break-words">
+                      {orderDisplayAddress(order) || (
+                        <span className="text-amber-700 font-medium">Adresas neįvestas — atidarykite ⋮ → Redaguoti</span>
+                      )}
+                    </span>
                   </div>
                 </div>
                 <div className="text-right">
@@ -590,60 +776,109 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 </div>
               </div>
 
-              <div className="flex gap-2 mt-4">
-                <div className="flex-1 min-w-[170px]">
-                  <select
-                    value={order.employeeId || ''}
-                    onChange={(e) => handleQuickAssign(order, e.target.value)}
-                    disabled={assigningOrderId === order.id}
-                    title="Greitas darbuotojo priskyrimas"
-                    aria-label={`Greitas darbuotojo priskyrimas užsakymui ${order.clientName}`}
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3 px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
-                  >
-                    <option value="">Nepriskirtas</option>
-                    {employees.filter((e) => e.isActive).map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {order.status !== 'atlikta' && (
-                  <button
-                    onClick={() => handleStatusUpdate(order, order.status === 'suplanuota' ? 'vykdoma' : 'atlikta')}
-                    className="flex-1 bg-blue-600 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle2 size={16} />
-                    {order.status === 'suplanuota' ? 'Pradėti' : 'Baigti'}
-                  </button>
-                )}
-                {order.status === 'atlikta' && (
-                  <>
-                    <button
-                      onClick={() => handleGenerateInvoice(order)}
-                      className="flex-1 bg-slate-900 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+              <div className="mt-4 flex flex-col gap-2">
+                <div className="flex gap-2 items-stretch min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <select
+                      value={order.employeeId || ''}
+                      onChange={(e) => handleQuickAssign(order, e.target.value)}
+                      disabled={assigningOrderId === order.id}
+                      title="Greitas darbuotojo priskyrimas"
+                      aria-label={`Greitas darbuotojo priskyrimas užsakymui ${resolveOrderClientName(order) || '—'}`}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl py-2.5 px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 min-h-[44px]"
                     >
-                      <Download size={16} />
-                      Sąskaita
-                    </button>
+                      <option value="">Nepriskirtas</option>
+                      {employees.filter((e) => e.isActive).map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {order.status !== 'atlikta' && (
                     <button
+                      type="button"
+                      disabled={statusUpdatingOrderId === order.id}
+                      onClick={() => handleStatusUpdate(order, order.status === 'suplanuota' ? 'vykdoma' : 'atlikta')}
+                      title={order.status === 'suplanuota' ? 'Pažymėti užsakymą kaip vykdomą' : 'Pažymėti užsakymą kaip atliktą'}
+                      aria-label={order.status === 'suplanuota' ? 'Pradėti užsakymą' : 'Užbaigti užsakymą'}
+                      className="min-w-[6.5rem] shrink-0 bg-blue-600 text-white py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed min-h-[44px]"
+                    >
+                      {statusUpdatingOrderId === order.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                      ) : (
+                        <CheckCircle2 size={16} aria-hidden />
+                      )}
+                      {order.status === 'suplanuota' ? 'Pradėti' : 'Baigti'}
+                    </button>
+                  )}
+                  {order.status === 'atlikta' && (
+                    <button
+                      type="button"
                       onClick={() => requestFeedback(order)}
-                      className="bg-amber-50 text-amber-500 p-3 rounded-xl hover:bg-amber-100 transition-colors"
-                      title="Prašyti atsiliepimo"
+                      className="bg-amber-50 text-amber-500 p-2.5 rounded-xl hover:bg-amber-100 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      title="Prašyti atsiliepimo (SMS)"
+                      aria-label="Prašyti atsiliepimo SMS"
                     >
-                      <Star size={16} />
+                      <Star size={16} aria-hidden />
                     </button>
-                  </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => sendSMS(order)}
+                    title="Siųsti SMS priminimą"
+                    aria-label="Siųsti SMS priminimą"
+                    className="bg-slate-50 text-slate-400 p-2.5 rounded-xl hover:bg-slate-100 hover:text-blue-600 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  >
+                    <MessageSquare size={16} aria-hidden />
+                  </button>
+                </div>
+                {order.status === 'atlikta' && (
+                  <div className="grid grid-cols-2 gap-2 w-full min-w-0">
+                    <button
+                      type="button"
+                      disabled={invoiceActionOrderId === order.id}
+                      onClick={() => handleGenerateInvoice(order)}
+                      className="bg-slate-900 text-white py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 min-h-[44px] touch-manipulation disabled:opacity-70 disabled:cursor-wait"
+                      title="PDF sąskaita: jei Nustatymuose sukonfigūruotas serveris ir Resend – išsiunčiama automatiškai; kitaip atsisiuntimas ir el. paštas / SMS"
+                      aria-label="Sąskaita PDF"
+                    >
+                      {invoiceActionOrderId === order.id ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                      ) : (
+                        <Download size={16} aria-hidden />
+                      )}
+                      {invoiceActionOrderId === order.id ? 'Ruošiama…' : 'Sąskaita'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={invoiceActionOrderId === order.id}
+                      onClick={() => handleSendInvoiceByEmail(order)}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border-2 min-h-[44px] touch-manipulation disabled:cursor-wait ${
+                        invoiceEmailSentOrderId === order.id
+                          ? 'border-emerald-600 text-emerald-800 bg-emerald-50'
+                          : looksLikeValidEmail((resolveClientForOrder(order)?.email ?? '').trim())
+                            ? 'border-slate-900 text-slate-900 bg-white hover:bg-slate-50 disabled:opacity-70'
+                            : 'border-dashed border-amber-400 text-amber-900 bg-amber-50/80 hover:bg-amber-50 disabled:opacity-70'
+                      }`}
+                      title="Geltona: nėra tinkamo el. pašto šiam užsakymui (blogas susiejimas arba trūksta adreso kliento kortelėje). Su Resend — automatiškai; kitaip PDF + mailto."
+                      aria-label="Siųsti sąskaitą kliento el. paštu"
+                    >
+                      {invoiceActionOrderId === order.id ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                      ) : invoiceEmailSentOrderId === order.id ? (
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0" aria-hidden />
+                      ) : (
+                        <Mail size={16} aria-hidden />
+                      )}
+                      {invoiceActionOrderId === order.id
+                        ? 'Siunčiama…'
+                        : invoiceEmailSentOrderId === order.id
+                          ? 'Išsiųsta'
+                          : 'El. paštas'}
+                    </button>
+                  </div>
                 )}
-                <button
-                  type="button"
-                  onClick={() => sendSMS(order)}
-                  title="Siųsti SMS priminimą"
-                  aria-label="Siųsti SMS priminimą"
-                  className="bg-slate-50 text-slate-400 p-3 rounded-xl hover:bg-slate-100 hover:text-blue-600 transition-colors"
-                >
-                  <MessageSquare size={16} />
-                </button>
               </div>
 
               {/* Nuotraukų dokumentacija */}
@@ -735,19 +970,6 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         ))}
       </div>
 
-      <div className="sm:hidden sticky bottom-20 z-20">
-        <button
-          type="button"
-          onClick={() => setIsAdding(true)}
-          className="w-full bg-blue-600 text-white py-3 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-          title="Sukurti naują užsakymą"
-          aria-label="Sukurti naują užsakymą"
-        >
-          <Plus size={18} />
-          Naujas užsakymas
-        </button>
-      </div>
-
       <AnimatePresence>
         {isAdding && (
           <motion.div
@@ -832,6 +1054,18 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         onChange={(e) => setNewClientData((prev) => ({ ...prev, phone: e.target.value }))}
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         placeholder="+370..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">El. paštas (neprivaloma)</label>
+                      <input
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        value={newClientData.email}
+                        onChange={(e) => setNewClientData((prev) => ({ ...prev, email: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="vardas@pastas.lt"
                       />
                     </div>
                     <div>

@@ -88,6 +88,29 @@ export default defineConfig(({mode}) => {
     server: {
       // HMR can be disabled via DISABLE_HMR=true (e.g. remote or constrained environments).
       hmr: process.env.DISABLE_HMR !== 'true',
+      /** „OS + naršyklė“: `npm run dev` atidaro numatytąją naršykę. Išjungti: VITE_OPEN_BROWSER=false */
+      open:
+        process.env.VITE_OPEN_BROWSER === 'false' || process.env.CI === 'true'
+          ? false
+          : true,
+      // Sąskaitų API (server.cjs) — užklausos į tą patį dev prievadą, be tiesiai :3001
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
+        '/health': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
+      },
+    },
+    preview: {
+      open:
+        process.env.VITE_OPEN_BROWSER === 'false' || process.env.CI === 'true'
+          ? false
+          : true,
+      port: 4173,
     },
   };
 });

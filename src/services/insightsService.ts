@@ -67,6 +67,14 @@ function isRateLimitOrQuotaError(err: unknown): boolean {
   );
 }
 
+/** Nemokami modeliai dažnai įvynioja JSON į markdown, nors prompt prašo gryno JSON. */
+function normalizeLikelyJsonFromChatModel(text: string): string {
+  let t = text.trim();
+  const fence = /^```(?:json)?\s*([\s\S]*?)\s*```/im.exec(t);
+  if (fence?.[1]) t = fence[1].trim();
+  return t;
+}
+
 function normalizeDashboardInsightsFromObjects(raw: unknown[]): DashboardInsight[] {
   const byId = new Map<DashboardInsightId, DashboardInsight>();
   for (const item of raw) {
@@ -323,11 +331,15 @@ export async function getBusinessInsights(
       const text = result.choices[0].message?.content || '';
       if (!text) return null;
 
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return null;
+      const normalized = normalizeLikelyJsonFromChatModel(text);
+      const jsonSlice =
+        normalized.startsWith('{')
+          ? normalized
+          : normalized.match(/\{[\s\S]*\}/)?.[0] ?? text.match(/\{[\s\S]*\}/)?.[0];
+      if (!jsonSlice) return null;
 
       try {
-        return parseDashboardInsightsPayload(JSON.parse(jsonMatch[0]));
+        return parseDashboardInsightsPayload(JSON.parse(jsonSlice));
       } catch {
         console.warn('Insights: nepavyko išanalizuoti OpenRouter JSON, bandoma kita paslauga');
         return null;
