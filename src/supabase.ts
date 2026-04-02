@@ -203,6 +203,49 @@ function normalizeClientFromDb(row: Record<string, unknown>): Client {
     };
 }
 
+function boolSettingFromDb(v: unknown, defaultTrue: boolean): boolean {
+    if (v === null || v === undefined) return defaultTrue;
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v !== 0;
+    if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        if (s === 'false' || s === '0') return false;
+        if (s === 'true' || s === '1') return true;
+    }
+    return defaultTrue;
+}
+
+/** `settings`: snake_case arba senesni camelCase laukai. */
+function normalizeSettingsFromDb(row: Record<string, unknown>): AppSettings {
+    const num = (v: unknown, fallback: number) => {
+        if (typeof v === 'number' && !Number.isNaN(v)) return v;
+        const p = parseFloat(String(v ?? ''));
+        return Number.isFinite(p) ? p : fallback;
+    };
+    return {
+        ...DEFAULT_SETTINGS,
+        id: String(row.id ?? ''),
+        pricePerWindow: num(row.price_per_window ?? row.pricePerWindow, DEFAULT_SETTINGS.pricePerWindow),
+        pricePerFloor: num(row.price_per_floor ?? row.pricePerFloor, DEFAULT_SETTINGS.pricePerFloor),
+        priceBalkonai: num(row.price_balkonai ?? row.priceBalkonai, DEFAULT_SETTINGS.priceBalkonai),
+        priceVitrinos: num(row.price_vitrinos ?? row.priceVitrinos, DEFAULT_SETTINGS.priceVitrinos),
+        priceTerasa: num(row.price_terasa ?? row.priceTerasa, DEFAULT_SETTINGS.priceTerasa),
+        priceKiti: num(row.price_kiti ?? row.priceKiti, DEFAULT_SETTINGS.priceKiti),
+        smsTemplate:
+            typeof (row.sms_template ?? row.smsTemplate) === 'string'
+                ? String(row.sms_template ?? row.smsTemplate)
+                : DEFAULT_SETTINGS.smsTemplate,
+        publicBookingEnabled: boolSettingFromDb(
+            row.public_booking_enabled ?? row.publicBookingEnabled,
+            DEFAULT_SETTINGS.publicBookingEnabled
+        ),
+        invoiceApiBaseUrl:
+            typeof (row.invoice_api_base_url ?? row.invoiceApiBaseUrl) === 'string'
+                ? String(row.invoice_api_base_url ?? row.invoiceApiBaseUrl).trim()
+                : DEFAULT_SETTINGS.invoiceApiBaseUrl,
+    };
+}
+
 function mapOrderStatusFromDb(v: unknown): Order['status'] {
     const s = String(v ?? '').toLowerCase();
     if (s === 'vykdoma' || s === 'in_progress') return 'vykdoma';
@@ -912,6 +955,9 @@ export async function getData<T extends DatabaseRecord>(
     if (tableName === 'orders') {
         return (rows as Record<string, unknown>[]).map((r) => normalizeOrderFromDb(r)) as unknown as T[];
     }
+    if (tableName === 'settings') {
+        return (rows as Record<string, unknown>[]).map((r) => normalizeSettingsFromDb(r)) as unknown as T[];
+    }
     return rows as T[];
 }
 
@@ -1413,6 +1459,7 @@ export async function fetchPublicBookingSettings(ownerUid: string): Promise<AppS
             priceTerasa: num(raw.priceTerasa, DEFAULT_SETTINGS.priceTerasa),
             priceKiti: num(raw.priceKiti, DEFAULT_SETTINGS.priceKiti),
             smsTemplate: typeof raw.smsTemplate === 'string' ? raw.smsTemplate : DEFAULT_SETTINGS.smsTemplate,
+            publicBookingEnabled: boolSettingFromDb(raw.publicBookingEnabled, DEFAULT_SETTINGS.publicBookingEnabled),
         };
     }
     return { ...DEFAULT_SETTINGS };
@@ -1507,7 +1554,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 // Create default user profile
-export async function createDefaultProfile(uid: string, email?: string, role: UserRole = 'staff'): Promise<UserProfile> {
+export async function createDefaultProfile(uid: string, email?: string, role: UserRole = 'admin'): Promise<UserProfile> {
     const profile: UserProfile = {
         id: crypto.randomUUID(),
         uid,

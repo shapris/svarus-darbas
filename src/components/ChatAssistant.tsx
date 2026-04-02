@@ -16,6 +16,7 @@ import { calculateOrderPrice } from '../utils';
 
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '../hooks/useToast';
+import { useOrgAccess } from '../contexts/OrgAccessContext';
 
 interface LocalUser {
   uid: string;
@@ -62,6 +63,7 @@ function chatPanelMessagesKey(uid: string) {
 }
 
 export default function ChatAssistant({ user, clients, orders, expenses, settings, activeTab }: ChatAssistantProps) {
+  const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const activeViewLabel = CRM_TAB_LABEL_LT[activeTab] ?? activeTab;
 
@@ -426,6 +428,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
   const handleToolCall = async (call: any) => {
     const { name, args } = call;
+
+    if (isRestrictedStaff && typeof name === 'string' && name.startsWith('delete_')) {
+      return 'Šį veiksmą gali atlikti tik administratorius.';
+    }
 
     try {
       if (name === 'add_client') {
@@ -1205,6 +1211,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                 </span>
                                 <p className="text-xs text-slate-700 leading-relaxed">{memory.content}</p>
                               </div>
+                              {!isRestrictedStaff && (
                               <button
                                 onClick={() => handleToolCall({ name: 'delete_memory', args: { memoryId: memory.id } })}
                                 title="Ištrinti atminties įrašą"
@@ -1212,6 +1219,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                               >
                                 <Trash2 size={14} />
                               </button>
+                              )}
                             </div>
                           </div>
                         ))}

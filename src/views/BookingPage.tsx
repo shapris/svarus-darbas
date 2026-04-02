@@ -20,6 +20,8 @@ export default function BookingPage({ userId }: BookingPageProps) {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  /** Honeypot — palikite tuščią; užpildo tik botai. */
+  const [hpWebsite, setHpWebsite] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     phone: 'nesutarta',
@@ -64,6 +66,14 @@ export default function BookingPage({ userId }: BookingPageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hpWebsite.trim() !== '') {
+      setIsBooked(true);
+      return;
+    }
+    if (!settings.publicBookingEnabled) {
+      setErrorBanner('Vieša rezervacija šiuo metu išjungta. Susisiekite su įmonę tiesiogiai.');
+      return;
+    }
     setIsSubmitting(true);
     setErrorBanner(null);
     try {
@@ -154,6 +164,8 @@ export default function BookingPage({ userId }: BookingPageProps) {
         setErrorBanner('Įrašykite telefoną bent 5 simbolių (arba palikite „nesutarta“).');
       } else if (low.includes('invalid_booking')) {
         setErrorBanner('Ši rezervacijos nuoroda nebegalioja arba verslas neaktyvus.');
+      } else if (low.includes('public_booking_disabled')) {
+        setErrorBanner('Vieša rezervacija išjungta. Susisiekite su įmonę tiesiogiai.');
       } else {
         setErrorBanner(
           import.meta.env.DEV
@@ -170,6 +182,20 @@ export default function BookingPage({ userId }: BookingPageProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!settings.publicBookingEnabled) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border border-slate-100">
+          <Info className="text-amber-500 mx-auto mb-4" size={40} aria-hidden />
+          <h1 className="text-xl font-bold text-slate-900 mb-2">Rezervacija neprieinama</h1>
+          <p className="text-slate-600 text-sm leading-relaxed">
+            Ši įmonė laikinai išjungė viešą rezervaciją per internetą. Prašome skambinti arba rašyti tiesiogiai.
+          </p>
+        </div>
       </div>
     );
   }
@@ -235,6 +261,18 @@ export default function BookingPage({ userId }: BookingPageProps) {
       </AnimatePresence>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="absolute -left-[9999px] w-px h-px overflow-hidden" aria-hidden="true">
+          <label htmlFor="booking-hp-website">Website</label>
+          <input
+            id="booking-hp-website"
+            name="website"
+            type="text"
+            tabIndex={-1}
+            autoComplete="off"
+            value={hpWebsite}
+            onChange={(e) => setHpWebsite(e.target.value)}
+          />
+        </div>
         <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <User size={16} className="text-blue-600" />

@@ -9,6 +9,7 @@ import { addData, updateData, deleteData, TABLES } from '../supabase';
 import { Users, Plus, Edit2, Trash2, X, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../hooks/useToast';
+import { useOrgAccess } from '../contexts/OrgAccessContext';
 
 interface LocalUser {
   uid: string;
@@ -22,6 +23,7 @@ interface TeamViewProps {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
 
 export default function TeamView({ employees, user }: TeamViewProps) {
+  const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,6 +36,10 @@ export default function TeamView({ employees, user }: TeamViewProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRestrictedStaff && !editingId) {
+      showToast.error('Naują darbuotoją gali pridėti tik administratorius.');
+      return;
+    }
     try {
       if (editingId) {
         await updateData(TABLES.EMPLOYEES, editingId, formData);
@@ -62,6 +68,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
   };
 
   const handleDelete = async (id: string) => {
+    if (isRestrictedStaff) return;
     if (window.confirm('Ar tikrai norite ištrinti šį darbuotoją?')) {
       try {
         deleteData(TABLES.EMPLOYEES, id);
@@ -75,6 +82,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
     <div className="space-y-6 pb-10">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Komanda</h2>
+        {!isRestrictedStaff && (
         <button
           type="button"
           title="Pridėti darbuotoją"
@@ -88,6 +96,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
         >
           <Plus size={20} />
         </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -127,6 +136,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
               >
                 <Edit2 size={16} />
               </button>
+              {!isRestrictedStaff && (
               <button
                 type="button"
                 title="Ištrinti"
@@ -136,6 +146,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
               >
                 <Trash2 size={16} />
               </button>
+              )}
             </div>
           </motion.div>
         ))}

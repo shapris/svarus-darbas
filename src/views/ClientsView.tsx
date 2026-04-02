@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatDate, formatCurrency } from '../utils';
 import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
+import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { clientSegmentation, type ClientSegment } from '../services/clientSegmentation';
 import ClientAddressAutocomplete, { googleMapsSearchUrl } from '../components/ClientAddressAutocomplete';
 
@@ -41,6 +42,7 @@ function formatClientSaveError(err: unknown): string {
 }
 
 export default function ClientsView({ clients, orders, user }: ClientsViewProps) {
+  const { isRestrictedStaff } = useOrgAccess();
   const [search, setSearch] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -130,6 +132,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   };
 
   const handleDelete = async (id: string) => {
+    if (isRestrictedStaff) return;
     if (!window.confirm('Ar tikrai norite ištrinti šį klientą?')) return;
     
     setIsDeleting(id);
@@ -237,8 +240,14 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{client.buildingType}</span>
                     <span className="text-[10px] text-slate-300">•</span>
                     <span className="text-[10px] font-bold text-blue-600">{getClientOrders(client.id).length} užsakymai</span>
-                    <span className="text-[10px] text-slate-300">•</span>
-                    <span className="text-[10px] font-bold text-emerald-600">{formatCurrency(getClientOrders(client.id).reduce((sum, o) => sum + o.totalPrice, 0))}</span>
+                    {!isRestrictedStaff && (
+                      <>
+                        <span className="text-[10px] text-slate-300">•</span>
+                        <span className="text-[10px] font-bold text-emerald-600">
+                          {formatCurrency(getClientOrders(client.id).reduce((sum, o) => sum + o.totalPrice, 0))}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -261,6 +270,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 >
                   <Edit size={18} aria-hidden />
                 </button>
+                {!isRestrictedStaff && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }}
@@ -271,6 +281,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 >
                   {isDeleting === client.id ? <LoadingSpinner size="sm" /> : <Trash2 size={18} aria-hidden />}
                 </button>
+                )}
               </div>
             </div>
 

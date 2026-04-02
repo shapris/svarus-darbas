@@ -287,6 +287,11 @@ export async function fetchPublicBookingSettings(ownerUid: string): Promise<AppS
         const p = parseFloat(String(v ?? ''));
         return Number.isFinite(p) ? p : fallback;
     };
+    const pub =
+        raw.publicBookingEnabled === false ||
+        String(raw.publicBookingEnabled ?? '').toLowerCase() === 'false'
+            ? false
+            : true;
     return {
         ...DEFAULT_SETTINGS,
         pricePerWindow: num(raw.pricePerWindow, DEFAULT_SETTINGS.pricePerWindow),
@@ -296,6 +301,7 @@ export async function fetchPublicBookingSettings(ownerUid: string): Promise<AppS
         priceTerasa: num(raw.priceTerasa, DEFAULT_SETTINGS.priceTerasa),
         priceKiti: num(raw.priceKiti, DEFAULT_SETTINGS.priceKiti),
         smsTemplate: typeof raw.smsTemplate === 'string' ? raw.smsTemplate : DEFAULT_SETTINGS.smsTemplate,
+        publicBookingEnabled: pub,
     };
 }
 
@@ -309,6 +315,13 @@ export async function submitPublicBooking(
     if (!settingsSnap.exists()) {
         const err = new Error('invalid_booking_owner');
         throw err;
+    }
+    const settingsRaw = normalizeFirestoreDoc(ownerUid, settingsSnap.data()) as Record<string, unknown>;
+    const bookingOff =
+        settingsRaw.publicBookingEnabled === false ||
+        String(settingsRaw.publicBookingEnabled ?? '').toLowerCase() === 'false';
+    if (bookingOff) {
+        throw new Error('public_booking_disabled');
     }
     const phone = String(clientPayload.phone || '').trim();
     if (phone.length < 5) {

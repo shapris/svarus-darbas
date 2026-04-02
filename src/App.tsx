@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense, useCallback, useMemo } from 'react';
 import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase, getUserProfile, createDefaultProfile, requestPasswordResetEmail } from './supabase';
 import Layout from './components/Layout';
+import { OrgAccessProvider } from './contexts/OrgAccessContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { FullPageLoader } from './components/LoadingSpinner';
 import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory, UserProfile, INVOICE_API_STORAGE_KEY } from './types';
@@ -200,7 +201,7 @@ export default function App() {
         }
       } else {
         // Create default profile for staff users
-        createDefaultProfile(user.uid, user.email, 'staff').then(newProfile => {
+        createDefaultProfile(user.uid, user.email, 'admin').then(newProfile => {
           setUserProfile(newProfile);
           setShowClientPortal(null);
         });
@@ -234,11 +235,13 @@ export default function App() {
           priceTerasa: DEFAULT_SETTINGS.priceTerasa,
           priceKiti: DEFAULT_SETTINGS.priceKiti,
           smsTemplate: DEFAULT_SETTINGS.smsTemplate,
+          publicBookingEnabled: DEFAULT_SETTINGS.publicBookingEnabled,
         }).then((newSettings) => {
+          const s = newSettings as unknown as AppSettings;
           setSettings({
             ...(DEFAULT_SETTINGS as AppSettings),
-            ...(newSettings as AppSettings),
-            invoiceApiBaseUrl: fromLs || (newSettings as AppSettings).invoiceApiBaseUrl || '',
+            ...s,
+            invoiceApiBaseUrl: fromLs || s.invoiceApiBaseUrl || '',
           });
         });
       }
@@ -716,37 +719,39 @@ export default function App() {
 
       {/* Staff CRM */}
       {!showClientPortal && user && (
-        <Layout 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          onLogout={handleLogout}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {renderContent()}
-            </motion.div>
-          </AnimatePresence>
-          <Suspense fallback={
-            <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-            </div>
-          }>
-            <ChatAssistant
-              user={user}
-              clients={clients}
-              orders={orders}
-              expenses={expenses}
-              settings={settings}
-              activeTab={activeTab}
-            />
-          </Suspense>
-        </Layout>
+        <OrgAccessProvider value={{ isRestrictedStaff: userProfile?.role === 'staff' }}>
+          <Layout 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            onLogout={handleLogout}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {renderContent()}
+              </motion.div>
+            </AnimatePresence>
+            <Suspense fallback={
+              <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+              </div>
+            }>
+              <ChatAssistant
+                user={user}
+                clients={clients}
+                orders={orders}
+                expenses={expenses}
+                settings={settings}
+                activeTab={activeTab}
+              />
+            </Suspense>
+          </Layout>
+        </OrgAccessProvider>
       )}
 
       </div>

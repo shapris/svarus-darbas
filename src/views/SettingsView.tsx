@@ -5,7 +5,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { AppSettings, Memory, INVOICE_API_STORAGE_KEY } from '../types';
-import { updateData, addData, deleteData, getData, TABLES, isDemoMode, checkOrdersSchemaHealth, testConnection, usesFirebase } from '../supabase';
+import { updateData, getData, TABLES, isDemoMode, checkOrdersSchemaHealth, testConnection, usesFirebase } from '../supabase';
+import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { downloadData, importData } from '../localDb';
 import { Settings, Save, Euro, Info, ExternalLink, Download, Upload, Copy, Check, Brain, Plus, Trash2, Star, Edit, Bell, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -25,6 +26,7 @@ interface SettingsViewProps {
 }
 
 export default function SettingsView({ settings, setSettings, user, memories = [] }: SettingsViewProps) {
+  const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const [formData, setFormData] = useState<AppSettings>(settings);
   const [isSaving, setIsSaving] = useState(false);
@@ -58,6 +60,10 @@ export default function SettingsView({ settings, setSettings, user, memories = [
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRestrictedStaff) {
+      showToast.error('Kainų ir integracijų keitimas prieinamas tik administratoriui.');
+      return;
+    }
     setIsSaving(true);
     try {
       const { invoiceApiBaseUrl, ...dbPayload } = formData;
@@ -122,6 +128,43 @@ export default function SettingsView({ settings, setSettings, user, memories = [
   const handleExport = () => {
     downloadData();
     showToast.success('Duomenys išsaugoti į failą!');
+  };
+
+  const handleExportCloudJson = async () => {
+    if (isDemoMode || usesFirebase) {
+      showToast.error('Debesies eksportas galimas tik su Supabase režimu.');
+      return;
+    }
+    try {
+      const [clients, orders, settingsRows, expenses, employees, mems] = await Promise.all([
+        getData(TABLES.CLIENTS, user.uid),
+        getData(TABLES.ORDERS, user.uid),
+        getData(TABLES.SETTINGS, user.uid),
+        getData(TABLES.EXPENSES, user.uid),
+        getData(TABLES.EMPLOYEES, user.uid),
+        getData('memories', user.uid),
+      ]);
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        ownerUid: user.uid,
+        clients,
+        orders,
+        settings: settingsRows,
+        expenses,
+        employees,
+        memories: mems,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `svarus-crm-export-${user.uid.slice(0, 8)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast.success('JSON eksportas paruoštas.');
+    } catch {
+      showToast.error('Nepavyko eksportuoti duomenų.');
+    }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -198,6 +241,12 @@ export default function SettingsView({ settings, setSettings, user, memories = [
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-slate-900">Nustatymai</h2>
+
+      {isRestrictedStaff && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-950 text-sm p-4 rounded-2xl">
+          Prisijungėte kaip <strong>darbuotojas</strong>: matote tik dalį nustatymų (be kainų, sąskaitų serverio ir debesies eksporto).
+        </div>
+      )}
 
       {/* Backup Section */}
       {isDemoMode && (
@@ -277,6 +326,30 @@ export default function SettingsView({ settings, setSettings, user, memories = [
         </div>
       </section>
 
+      {!isRestrictedStaff && !isDemoMode && !usesFirebase && (
+        <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center text-sky-600">
+              <Download size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900">Debesies duomenų eksportas (JSON)</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Atsisiųskite klientų, užsakymų ir kitų lentelių kopiją atsargai. Failas skirtas administratoriui.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleExportCloudJson()}
+            className="w-full sm:w-auto px-4 py-3 rounded-xl bg-sky-600 text-white text-sm font-bold hover:bg-sky-700"
+          >
+            Eksportuoti JSON
+          </button>
+        </section>
+      )}
+
+      {!isRestrictedStaff && (
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center text-violet-600">
@@ -341,16 +414,33 @@ export default function SettingsView({ settings, setSettings, user, memories = [
           </p>
         )}
       </section>
+      )}
 
+      {!isRestrictedStaff && (
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
             <Euro size={20} />
           </div>
-          <h3 className="font-bold text-slate-900">Kainodara</h3>
+          <h3 className="font-bold text-slate-900">Kainodara ir vieša rezervacija</h3>
         </div>
 
         <form onSubmit={handleSave} className="space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+            <input
+              type="checkbox"
+              checked={formData.publicBookingEnabled !== false}
+              onChange={(e) => setFormData({ ...formData, publicBookingEnabled: e.target.checked })}
+              className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              <span className="block text-sm font-bold text-slate-900">Vieša rezervacija per /booking nuorodą</span>
+              <span className="block text-xs text-slate-500 mt-0.5">
+                Išjungus — klientai nematys rezervacijos formos (nuoroda lieka, bet užklausa bus atmesta serveryje, jei atnaujinta SQL funkcija).
+              </span>
+            </span>
+          </label>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Kaina už langą</label>
@@ -448,6 +538,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
           </button>
         </form>
       </section>
+      )}
 
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
@@ -530,6 +621,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
         </p>
       </section>
 
+      {!isRestrictedStaff && (
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-700">
@@ -549,6 +641,7 @@ export default function SettingsView({ settings, setSettings, user, memories = [
           {isCheckingSchema ? 'Tikrinama...' : 'Patikrinti DB schemą'}
         </button>
       </section>
+      )}
 
       {memories && memories.length > 0 && (
         <section className="bg-gradient-to-br from-amber-50 to-orange-50 p-5 rounded-3xl border-2 border-amber-200">

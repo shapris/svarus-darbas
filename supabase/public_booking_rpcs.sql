@@ -44,6 +44,7 @@ ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_vitrinos numeric DEFA
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_terasa numeric DEFAULT 15;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS price_kiti numeric DEFAULT 10;
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS sms_template text DEFAULT '';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS public_booking_enabled boolean NOT NULL DEFAULT true;
 
 CREATE OR REPLACE FUNCTION public.get_booking_settings(p_owner_uid text)
 RETURNS jsonb
@@ -59,7 +60,8 @@ AS $$
     'priceVitrinos', COALESCE(s.price_vitrinos, 12),
     'priceTerasa', COALESCE(s.price_terasa, 15),
     'priceKiti', COALESCE(s.price_kiti, 10),
-    'smsTemplate', COALESCE(s.sms_template, '')
+    'smsTemplate', COALESCE(s.sms_template, ''),
+    'publicBookingEnabled', COALESCE(s.public_booking_enabled, true)
   )
   FROM public.settings s
   WHERE s.owner_id IS NOT NULL
@@ -93,6 +95,13 @@ BEGIN
 
   IF NOT EXISTS (SELECT 1 FROM public.settings s WHERE s.owner_id = v_owner LIMIT 1) THEN
     RAISE EXCEPTION 'invalid_booking_owner';
+  END IF;
+
+  IF NOT COALESCE(
+    (SELECT s.public_booking_enabled FROM public.settings s WHERE s.owner_id = v_owner LIMIT 1),
+    true
+  ) THEN
+    RAISE EXCEPTION 'public_booking_disabled';
   END IF;
 
   IF length(v_phone) < 5 THEN

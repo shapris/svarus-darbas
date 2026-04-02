@@ -343,7 +343,7 @@ async function trySendInvoiceEmailViaServer(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ to, subject, text, pdfBase64, filename }),
+      body: JSON.stringify({ to, subject, text, pdfBase64, filename, orderId: order.id }),
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string; ok?: boolean };
 

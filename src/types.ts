@@ -83,6 +83,8 @@ export interface AppSettings {
   priceTerasa: number;
   priceKiti: number;
   smsTemplate: string;
+  /** Ar klientai gali rezervuoti per viešą /booking/{id} nuorodą. */
+  publicBookingEnabled: boolean;
   /** server.cjs bazinis URL (pvz. http://127.0.0.1:3001) – saugomas naršyklėje automatinio sąskaitų siuntimo el. paštu keliui. */
   invoiceApiBaseUrl?: string;
 }
@@ -172,5 +174,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   priceTerasa: 25,
   priceKiti: 10,
   smsTemplate: "Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!",
+  publicBookingEnabled: true,
   invoiceApiBaseUrl: '',
 };

@@ -98,7 +98,17 @@ npm run dev      # Paleisti dev serverį (port 5173; API server.cjs — 3001)
 npm run build    # Buildinti produkcijai
 npm run preview  # Peržiūrėti buildą
 npm run lint     # TypeScript tikrinimas
+npm run check:cloud # Patikrina ar netrūksta cloud/env nustatymų
 ```
+
+## Greitas cloud checklist
+
+Prieš paleidžiant visiems naudotojams (be jūsų kompiuterio):
+
+1. Frontend hostinge (pvz. Vercel) suveskite `VITE_*` reikšmes.
+2. `server.cjs` paleiskite atskirame hostinge (Render/Railway/VPS).
+3. API hostinge suveskite: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `FRONTEND_URL` (arba `CORS_ORIGINS`).
+4. Paleiskite `npm run check:cloud` lokaliai — parodys trūkstamus punktus.
 
 ## Struktūra
 

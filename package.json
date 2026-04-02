@@ -18,7 +18,9 @@
     "server": "node server.cjs",
     "dev:kill": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/kill-dev-ports.ps1\"",
     "dev:full": "npm run dev:kill && concurrently \"npm run server\" \"npm run dev\"",
-    "deploy:vercel": "vercel deploy --prod"
+    "deploy:vercel": "vercel deploy --prod",
+    "check:cloud": "node scripts/cloud-readiness-check.mjs",
+    "setup:vercel-env": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/setup-vercel-env.ps1\""
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

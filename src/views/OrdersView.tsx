@@ -18,6 +18,7 @@ import {
 } from '../utils';
 import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
+import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { Plus, Search, Calendar, Clock, MapPin, User as UserIcon, CheckCircle2, MoreVertical, X, FileText, Camera, MessageSquare, Star, Users, Download, Mail, Image as ImageIcon, Loader2, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -42,6 +43,7 @@ interface OrdersViewProps {
 }
 
 export default function OrdersView({ orders, clients, settings, user, employees }: OrdersViewProps) {
+  const { isRestrictedStaff } = useOrgAccess();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const [focusFilter, setFocusFilter] = useState<'all' | 'today' | 'overdue' | 'unassigned'>('all');
@@ -67,6 +69,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     address: '',
     buildingType: 'nesutarta' as Client['buildingType'],
   });
+  /** Rankinė užsakymo kaina (EUR), kai įjungta „Nustatyti kainą rankiniu būdu“. */
+  const [orderPriceManual, setOrderPriceManual] = useState(false);
+  const [orderPriceOverride, setOrderPriceOverride] = useState('');
   const [formData, setFormData] = useState({
     clientId: '',
     employeeId: '',
@@ -124,6 +129,17 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     formData.additionalServices,
     settings
   );
+
+  const parsedOrderPriceOverride = (() => {
+    const raw = orderPriceOverride.replace(/\s/g, '').replace(',', '.');
+    if (raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) return null;
+    return Math.round(n * 100) / 100;
+  })();
+
+  const effectiveTotalPrice =
+    orderPriceManual && parsedOrderPriceOverride !== null ? parsedOrderPriceOverride : totalPrice;
 
   useEffect(() => {
     // Keep selection valid when filters/data change.
@@ -185,6 +201,11 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (orderPriceManual && parsedOrderPriceOverride === null) {
+      showToast.error('Įveskite galiojančią kainą (EUR) arba išjunkite rankinį nustatymą.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       let orderClient: Client | null = null;
@@ -223,7 +244,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         windowCount: Math.max(1, Number(formData.windowCount) || 1),
         floor: Math.max(1, Number(formData.floor) || 1),
         estimatedDuration: Math.max(15, Number(formData.estimatedDuration) || 60),
-        totalPrice,
+        totalPrice: effectiveTotalPrice,
         status: 'suplanuota' as OrderStatus,
         uid: user.uid,
         createdAt: new Date().toISOString(),
@@ -237,6 +258,8 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       setIsAdding(false);
       setEditingOrder(null);
       setClientMode('existing');
+      setOrderPriceManual(false);
+      setOrderPriceOverride('');
       setNewClientData({ name: '', phone: '', email: '', address: '', buildingType: 'nesutarta' });
       showToast.success('Užsakymas išsaugotas');
     } catch {
@@ -315,6 +338,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   };
 
   const handleGenerateInvoice = async (order: Order, opts?: { fromEmailButton?: boolean }) => {
+    if (isRestrictedStaff) return;
     const client = resolveClientForOrder(order);
     if (!client) {
       showToast.error('Nerastas klientas — negalima sugeneruoti sąskaitos. Redaguokite užsakymą.');
@@ -331,9 +355,18 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       } else {
         showToast.success(result.detail);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error(e);
-      showToast.error('Nepavyko sugeneruoti PDF (šriftas ar naršyklės klaida).');
+      const msg = e instanceof Error ? e.message.trim() : '';
+      if (msg) {
+        showToast.error(
+          /resend|el\. pašt|email|domain|verify|smtp|502|503|401|fetch/i.test(msg)
+            ? `El. paštas / serveris: ${msg}`
+            : `Nepavyko: ${msg}`
+        );
+      } else {
+        showToast.error('Nepavyko sugeneruoti PDF arba išsiųsti el. paštu.');
+      }
     } finally {
       setInvoiceActionOrderId(null);
     }
@@ -341,6 +374,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
   /** Aiškus kelias į el. paštą (automatinis per Resend arba Outlook / mailto su priedu). */
   const handleSendInvoiceByEmail = async (order: Order) => {
+    if (isRestrictedStaff) return;
     const client = resolveClientForOrder(order);
     if (!client) {
       showToast.error('Nerastas klientas.');
@@ -355,6 +389,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   };
 
   const handleDelete = async (id: string) => {
+    if (isRestrictedStaff) return;
     if (!window.confirm('Ar tikrai norite ištrinti šį užsakymą?')) return;
     
     setIsDeleting(id);
@@ -371,6 +406,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
   const startEdit = (order: Order) => {
     setEditingOrder(order);
+    setOrderPriceManual(true);
+    setOrderPriceOverride(
+      typeof order.totalPrice === 'number' && Number.isFinite(order.totalPrice)
+        ? String(Math.round(order.totalPrice * 100) / 100)
+        : ''
+    );
     setFormData({
       clientId: order.clientId,
       employeeId: order.employeeId || '',
@@ -510,7 +551,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
             type="button"
             title="Naujas užsakymas"
             aria-label="Naujas užsakymas"
-            onClick={() => setIsAdding(true)}
+            onClick={() => {
+              setEditingOrder(null);
+              setOrderPriceManual(false);
+              setOrderPriceOverride('');
+              setIsAdding(true);
+            }}
             className="hidden sm:inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors text-sm font-bold"
           >
             <Plus size={18} />
@@ -520,7 +566,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
             type="button"
             title="Naujas užsakymas"
             aria-label="Naujas užsakymas"
-            onClick={() => setIsAdding(true)}
+            onClick={() => {
+              setEditingOrder(null);
+              setOrderPriceManual(false);
+              setOrderPriceOverride('');
+              setIsAdding(true);
+            }}
             className="sm:hidden bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
           >
             <Plus size={20} />
@@ -738,6 +789,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       >
                         Redaguoti užsakymą
                       </button>
+                      {!isRestrictedStaff && (
                       <button
                         type="button"
                         role="menuitem"
@@ -749,6 +801,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       >
                         Ištrinti
                       </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -771,7 +824,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-black text-slate-900">{formatCurrency(order.totalPrice)}</p>
+                  <p className="text-xl font-black text-slate-900">
+                    {isRestrictedStaff ? '—' : formatCurrency(order.totalPrice)}
+                  </p>
                   <p className="text-[10px] text-slate-400 font-bold uppercase">{order.windowCount} langai</p>
                 </div>
               </div>
@@ -833,7 +888,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     <MessageSquare size={16} aria-hidden />
                   </button>
                 </div>
-                {order.status === 'atlikta' && (
+                {order.status === 'atlikta' && !isRestrictedStaff && (
                   <div className="grid grid-cols-2 gap-2 w-full min-w-0">
                     <button
                       type="button"
@@ -985,10 +1040,17 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-slate-900">Naujas užsakymas</h3>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {editingOrder ? 'Redaguoti užsakymą' : 'Naujas užsakymas'}
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setIsAdding(false)}
+                  onClick={() => {
+                    setIsAdding(false);
+                    setEditingOrder(null);
+                    setOrderPriceManual(false);
+                    setOrderPriceOverride('');
+                  }}
                   title="Uždaryti formą"
                   aria-label="Uždaryti formą"
                   className="p-2 text-slate-400 hover:text-slate-600"
@@ -1255,9 +1317,55 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                   )}
                 </div>
 
-                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex justify-between items-center">
-                  <span className="text-sm font-bold text-blue-900">Preliminari kaina:</span>
-                  <span className="text-xl font-black text-blue-600">{formatCurrency(totalPrice)}</span>
+                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-sm font-bold text-blue-900">Kaina pagal įkainius</span>
+                    <span className="text-lg font-black text-blue-600 tabular-nums">{formatCurrency(totalPrice)}</span>
+                  </div>
+                  <label className="flex items-start gap-3 cursor-pointer rounded-xl p-2 -m-2 hover:bg-blue-100/50">
+                    <input
+                      type="checkbox"
+                      checked={orderPriceManual}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setOrderPriceManual(on);
+                        if (on && !orderPriceOverride.trim()) {
+                          setOrderPriceOverride(String(Math.round(totalPrice * 100) / 100));
+                        }
+                      }}
+                      className="mt-1 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-blue-950 leading-snug">
+                      <span className="font-bold">Nustatyti kainą rankiniu būdu</span>
+                      <span className="block text-xs text-blue-900/80 font-normal mt-0.5">
+                        Sutarta kita suma (nuolaida, fiksuotas darbas ir pan.).
+                      </span>
+                    </span>
+                  </label>
+                  {orderPriceManual && (
+                    <div>
+                      <label className="block text-xs font-bold text-blue-900 uppercase tracking-wider mb-1">
+                        Kaina (€)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={orderPriceOverride}
+                        onChange={(e) => setOrderPriceOverride(e.target.value)}
+                        placeholder="pvz. 75,50"
+                        title="Užsakymo kaina eurais"
+                        className="w-full bg-white border border-blue-200 rounded-xl p-3 text-lg font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
+                    </div>
+                  )}
+                  {!orderPriceManual && (
+                    <p className="text-xs text-blue-900/75">Į užsakymą bus įrašyta kaina pagal nustatymų įkainius.</p>
+                  )}
+                  {orderPriceManual && parsedOrderPriceOverride !== null && (
+                    <p className="text-xs font-semibold text-blue-900">
+                      Bus išsaugota: {formatCurrency(parsedOrderPriceOverride)}
+                    </p>
+                  )}
                 </div>
 
                 <button

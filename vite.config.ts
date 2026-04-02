@@ -1,8 +1,30 @@
+import type {IncomingMessage, ServerResponse} from 'http';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
+
+/** Kai server.cjs neveikia :3001, proxy kitaip meta 500 — CRM health tikrinimui grąžiname 200 + invoiceEmail: false. */
+function healthProxyOnError(proxy: {on: (ev: string, fn: (...args: unknown[]) => void) => void}) {
+  proxy.on('error', (err: NodeJS.ErrnoException, _req: IncomingMessage, res: unknown) => {
+    if (!res || typeof res !== 'object' || !('writeHead' in res)) return;
+    const r = res as ServerResponse;
+    if (r.writableEnded) return;
+    const msg = err?.code === 'ECONNREFUSED' ? 'connection_refused' : err?.message || 'proxy_error';
+    r.writeHead(200, {'Content-Type': 'application/json'});
+    r.end(
+      JSON.stringify({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        invoiceEmail: false,
+        backend: 'unavailable',
+        hint: 'Paleiskite npm run server arba npm run dev:full (Vite + API :3001).',
+        proxyError: msg,
+      }),
+    );
+  });
+}
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
@@ -102,6 +124,7 @@ export default defineConfig(({mode}) => {
         '/health': {
           target: 'http://127.0.0.1:3001',
           changeOrigin: true,
+          configure: healthProxyOnError,
         },
       },
     },
@@ -111,6 +134,18 @@ export default defineConfig(({mode}) => {
           ? false
           : true,
       port: 4173,
+      // Kaip dev: `/api` ir `/health` į server.cjs (build + preview + server lokaliai)
+      proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
+        '/health': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+          configure: healthProxyOnError,
+        },
+      },
     },
   };
 });

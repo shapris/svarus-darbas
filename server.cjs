@@ -3,13 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+const path = require('path');
 const express = require('express');
 const stripeSecret = process.env.STRIPE_SECRET_KEY || '';
 const stripe = require('stripe')(stripeSecret || 'sk_test_placeholder');
 const cors = require('cors');
 const { jsPDF } = require('jspdf');
 const { Resend } = require('resend');
-require('dotenv').config();
+// Visada krauti .env iš projekto šaknies (šalia server.cjs), ne iš process.cwd()
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,12 +23,18 @@ function buildCorsOrigin() {
     const list = raw.split(',').map((s) => s.trim()).filter(Boolean);
     if (list.length) return list;
   }
-  return [
+  const defaults = [
     'http://127.0.0.1:3000',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
     'http://localhost:5173',
+    'http://127.0.0.1:4173',
+    'http://localhost:4173',
+    'https://svarus-darbas.vercel.app',
   ];
+  const fe = (process.env.FRONTEND_URL || '').trim().replace(/\/$/, '');
+  if (fe && !defaults.includes(fe)) defaults.push(fe);
+  return defaults;
 }
 
 const stripeIsPlaceholder =
@@ -69,6 +77,72 @@ function looksLikeEmail(s) {
   return typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 }
 
+function normEmail(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Gavėjo el. paštas turi sutapti su užsakymo kliento kortele (apsauga nuo SMTP per API).
+ */
+async function verifyInvoiceRecipientMatchesOrder(orderId, to, authHeader) {
+  if (!orderId || typeof orderId !== 'string' || !orderId.trim()) {
+    return { ok: false, status: 400, message: 'Trūksta užsakymo id (orderId). Atnaujinkite CRM.' };
+  }
+  if (!SUPABASE_URL_RAW || !SUPABASE_ANON_KEY) {
+    return { ok: false, status: 503, message: 'Serveris neprijungtas prie Supabase.' };
+  }
+  const headers = {
+    Authorization: authHeader,
+    apikey: SUPABASE_ANON_KEY,
+    Accept: 'application/json',
+  };
+  const oid = encodeURIComponent(orderId.trim());
+  const r1 = await fetch(`${SUPABASE_URL_RAW}/rest/v1/orders?id=eq.${oid}&select=client_id`, { headers });
+  if (!r1.ok) {
+    return { ok: false, status: 502, message: 'Nepavyko nuskaityti užsakymo.' };
+  }
+  const orders = await r1.json().catch(() => []);
+  if (!Array.isArray(orders) || orders.length === 0) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[send-invoice-email] orders REST: 0 rows (RLS arba neteisingas order id?)', orderId?.slice?.(0, 8));
+    }
+    return { ok: false, status: 404, message: 'Užsakymas nerastas arba prieiga uždrausta.' };
+  }
+  const row0 = orders[0];
+  const cidRaw = row0.client_id ?? row0.clientId;
+  if (cidRaw == null || String(cidRaw).trim() === '') {
+    return { ok: false, status: 400, message: 'Užsakymas neturi kliento.' };
+  }
+  const cid = encodeURIComponent(String(cidRaw).trim());
+  const r2 = await fetch(`${SUPABASE_URL_RAW}/rest/v1/clients?id=eq.${cid}&select=email`, { headers });
+  if (!r2.ok) {
+    return { ok: false, status: 502, message: 'Nepavyko nuskaityti kliento.' };
+  }
+  const clients = await r2.json().catch(() => []);
+  if (!Array.isArray(clients) || clients.length === 0) {
+    return { ok: false, status: 404, message: 'Klientas nerastas.' };
+  }
+  const dbEmail = normEmail(clients[0].email);
+  const want = normEmail(to);
+  if (!want) {
+    return { ok: false, status: 400, message: 'Neteisingas gavėjo el. paštas.' };
+  }
+  if (!dbEmail) {
+    return { ok: false, status: 400, message: 'Kliento kortelėje nėra el. pašto.' };
+  }
+  if (dbEmail !== want) {
+    return {
+      ok: false,
+      status: 403,
+      message:
+        'Gavėjo el. paštas turi būti tas pats kaip kliento kortelėje CRM (įrašykite ir išsaugokite el. paštą skiltyje „Klientai“).',
+    };
+  }
+  return { ok: true };
+}
+
 /** Resend „from“: rodomas vardas dėžutėje (pvz. „Švarus Darbas“), ne tik onboarding@… */
 function buildResendFromHeader() {
   const raw = (process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev').trim();
@@ -103,7 +177,13 @@ app.post('/api/send-invoice-email', async (req, res) => {
       return res.status(auth.status || 401).json({ error: auth.message });
     }
 
-    const { to, subject, text, pdfBase64, filename } = req.body || {};
+    const { to, subject, text, pdfBase64, filename, orderId } = req.body || {};
+
+    const match = await verifyInvoiceRecipientMatchesOrder(orderId, to, req.headers.authorization);
+    if (!match.ok) {
+      return res.status(match.status || 400).json({ error: match.message });
+    }
+
     if (!looksLikeEmail(to)) {
       return res.status(400).json({ error: 'Nenurodytas arba neteisingas gavėjo el. paštas.' });
     }
@@ -145,7 +225,7 @@ app.post('/api/send-invoice-email', async (req, res) => {
       to: to.trim(),
       subject: subj,
       text: bodyText,
-      attachments: [{ filename: safeName, content: rawB64 }],
+      attachments: [{ filename: safeName, content: Buffer.from(rawB64, 'base64') }],
     });
 
     if (sendErr) {
@@ -154,6 +234,7 @@ app.post('/api/send-invoice-email', async (req, res) => {
       return res.status(502).json({ error: String(msg) });
     }
 
+    console.log('[send-invoice-email] Resend accepted', sent?.id || '(no id)');
     return res.json({ ok: true, id: sent?.id });
   } catch (error) {
     console.error('[send-invoice-email]', error);
@@ -367,6 +448,11 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
   // Return a 200 response to acknowledge receipt of the event
   res.send();
+});
+
+// Naršyklės automatinis /favicon.ico — API neturi statinių; 204 išvengia 404 konsolėje.
+app.get('/favicon.ico', (_req, res) => {
+  res.status(204).end();
 });
 
 // Health check
