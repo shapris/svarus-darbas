@@ -105,11 +105,24 @@ Agent must:
 
 ---
 
-## 10. MEMORY USAGE
+## 10. MEMORY USAGE (LONG-TERM CONTEXT)
 
-- Always read `TASK_MEMORY.md` before execution.
-- Always update `TASK_MEMORY.md` after major actions (progress, next steps, known issues, decisions).
-- Use it to avoid repetition and keep long-horizon continuity across sessions.
+**Hub:** `.always-on/README.md` — explains where planning, session summaries, and milestones live in the repo.
+
+Before substantial execution:
+
+1. Read **`TASK_MEMORY.md`** (current task / next steps pointer).
+2. Skim the **top 2–3 entries** of **`.always-on/session-log.md`** for recent session context.
+3. If working without a single concrete user task, open **`.always-on/work-queue.md`** (see §12).
+
+After major actions:
+
+- Update **`TASK_MEMORY.md`** (progress, next steps, known issues).
+- Append a short block (newest first) to **`.always-on/session-log.md`** when the session changes project direction, deploy, or closes a multi-step item.
+- Record **durable decisions** in **`.always-on/decisions.md`** (not every bugfix — only “we chose X and stick to it”).
+- Add **dated events / deadlines** to **`.always-on/milestones.md`** when the user or production schedule requires tracking.
+
+Use this to avoid repetition and keep continuity across sessions and tools (Git is the source of truth, not chat history alone).
 
 ---
 

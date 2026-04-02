@@ -1,5 +1,7 @@
 # TASK MEMORY
 
+**Ilgalaikė atmintis ir planai:** žr. **`.always-on/README.md`** (`session-log.md`, `decisions.md`, `milestones.md`, `work-queue.md`).
+
 ## CURRENT TASK
 - Goal:
 - Status:
@@ -18,5 +20,5 @@
 - Large bundle chunk warning (~700kB) is informational (not a build failure)
 
 ## DECISIONS
-- Removed hardcoded Supabase URL/anon key from source; use env only
-- Avoid re-export cycles in `aiService` to prevent Rollup chunk circular dependencies
+- Detalės ir istoriniai įrašai: **`.always-on/decisions.md`**
+- Trumpai: Supabase tik per env; vengti `aiService` re-export ciklų (Rollup)

@@ -31,6 +31,8 @@ alwaysApply: true
 
 Papildomi signalai: **`.always-on/improvement-backlog.md`** (scout metrika) — naudoti kaip foninę diagnostiką, ne kaip vienintelį šaltinį; eilės šaltinis yra **`work-queue.md`**.
 
+**Ilgalaikė konteksto aplinka:** **`.always-on/README.md`** — kur rašyti sesijų santraukas (`session-log.md`), sprendimus (`decisions.md`), datas (`milestones.md`). Po reikšmingos sesijos pridėkite trumpą įrašą į `session-log.md` (naujausia viršuje), kad autonomija nepriklausytų tik nuo pokalbio istorijos.
+
 ---
 
 ## Užduočių vykdymo eiga (mažiau diskusijų, daugiau progreso)
