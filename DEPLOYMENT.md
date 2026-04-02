@@ -1,5 +1,14 @@
 # Langių Valymas CRM - Deployment Instructions
 
+## Vercel — teisingas projektas (nesumaišykite)
+
+**Produkcijos URL:** [https://svarus-darbas.vercel.app](https://svarus-darbas.vercel.app/)
+
+Tai **ne** `svarus-darbas-1.vercel.app` — tai gali būti kitas Vercel projektas su panašiu pavadinimu.
+
+- **Rekomenduota:** GitHub `shapris/svarus-darbas` → Vercel integracija, projektas **svarus-darbas** → deploy automatiškai po `git push` į `main`.
+- **CLI iš šio repo:** `npx vercel link` → pasirinkite **svarus-darbas**, tada `npm run deploy:vercel`.
+
 ## Quick Start
 
 ### 1. Database Setup (Supabase)
