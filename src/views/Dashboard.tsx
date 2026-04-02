@@ -357,11 +357,12 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
               <h2 className="text-2xl font-black mb-1 leading-tight">{nextOrder.clientName}</h2>
               <p className="text-sm opacity-80 mb-6 font-medium">{nextOrder.address}</p>
               <button
+                type="button"
                 onClick={() => setActiveTab('orders')}
-                className="w-full bg-white text-blue-600 py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                className="w-full bg-white text-blue-600 py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 hover:bg-blue-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-600"
               >
                 Pradėti darbą
-                <TrendingUp size={16} />
+                <TrendingUp size={16} aria-hidden />
               </button>
             </div>
           </section>
@@ -457,7 +458,7 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.tab)}
-                className={`w-full text-left border rounded-2xl p-4 transition-all hover:shadow-sm active:scale-[0.99] ${item.tone}`}
+                className={`w-full text-left border rounded-2xl p-4 transition-all hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${item.tone}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -499,48 +500,54 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
 
       <section>
         <h2 className="text-lg font-bold text-slate-900 mb-4">Greiti veiksmai</h2>
-        <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+        <div className="grid grid-cols-3 gap-3 max-w-2xl mx-auto">
           <button
+            type="button"
             onClick={() => setActiveTab('orders')}
-            className="flex flex-col items-center justify-center p-6 bg-blue-600 text-white rounded-3xl shadow-lg shadow-blue-200 active:scale-95 transition-all"
+            className="flex flex-col items-center justify-center p-5 sm:p-6 bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-3xl shadow-lg shadow-blue-600/25 active:scale-[0.97] transition-all hover:shadow-xl hover:shadow-blue-600/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
-            <Plus size={32} className="mb-3" />
-            <span className="text-xs font-bold uppercase tracking-wider">Užsakymas</span>
+            <Plus size={28} className="mb-2 opacity-95" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Užsakymas</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('clients')}
-            className="flex flex-col items-center justify-center p-6 bg-white text-slate-900 border border-slate-100 rounded-3xl shadow-sm active:scale-95 transition-all"
+            className="flex flex-col items-center justify-center p-5 sm:p-6 bg-white text-slate-900 border border-slate-200/80 rounded-3xl shadow-sm active:scale-[0.97] transition-all hover:border-blue-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
-            <Users size={32} className="mb-3 text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Klientas</span>
+            <Users size={28} className="mb-2 text-blue-600" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Klientas</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('logistics')}
-            className="flex flex-col items-center justify-center p-6 bg-white text-slate-900 border border-slate-100 rounded-3xl shadow-sm active:scale-95 transition-all"
+            className="flex flex-col items-center justify-center p-5 sm:p-6 bg-white text-slate-900 border border-slate-200/80 rounded-3xl shadow-sm active:scale-[0.97] transition-all hover:border-blue-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
-            <MapPin size={32} className="mb-3 text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Logistika</span>
+            <MapPin size={28} className="mb-2 text-blue-600" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Logistika</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('inventory')}
-            className="flex flex-col items-center justify-center p-6 bg-white text-slate-900 border border-slate-100 rounded-3xl shadow-sm active:scale-95 transition-all"
+            className="flex flex-col items-center justify-center p-5 sm:p-6 bg-white text-slate-900 border border-slate-200/80 rounded-3xl shadow-sm active:scale-[0.97] transition-all hover:border-blue-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
-            <Package size={32} className="mb-3 text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Inventorius</span>
+            <Package size={28} className="mb-2 text-blue-600" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Inventorius</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('team')}
-            className="flex flex-col items-center justify-center p-6 bg-white text-slate-900 border border-slate-100 rounded-3xl shadow-sm active:scale-95 transition-all"
+            className="flex flex-col items-center justify-center p-5 sm:p-6 bg-white text-slate-900 border border-slate-200/80 rounded-3xl shadow-sm active:scale-[0.97] transition-all hover:border-blue-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
           >
-            <Users2 size={32} className="mb-3 text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Komanda</span>
+            <Users2 size={28} className="mb-2 text-blue-600" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Komanda</span>
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('analytics')}
-            className="flex flex-col items-center justify-center p-6 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-3xl shadow-sm active:scale-95 transition-all"
+            className="flex flex-col items-center justify-center p-5 sm:p-6 bg-indigo-50 text-indigo-800 border border-indigo-200/80 rounded-3xl shadow-sm active:scale-[0.97] transition-all hover:bg-indigo-100/80 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
           >
-            <PieChart size={32} className="mb-3 text-indigo-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Analitika</span>
+            <PieChart size={28} className="mb-2 text-indigo-600" aria-hidden />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Analitika</span>
           </button>
         </div>
       </section>

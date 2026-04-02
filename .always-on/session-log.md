@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-02 — UI: mygtukai, šriftas, apvalkalas
+
+- **Kontekstas:** tolesnis dizainas; sąskaitų el. paštas paliekamas iki DNS ant `svarusdarbas.lt`.
+- **Padaryta:** `Button` komponentas (`src/components/ui/`), prisijungimo mygtukai per jį; `Layout` — gradientas, header blur, apačios nav su aktyviu fonu ir safe-area; `Dashboard` greiti veiksmai — hover/focus; `Plus Jakarta Sans` + `@theme` atnaujinimas.
+- **Kitas žingsnis:** palaipsniui `Button` į `OrdersView` / `ClientsView` pagrindinius CTA; spalvų tokenų naudojimas komponentuose.
+
+---
+
 ## 2026-04-02 — Ilgalaikės atminties aplinka
 
 - **Kontekstas:** vartotojas nori autonomijos; pokalbiai ir žinios turi būti talpinamos planams ir įvykių sekimui.

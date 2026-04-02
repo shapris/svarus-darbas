@@ -13,6 +13,7 @@ import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory
 import { Droplets } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastContainer } from './components/Toast';
+import { Button } from './components/ui/Button';
 import { useToast } from './hooks/useToast';
 import { formatAuthErrorForUser, AUTH_FALLBACK, AUTH_INVITE_HELP } from './utils/authMessages';
 import { formatNewOrderAlert, showNewOrderBrowserNotification } from './utils/bookingNotifications';
@@ -485,7 +486,12 @@ export default function App() {
               <div className="mb-4 p-3 bg-red-50 rounded-lg text-xs text-red-700 text-left border border-red-100">
                 ⚠️ Nepavyko prisijungti prie duomenų bazės. Patikrinkite interneto ryšį arba kreipkitės į administratorių.
               </div>
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                fullWidth
+                className="mb-3"
                 onClick={() => {
                   setConnectionStatus('checking');
                   testConnection().then(connected => {
@@ -494,10 +500,9 @@ export default function App() {
                     setConnectionStatus('disconnected');
                   });
                 }}
-                className="w-full mb-3 bg-slate-100 text-slate-700 py-3 rounded-xl font-medium hover:bg-slate-200 transition-colors"
               >
                 Bandyti vėl
-              </button>
+              </Button>
             </>
           )}
           {isDemoMode && (
@@ -508,30 +513,42 @@ export default function App() {
 
           {!showLoginForm ? (
             <>
-              <button
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                className="mb-3"
                 onClick={() => { setShowClientPortal(null); setShowLoginForm('login'); }}
-                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-medium hover:bg-blue-700 transition-colors mb-3"
               >
                 Darbuotojo prisijungimas
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="success"
+                size="lg"
+                fullWidth
+                className="mb-3"
                 onClick={() => { setShowLoginForm(null); setShowClientPortal('login'); }}
-                className="w-full bg-green-600 text-white py-3.5 rounded-xl font-medium hover:bg-green-700 transition-colors mb-3"
               >
                 Kliento prisijungimas
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                fullWidth
+                className="mt-3"
                 onClick={() => { setShowClientPortal(null); setShowLoginForm('register'); }}
-                className="w-full mt-3 bg-slate-100 text-slate-700 py-3 rounded-xl font-medium hover:bg-slate-200 transition-colors"
               >
                 Sukurti darbuotojo paskyrą
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="successSoft"
+                size="md"
+                fullWidth
+                className="mt-3"
                 onClick={() => { setShowLoginForm(null); setShowClientPortal('register'); }}
-                className="w-full mt-3 bg-green-100 text-green-700 py-3 rounded-xl font-medium hover:bg-green-200 transition-colors"
               >
                 Sukurti kliento paskyrą
-              </button>
+              </Button>
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-slate-200"></div>
@@ -540,8 +557,12 @@ export default function App() {
                   <span className="px-2 bg-white text-slate-500">arba</span>
                 </div>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="lg"
+                fullWidth
+                className="font-medium"
                 onClick={async () => {
                   try {
                     await signInWithGoogle();
@@ -550,7 +571,6 @@ export default function App() {
                     showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.google));
                   }
                 }}
-                className="w-full flex items-center justify-center gap-2 bg-white text-slate-700 py-3 px-4 rounded-xl font-medium border border-slate-200 hover:bg-slate-50 transition-colors"
               >
                 <svg viewBox="0 0 24 24" className="w-5 h-5">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -559,7 +579,7 @@ export default function App() {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                 </svg>
                 Prisijungti su Google
-              </button>
+              </Button>
             </>
           ) : (
             <form onSubmit={(e) => showLoginForm === 'login' ? handleLogin(e, rememberMe) : handleRegister(e)}>
@@ -624,19 +644,19 @@ export default function App() {
                   </label>
                 </>
               )}
-              <button
-                type="submit"
-                className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-medium hover:bg-blue-700 transition-colors"
-              >
+              <Button type="submit" variant="primary" size="lg" fullWidth>
                 {showLoginForm === 'login' ? 'Prisijungti' : 'Sukurti paskyrą'}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="md"
+                fullWidth
+                className="mt-3 text-slate-500 text-sm font-normal"
                 onClick={() => setShowLoginForm(null)}
-                className="w-full mt-3 text-slate-500 text-sm hover:text-slate-700"
               >
                 Atgal
-              </button>
+              </Button>
             </form>
           )}
         </motion.div>
