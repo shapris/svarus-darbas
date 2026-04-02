@@ -231,7 +231,8 @@ app.post('/api/send-invoice-email', async (req, res) => {
     if (sendErr) {
       console.error('[send-invoice-email] Resend error:', sendErr);
       const msg = sendErr.message || 'Resend klaida';
-      return res.status(502).json({ error: String(msg) });
+      // 422 = siuntimo taisyklė / domenas (ne „proxy down“ kaip 502)
+      return res.status(422).json({ error: String(msg), code: 'resend_rejected' });
     }
 
     console.log('[send-invoice-email] Resend accepted', sent?.id || '(no id)');

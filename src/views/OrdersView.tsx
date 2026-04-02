@@ -360,7 +360,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
       const msg = e instanceof Error ? e.message.trim() : '';
       if (msg) {
         showToast.error(
-          /resend|el\. pašt|email|domain|verify|smtp|502|503|401|fetch/i.test(msg)
+          /resend|el\. pašt|email|domain|verify|smtp|502|422|503|401|fetch|pasiekiamas/i.test(msg)
             ? `El. paštas / serveris: ${msg}`
             : `Nepavyko: ${msg}`
         );

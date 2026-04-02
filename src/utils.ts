@@ -287,6 +287,27 @@ type TryServerEmailResult =
   | { kind: 'fallback' }
   | { kind: 'error'; message: string };
 
+function enrichInvoiceEmailError(status: number, rawMessage: string): string {
+  const msg = rawMessage.trim() || `HTTP ${status}`;
+  const low = msg.toLowerCase();
+  if (low.includes('verify a domain') || low.includes('testing emails') || low.includes('resend.com')) {
+    return (
+      msg +
+      ' — Patarimas: Resend → Domains: patvirtinkite domeną (pvz. svarusdarbas.lt), Render env Nustatykite RESEND_FROM_EMAIL iš to domeno. Kol domenas nepatvirtintas, testuokite tik siųsdami į savo patvirtintą paštą (Resend account email).'
+    );
+  }
+  if (status === 502 || status === 503 || status === 524) {
+    if (!rawMessage || rawMessage === `HTTP ${status}`) {
+      return (
+        'API serveris nepasiekiamas (' +
+        status +
+        '). Jei API ant Render Free — palaukite ~30–60 s („miegas“), atverkite /health naršyklėje, tada bandykite vėl.'
+      );
+    }
+  }
+  return msg;
+}
+
 /**
  * Siunčia PDF į kliento el. paštą per server.cjs + Resend (be rankinio pridėjimo naršyklėje).
  */
@@ -361,7 +382,8 @@ async function trySendInvoiceEmailViaServer(
       return { kind: 'fallback' };
     }
 
-    const err = data.error ? String(data.error) : `HTTP ${res.status}`;
+    const rawErr = data.error ? String(data.error) : '';
+    const err = enrichInvoiceEmailError(res.status, rawErr || `HTTP ${res.status}`);
     return { kind: 'error', message: err };
   } catch (e) {
     if (e instanceof TypeError) {
