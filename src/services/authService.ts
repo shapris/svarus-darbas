@@ -38,7 +38,9 @@ export class AuthService {
 
   // Check if user is authenticated
   async isAuthenticated(): Promise<boolean> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     return !!session;
   }
 
@@ -46,7 +48,9 @@ export class AuthService {
   async getCurrentUser(): Promise<AuthUser | null> {
     if (this.currentUser) return this.currentUser;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return null;
 
     // Get user profile with role (maybeSingle: no row yet → no 406/PGRST noise)
@@ -60,7 +64,7 @@ export class AuthService {
       id: user.id,
       email: user.email!,
       role: profile?.role || 'staff',
-      name: profile?.name
+      name: profile?.name,
     };
 
     return this.currentUser;
@@ -76,23 +80,21 @@ export class AuthService {
         options: {
           data: {
             name: data.name,
-            role: data.role || 'staff'
-          }
-        }
+            role: data.role || 'staff',
+          },
+        },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error('Registration failed');
 
       // 2. Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          uid: authData.user.id,
-          email: data.email,
-          name: data.name,
-          role: data.role || 'staff'
-        });
+      const { error: profileError } = await supabase.from('profiles').insert({
+        uid: authData.user.id,
+        email: data.email,
+        name: data.name,
+        role: data.role || 'staff',
+      });
 
       if (profileError) {
         console.error('Profile creation failed:', profileError);
@@ -100,11 +102,9 @@ export class AuthService {
       }
 
       // 3. Create default settings
-      const { error: settingsError } = await supabase
-        .from('settings')
-        .insert({
-          owner_id: authData.user.id
-        });
+      const { error: settingsError } = await supabase.from('settings').insert({
+        owner_id: authData.user.id,
+      });
 
       if (settingsError) {
         console.error('Settings creation failed:', settingsError);
@@ -114,12 +114,11 @@ export class AuthService {
         id: authData.user.id,
         email: data.email,
         role: data.role || 'staff',
-        name: data.name
+        name: data.name,
       };
 
       this.currentUser = user;
       return { user, error: null };
-
     } catch (error: any) {
       console.error('Registration error:', error);
       return { user: null, error: error.message || 'Registration failed' };
@@ -127,11 +126,13 @@ export class AuthService {
   }
 
   // Login user
-  async login(credentials: LoginCredentials): Promise<{ user: AuthUser | null; error: string | null }> {
+  async login(
+    credentials: LoginCredentials
+  ): Promise<{ user: AuthUser | null; error: string | null }> {
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: credentials.email,
-        password: credentials.password
+        password: credentials.password,
       });
 
       if (authError) throw authError;
@@ -147,12 +148,11 @@ export class AuthService {
         id: authData.user.id,
         email: authData.user.email!,
         role: profile?.role || 'staff',
-        name: profile?.name
+        name: profile?.name,
       };
 
       this.currentUser = user;
       return { user, error: null };
-
     } catch (error: any) {
       console.error('Login error:', error);
       return { user: null, error: error.message || 'Login failed' };
@@ -170,12 +170,11 @@ export class AuthService {
   async resetPassword(email: string): Promise<{ success: boolean; error: string | null }> {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) throw error;
       return { success: true, error: null };
-
     } catch (error: any) {
       console.error('Password reset error:', error);
       return { success: false, error: error.message || 'Password reset failed' };
@@ -183,7 +182,9 @@ export class AuthService {
   }
 
   // Update user profile
-  async updateProfile(updates: Partial<AuthUser>): Promise<{ success: boolean; error: string | null }> {
+  async updateProfile(
+    updates: Partial<AuthUser>
+  ): Promise<{ success: boolean; error: string | null }> {
     try {
       const user = await this.getCurrentUser();
       if (!user) throw new Error('Not authenticated');
@@ -192,7 +193,7 @@ export class AuthService {
         .from('profiles')
         .update({
           name: updates.name,
-          role: updates.role
+          role: updates.role,
         })
         .eq('uid', user.id);
 
@@ -201,7 +202,6 @@ export class AuthService {
       // Update local cache
       this.currentUser = { ...user, ...updates };
       return { success: true, error: null };
-
     } catch (error: any) {
       console.error('Profile update error:', error);
       return { success: false, error: error.message || 'Update failed' };
@@ -212,12 +212,11 @@ export class AuthService {
   async changePassword(newPassword: string): Promise<{ success: boolean; error: string | null }> {
     try {
       const { error } = await supabase.auth.updateUser({
-        password: newPassword
+        password: newPassword,
       });
 
       if (error) throw error;
       return { success: true, error: null };
-
     } catch (error: any) {
       console.error('Password change error:', error);
       return { success: false, error: error.message || 'Password change failed' };
@@ -254,7 +253,9 @@ export class AuthService {
 
   // Get auth token for API calls
   async getToken(): Promise<string | null> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     return session?.access_token || null;
   }
 }

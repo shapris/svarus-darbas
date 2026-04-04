@@ -1,18 +1,21 @@
-import type {IncomingMessage, ServerResponse} from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
-import {VitePWA} from 'vite-plugin-pwa';
+import { fileURLToPath } from 'url';
+import { defineConfig } from 'vite';
+
+const __dirnameVite = path.dirname(fileURLToPath(import.meta.url));
+import { VitePWA } from 'vite-plugin-pwa';
 
 /** Kai server.cjs neveikia :3001, proxy kitaip meta 500 — CRM health tikrinimui grąžiname 200 + invoiceEmail: false. */
-function healthProxyOnError(proxy: {on: (ev: string, fn: (...args: unknown[]) => void) => void}) {
+function healthProxyOnError(proxy: { on: (ev: string, fn: (...args: unknown[]) => void) => void }) {
   proxy.on('error', (err: NodeJS.ErrnoException, _req: IncomingMessage, res: unknown) => {
     if (!res || typeof res !== 'object' || !('writeHead' in res)) return;
     const r = res as ServerResponse;
     if (r.writableEnded) return;
     const msg = err?.code === 'ECONNREFUSED' ? 'connection_refused' : err?.message || 'proxy_error';
-    r.writeHead(200, {'Content-Type': 'application/json'});
+    r.writeHead(200, { 'Content-Type': 'application/json' });
     r.end(
       JSON.stringify({
         status: 'ok',
@@ -21,14 +24,34 @@ function healthProxyOnError(proxy: {on: (ev: string, fn: (...args: unknown[]) =>
         backend: 'unavailable',
         hint: 'Paleiskite npm run server arba npm run dev:full (Vite + API :3001).',
         proxyError: msg,
-      }),
+      })
     );
   });
 }
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, '.', '');
+/** `/api/*` be server.cjs — vietoj nutrūkstančio fetch grąžiname 503 JSON (mažiau konsolės triukšmo, CRM gali rodyti toast). */
+function apiProxyOnError(proxy: { on: (ev: string, fn: (...args: unknown[]) => void) => void }) {
+  proxy.on('error', (err: NodeJS.ErrnoException, _req: IncomingMessage, res: unknown) => {
+    if (!res || typeof res !== 'object' || !('writeHead' in res)) return;
+    const r = res as ServerResponse;
+    if (r.writableEnded) return;
+    const code = err?.code === 'ECONNREFUSED' ? 'connection_refused' : err?.message || 'proxy_error';
+    r.writeHead(503, { 'Content-Type': 'application/json' });
+    r.end(
+      JSON.stringify({
+        ok: false,
+        error:
+          'API serveris nepasiekiamas (portas 3001). Paleiskite npm run server arba npm run dev:full.',
+        proxyError: code,
+      })
+    );
+  });
+}
+
+export default defineConfig(() => {
   return {
+    // Visada krauname .env iš projekto šaknies (kur vite.config.ts)
+    envDir: __dirnameVite,
     plugins: [
       react(),
       tailwindcss(),
@@ -50,8 +73,8 @@ export default defineConfig(({mode}) => {
           scope: '/',
           lang: 'lt',
           icons: [
-            {src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png'},
-            {src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png'},
+            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
             {
               src: 'pwa-512x512.png',
               sizes: '512x512',
@@ -69,15 +92,13 @@ export default defineConfig(({mode}) => {
         },
       }),
     ],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY ?? env.VITE_GEMINI_API_KEY ?? ''),
-    },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirnameVite, '.'),
       },
     },
     build: {
+      reportCompressedSize: true,
       rollupOptions: {
         output: {
           manualChunks(id) {
@@ -88,8 +109,11 @@ export default defineConfig(({mode}) => {
               if (id.includes('jspdf') || id.includes('jspdf-autotable')) return 'vendor-pdf';
               if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-maps';
               if (id.includes('motion')) return 'vendor-motion';
-              // NOTE: keep React inside the general vendor chunk to avoid circular chunk warnings
-              // (some transitive deps reference each other across these boundaries).
+              if (id.includes('lucide-react')) return 'vendor-icons';
+              if (id.includes('react-markdown')) return 'vendor-markdown';
+              if (id.includes('@stripe/stripe-js')) return 'vendor-stripe';
+              if (id.includes('date-fns')) return 'vendor-date';
+              // React lieka „vendor“ — atskyrus kyla circular chunk (vendor ↔ vendor-react).
               return 'vendor';
             }
 
@@ -105,21 +129,20 @@ export default defineConfig(({mode}) => {
           },
         },
       },
-      chunkSizeWarningLimit: 500,
+      // React lieka su transityvinėmis priklausomybėmis viename „vendor“ — ~1.1 MB; atskyrus — circular chunk.
+      chunkSizeWarningLimit: 1150,
     },
     server: {
       // HMR can be disabled via DISABLE_HMR=true (e.g. remote or constrained environments).
       hmr: process.env.DISABLE_HMR !== 'true',
       /** „OS + naršyklė“: `npm run dev` atidaro numatytąją naršykę. Išjungti: VITE_OPEN_BROWSER=false */
-      open:
-        process.env.VITE_OPEN_BROWSER === 'false' || process.env.CI === 'true'
-          ? false
-          : true,
+      open: process.env.VITE_OPEN_BROWSER === 'false' || process.env.CI === 'true' ? false : true,
       // Sąskaitų API (server.cjs) — užklausos į tą patį dev prievadą, be tiesiai :3001
       proxy: {
         '/api': {
           target: 'http://127.0.0.1:3001',
           changeOrigin: true,
+          configure: apiProxyOnError,
         },
         '/health': {
           target: 'http://127.0.0.1:3001',
@@ -129,16 +152,14 @@ export default defineConfig(({mode}) => {
       },
     },
     preview: {
-      open:
-        process.env.VITE_OPEN_BROWSER === 'false' || process.env.CI === 'true'
-          ? false
-          : true,
+      open: process.env.VITE_OPEN_BROWSER === 'false' || process.env.CI === 'true' ? false : true,
       port: 4173,
       // Kaip dev: `/api` ir `/health` į server.cjs (build + preview + server lokaliai)
       proxy: {
         '/api': {
           target: 'http://127.0.0.1:3001',
           changeOrigin: true,
+          configure: apiProxyOnError,
         },
         '/health': {
           target: 'http://127.0.0.1:3001',

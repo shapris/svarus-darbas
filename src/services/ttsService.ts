@@ -1,5 +1,5 @@
 // Text-to-Speech services for AI assistant
-import { Modality } from "@google/genai";
+import { Modality } from '@google/genai';
 import { getAiInstance } from './aiService';
 import { isOpenRouterKey } from './openRouterService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
@@ -18,7 +18,7 @@ export function stopAllAudio() {
 }
 
 function wrapPcmInWav(base64Pcm: string, sampleRate: number = 24000): string {
-  const pcmData = Uint8Array.from(atob(base64Pcm), c => c.charCodeAt(0));
+  const pcmData = Uint8Array.from(atob(base64Pcm), (c) => c.charCodeAt(0));
   const dataSize = pcmData.length;
   const header = new ArrayBuffer(44);
   const view = new DataView(header);
@@ -81,7 +81,7 @@ export async function getElevenLabsSpeech(
     const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + voice, {
       method: 'POST',
       headers: {
-        'Accept': 'audio/mpeg',
+        Accept: 'audio/mpeg',
         'Content-Type': 'application/json',
         'xi-api-key': apiKey,
       },
@@ -91,8 +91,8 @@ export async function getElevenLabsSpeech(
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.8,
-        }
-      })
+        },
+      }),
     });
 
     if (!response.ok) return null;
@@ -115,9 +115,18 @@ export async function getOpenAITSViaOpenRouter(
 
   // Map common voice names to OpenAI voices
   const voiceMap: Record<string, string> = {
-    'Puck': 'onyx', 'Charon': 'onyx', 'Kore': 'nova', 'Fenrir': 'shimmer',
-    'Zephyr': 'alloy', 'Aoede': 'alloy', 'rachel': 'nova', 'domi': 'nova',
-    'adam': 'onyx', 'sam': 'shimmer', 'bella': 'shimmer', 'josh': 'onyx'
+    Puck: 'onyx',
+    Charon: 'onyx',
+    Kore: 'nova',
+    Fenrir: 'shimmer',
+    Zephyr: 'alloy',
+    Aoede: 'alloy',
+    rachel: 'nova',
+    domi: 'nova',
+    adam: 'onyx',
+    sam: 'shimmer',
+    bella: 'shimmer',
+    josh: 'onyx',
   };
   const openAIVoice = voiceMap[voice] || 'alloy';
 
@@ -138,7 +147,7 @@ export async function getSpeechAudio(
 ): Promise<HTMLAudioElement | null> {
   // Check for dedicated TTS API key first
   let apiKey = localStorage.getItem('tts_api_key') || '';
-  
+
   // Fall back to main API key if no dedicated TTS key
   if (!apiKey) {
     apiKey =
@@ -176,8 +185,16 @@ export async function getSpeechAudio(
   }
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `Perskaityk šį tekstą kaip gyvas, šiltas, modernus ir itin profesionalus asistentas. Naudok natūralią, žmogišką intonaciją, daryk logines pauzes, skambėk užtikrintai ir maloniai. Svarbu: venk bet kokio robotiškumo ar senamadiško tono. Tekstas: ${text}` }] }],
+      model: 'gemini-2.5-flash-preview-tts',
+      contents: [
+        {
+          parts: [
+            {
+              text: `Perskaityk šį tekstą kaip gyvas, šiltas, modernus ir itin profesionalus asistentas. Naudok natūralią, žmogišką intonaciją, daryk logines pauzes, skambėk užtikrintai ir maloniai. Svarbu: venk bet kokio robotiškumo ar senamadiško tono. Tekstas: ${text}`,
+            },
+          ],
+        },
+      ],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -208,7 +225,10 @@ export async function getSpeechAudio(
   return null;
 }
 
-export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'Zephyr') {
+export async function generateSpeech(
+  text: string,
+  voice: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' = 'Zephyr'
+) {
   // Get voice rate from localStorage or use default
   const rate = parseFloat(localStorage.getItem('voice_rate') || '1.0');
   const selectedLang = localStorage.getItem('tts_language') || 'lt-LT';
@@ -217,12 +237,12 @@ export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'K
 
   // Map selected voice to browser voice parameters (with Lithuanian language support)
   const voiceMap: Record<string, { lang: string; rate: number; pitch: number }> = {
-    'Zephyr': { lang: selectedLang, rate: 1.0, pitch: 1.0 },      // warm
-    'Puck': { lang: selectedLang, rate: 0.9, pitch: 0.8 },        // masculine
-    'Charon': { lang: selectedLang, rate: 0.85, pitch: 0.7 },      // deep
-    'Kore': { lang: selectedLang, rate: 1.0, pitch: 1.0 },         // neutral
-    'Fenrir': { lang: selectedLang, rate: 0.95, pitch: 0.9 },      // strong
-    'Aoede': { lang: selectedLang, rate: 1.1, pitch: 1.2 },        // gentle
+    Zephyr: { lang: selectedLang, rate: 1.0, pitch: 1.0 }, // warm
+    Puck: { lang: selectedLang, rate: 0.9, pitch: 0.8 }, // masculine
+    Charon: { lang: selectedLang, rate: 0.85, pitch: 0.7 }, // deep
+    Kore: { lang: selectedLang, rate: 1.0, pitch: 1.0 }, // neutral
+    Fenrir: { lang: selectedLang, rate: 0.95, pitch: 0.9 }, // strong
+    Aoede: { lang: selectedLang, rate: 1.1, pitch: 1.2 }, // gentle
   };
   const voiceSettings = voiceMap[voice] || voiceMap['Zephyr'];
 
@@ -230,34 +250,34 @@ export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'K
   if (window.speechSynthesis) {
     return new Promise<void>((resolve) => {
       const utterance = new SpeechSynthesisUtterance(text);
-      
+
       // Smart voice selection based on language
       const voices = window.speechSynthesis.getVoices();
 
       // Priority: exact language match > broad language match > any available
       const langCode = selectedLang.split('-')[0]; // e.g., 'lt' from 'lt-LT'
-      
+
       // Try exact match first (lt-LT)
-      let selectedVoice = voices.find(v => v.lang === selectedLang);
+      let selectedVoice = voices.find((v) => v.lang === selectedLang);
 
       // Try broad match (lt)
       if (!selectedVoice) {
-        selectedVoice = voices.find(v => v.lang.startsWith(langCode));
+        selectedVoice = voices.find((v) => v.lang.startsWith(langCode));
       }
-      
+
       // Try any voice that might work for this language
       if (!selectedVoice) {
         // For Lithuanian, try Polish or Russian as fallback (similar Slavic)
         if (langCode === 'lt') {
-          selectedVoice = voices.find(v => v.lang.startsWith('pl') || v.lang.startsWith('ru'));
+          selectedVoice = voices.find((v) => v.lang.startsWith('pl') || v.lang.startsWith('ru'));
         }
       }
-      
+
       // Last resort: use default English voice but set language anyway
       if (!selectedVoice) {
         selectedVoice = voices[0];
       }
-      
+
       utterance.voice = selectedVoice;
       utterance.lang = selectedLang;
       utterance.rate = rate;
@@ -269,7 +289,7 @@ export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'K
       utterance.onerror = (e) => {
         resolve();
       };
-      
+
       window.speechSynthesis.speak(utterance);
     });
   }
@@ -291,6 +311,7 @@ export async function generateSpeech(text: string, voice: 'Puck' | 'Charon' | 'K
         audio.play().catch(reject);
       });
     }
-  } catch (e) {
+  } catch {
+    /* tyčia ignoruojame TTS atkūrimo klaidas — UI jau gali rodyti būseną kitur */
   }
 }

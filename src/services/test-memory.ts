@@ -30,9 +30,30 @@ function assert(condition: boolean, message?: string) {
 }
 
 const mockMemories: TestMemory[] = [
-  { id: '1', content: 'Svarbu: visada naudok tik kokybiškas valymo priemones', category: 'verslas', importance: 5, createdAt: '2026-03-01', uid: 'test' },
-  { id: '2', content: 'Petras pageidauja langus valyti sekmadienį', category: 'klientas', importance: 4, createdAt: '2026-03-25', uid: 'test' },
-  { id: '3', content: 'PVM kodas yra LT123456789', category: 'verslas', importance: 5, createdAt: '2026-01-15', uid: 'test' },
+  {
+    id: '1',
+    content: 'Svarbu: visada naudok tik kokybiškas valymo priemones',
+    category: 'verslas',
+    importance: 5,
+    createdAt: '2026-03-01',
+    uid: 'test',
+  },
+  {
+    id: '2',
+    content: 'Petras pageidauja langus valyti sekmadienį',
+    category: 'klientas',
+    importance: 4,
+    createdAt: '2026-03-25',
+    uid: 'test',
+  },
+  {
+    id: '3',
+    content: 'PVM kodas yra LT123456789',
+    category: 'verslas',
+    importance: 5,
+    createdAt: '2026-01-15',
+    uid: 'test',
+  },
 ];
 
 console.log('\n🧪 Pradedami testai...\n');
@@ -48,7 +69,8 @@ test('shouldSuggestMemory - atmeta paprastus klausimus', () => {
 });
 
 test('shouldSuggestMemory - atpažįna "svarbu"', () => {
-  const response = 'Svarbu visada laikytis taisyklių ir proceduralų. Tai yra labai svarbu mūsų verslo veikloje ir reikia tai atsiminti.';
+  const response =
+    'Svarbu visada laikytis taisyklių ir proceduralų. Tai yra labai svarbu mūsų verslo veikloje ir reikia tai atsiminti.';
   const result = shouldSuggestMemory('kokia tvarka?', response, []);
   assert(result.shouldRemember === true);
 });
@@ -70,9 +92,9 @@ test('prioritizeMemories - rūšiuoja pagal svarbą', () => {
   const context = {
     query: 'kokios taisyklės versle?',
     userId: 'test',
-    conversationHistory: []
+    conversationHistory: [],
   };
-  
+
   const result = prioritizeMemories(mockMemories as any, context);
   assert(result.length > 0, 'Turi grąžinti rezultatų');
   assert(result[0].importance === 5, 'Svarbiausi pirmi');
@@ -85,9 +107,9 @@ test('prioritizeMemories - naudoja MAX_MEMORIES', () => {
     category: 'kita' as const,
     importance: 3,
     createdAt: '2026-03-27',
-    uid: 'test'
+    uid: 'test',
   }));
-  
+
   const context = { query: 'test', userId: 'test', conversationHistory: [] };
   const result = prioritizeMemories(manyMemories as any, context);
   assert(result.length <= 5, 'Turi būti ribotas iki 5');

@@ -1,6 +1,6 @@
 /**
  * Modular System Prompt System
- * 
+ *
  * Dynamically assembles AI prompts from modular components
  * to reduce token usage, improve focus, and enable context-aware responses.
  */
@@ -17,7 +17,7 @@ interface PromptModule {
   name: string;
   type: 'identity' | 'behavior' | 'tools' | 'context' | 'examples' | 'rules';
   content: string;
-  tokens: number;  // Estimated token count
+  tokens: number; // Estimated token count
   priority: number; // For dynamic assembly (1-10)
   conditions: PromptCondition[];
 }
@@ -58,7 +58,7 @@ Pagrindinis tikslas: padėti vadovui valdyti verslą efektyviai, teikiant aiški
 Specializacija: langų valymas, pastatų priežiūra, klientų valdymas, užsakymų planavimas.`,
     tokens: 65,
     priority: 10,
-    conditions: []
+    conditions: [],
   },
   {
     id: 'personality',
@@ -72,7 +72,7 @@ Specializacija: langų valymas, pastatų priežiūra, klientų valdymas, užsaky
 - Lietuviškai - visada atsakyk lietuvių kalba`,
     tokens: 45,
     priority: 9,
-    conditions: []
+    conditions: [],
   },
   {
     id: 'business_context',
@@ -86,8 +86,8 @@ Specializacija: langų valymas, pastatų priežiūra, klientų valdymas, užsaky
 - Sezoniškumas: vasarą daugiau lauko darbų, žiemą - vidaus`,
     tokens: 55,
     priority: 8,
-    conditions: []
-  }
+    conditions: [],
+  },
 ];
 
 // ============================================================
@@ -107,7 +107,7 @@ const BEHAVIOR_MODULES: PromptModule[] = [
 - Rekomenduok efektyvesnius darbo procesus`,
     tokens: 50,
     priority: 9,
-    conditions: [{ field: 'hasTools', operator: 'equals', value: true }]
+    conditions: [{ field: 'hasTools', operator: 'equals', value: true }],
   },
   {
     id: 'data_analysis_behavior',
@@ -121,7 +121,13 @@ const BEHAVIOR_MODULES: PromptModule[] = [
 - Pateik vizualią santrauką prieš detales`,
     tokens: 45,
     priority: 8,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['business_summary', 'revenue_analysis', 'expense_analysis'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['business_summary', 'revenue_analysis', 'expense_analysis'],
+      },
+    ],
   },
   {
     id: 'client_communication',
@@ -135,7 +141,13 @@ const BEHAVIOR_MODULES: PromptModule[] = [
 - Rekomenduok geriausią laiką pagal užimtumą`,
     tokens: 40,
     priority: 7,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['send_reminder', 'client_followup', 'generate_sms'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['send_reminder', 'client_followup', 'generate_sms'],
+      },
+    ],
   },
   {
     id: 'safety_behavior',
@@ -149,7 +161,13 @@ const BEHAVIOR_MODULES: PromptModule[] = [
 - Visada atsižvelk į darbo aplinką`,
     tokens: 45,
     priority: 10,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['safety_protocols', 'cleaning_schedule'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['safety_protocols', 'cleaning_schedule'],
+      },
+    ],
   },
   {
     id: 'general_behavior',
@@ -163,8 +181,8 @@ const BEHAVIOR_MODULES: PromptModule[] = [
 - Visada siūlyk kitą žingsnį po atsakymo`,
     tokens: 40,
     priority: 5,
-    conditions: []
-  }
+    conditions: [],
+  },
 ];
 
 // ============================================================
@@ -185,7 +203,13 @@ const TOOLS_MODULES: PromptModule[] = [
 Naudok šiuos įrankius tiksliai pagal aprašymą. Visada patvirtink prieš trinant.`,
     tokens: 60,
     priority: 8,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['add_client', 'update_client', 'delete_client', 'client_history'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['add_client', 'update_client', 'delete_client', 'client_history'],
+      },
+    ],
   },
   {
     id: 'order_tools',
@@ -201,7 +225,13 @@ Naudok šiuos įrankius tiksliai pagal aprašymą. Visada patvirtink prieš trin
 Visada patikrink užsakymo prieš ištrinant arba atnaujinant.`,
     tokens: 70,
     priority: 8,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['add_order', 'update_order', 'delete_order', 'unpaid_orders', 'recurring_orders'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['add_order', 'update_order', 'delete_order', 'unpaid_orders', 'recurring_orders'],
+      },
+    ],
   },
   {
     id: 'expense_tools',
@@ -216,7 +246,13 @@ Visada patikrink užsakymo prieš ištrinant arba atnaujinant.`,
 Kategorijos: kuras, priemonės, reklama, mokesčiai, kita.`,
     tokens: 50,
     priority: 7,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['add_expense', 'update_expense', 'delete_expense', 'expense_analysis'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['add_expense', 'update_expense', 'delete_expense', 'expense_analysis'],
+      },
+    ],
   },
   {
     id: 'memory_tools',
@@ -231,7 +267,13 @@ Kategorijos: klientas, verslas, procesas, kita.
 Svarba: 1-5 (5 - labai svarbu).`,
     tokens: 45,
     priority: 7,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['add_memory', 'update_memory', 'delete_memory'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['add_memory', 'update_memory', 'delete_memory'],
+      },
+    ],
   },
   {
     id: 'analytics_tools',
@@ -247,7 +289,19 @@ Svarba: 1-5 (5 - labai svarbu).`,
 Visada naudoj nurodytą laikotarpį ir formatuok atsakymą aiškiai.`,
     tokens: 55,
     priority: 8,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['business_summary', 'top_clients', 'revenue_trends', 'neglected_clients', 'profit_margin'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: [
+          'business_summary',
+          'top_clients',
+          'revenue_trends',
+          'neglected_clients',
+          'profit_margin',
+        ],
+      },
+    ],
   },
   {
     id: 'communication_tools',
@@ -261,7 +315,13 @@ Visada naudoj nurodytą laikotarpį ir formatuok atsakymą aiškiai.`,
 Žinutės turėtų būti mandagios, glaustos ir aiškios.`,
     tokens: 40,
     priority: 7,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['send_reminder', 'generate_sms', 'client_followup'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['send_reminder', 'generate_sms', 'client_followup'],
+      },
+    ],
   },
   {
     id: 'workflow_tools',
@@ -274,8 +334,10 @@ Visada naudoj nurodytą laikotarpį ir formatuok atsakymą aiškiai.`,
 Šie įrankiai skirti efektyvumui didinti. Visada patvirtink prieš masinius pakeitimus.`,
     tokens: 35,
     priority: 6,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['batch_operations', 'recurring_orders'] }]
-  }
+    conditions: [
+      { field: 'intention', operator: 'includes', value: ['batch_operations', 'recurring_orders'] },
+    ],
+  },
 ];
 
 // ============================================================
@@ -299,7 +361,9 @@ Atsakymas: "🏆 Top 3 klientai pagal pajamas:
 3. UAB 'Marių bangos' - 720€"`,
     tokens: 85,
     priority: 6,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['business_summary', 'top_clients'] }]
+    conditions: [
+      { field: 'intention', operator: 'includes', value: ['business_summary', 'top_clients'] },
+    ],
   },
   {
     id: 'reminder_examples',
@@ -317,8 +381,10 @@ Atsakymas: "🔔 Šie klientai turėtų gauti priminimus:
 - UAB 'Lietus' (45 dienų, reguliarus klientas)"`,
     tokens: 90,
     priority: 6,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['send_reminder', 'generate_sms'] }]
-  }
+    conditions: [
+      { field: 'intention', operator: 'includes', value: ['send_reminder', 'generate_sms'] },
+    ],
+  },
 ];
 
 // ============================================================
@@ -340,7 +406,13 @@ const RULES_MODULES: PromptModule[] = [
 Saugumas yra svarbiau už efektyvumą!`,
     tokens: 65,
     priority: 10,
-    conditions: [{ field: 'intention', operator: 'includes', value: ['safety_protocols', 'cleaning_schedule', 'ai_suggest'] }]
+    conditions: [
+      {
+        field: 'intention',
+        operator: 'includes',
+        value: ['safety_protocols', 'cleaning_schedule', 'ai_suggest'],
+      },
+    ],
   },
   {
     id: 'data_privacy',
@@ -354,7 +426,7 @@ Saugumas yra svarbiau už efektyvumą!`,
 5. Ištrink jautrius duomenis prašant klientui`,
     tokens: 55,
     priority: 9,
-    conditions: []
+    conditions: [],
   },
   {
     id: 'ai_limitations',
@@ -368,7 +440,7 @@ Saugumas yra svarbiau už efektyvumą!`,
 5. Rekomendacijos yra pagrįstos turimais duomenimis, ne absoliučios`,
     tokens: 45,
     priority: 5,
-    conditions: []
+    conditions: [],
   },
   {
     id: 'response_format',
@@ -384,8 +456,8 @@ Saugumas yra svarbiau už efektyvumą!`,
 Naudok Markdown formatavimą: **svarbu**, *pabrėžimui*, \`kodui\`.`,
     tokens: 40,
     priority: 6,
-    conditions: []
-  }
+    conditions: [],
+  },
 ];
 
 // ============================================================
@@ -394,7 +466,7 @@ Naudok Markdown formatavimą: **svarbu**, *pabrėžimui*, \`kodui\`.`,
 
 export class ModularPromptAssembler {
   private config: PromptAssemblyConfig;
-  
+
   constructor(config: Partial<PromptAssemblyConfig> = {}) {
     this.config = {
       maxTokens: config.maxTokens || 2000,
@@ -402,10 +474,10 @@ export class ModularPromptAssembler {
       includeDebugInfo: config.includeDebugInfo ?? false,
       contextWindow: config.contextWindow || 5,
       lastMessages: config.lastMessages || [],
-      ...config
+      ...config,
     };
   }
-  
+
   /**
    * Assemble prompt modules based on current context
    */
@@ -422,17 +494,17 @@ export class ModularPromptAssembler {
     const selectedModules: PromptModule[] = [];
     const warnings: string[] = [];
     let totalTokens = 0;
-    
+
     // 1. Always include core identity modules
-    IDENTITY_MODULES.forEach(module => {
+    IDENTITY_MODULES.forEach((module) => {
       if (this.checkConditions(module.conditions, classification, memories, businessContext)) {
         selectedModules.push(module);
         totalTokens += module.tokens;
       }
     });
-    
+
     // 2. Add behavior modules based on intention
-    BEHAVIOR_MODULES.forEach(module => {
+    BEHAVIOR_MODULES.forEach((module) => {
       if (this.checkConditions(module.conditions, classification, memories, businessContext)) {
         if (totalTokens + module.tokens <= this.config.maxTokens) {
           selectedModules.push(module);
@@ -442,9 +514,9 @@ export class ModularPromptAssembler {
         }
       }
     });
-    
+
     // 3. Add relevant tools modules
-    TOOLS_MODULES.forEach(module => {
+    TOOLS_MODULES.forEach((module) => {
       if (this.checkConditions(module.conditions, classification, memories, businessContext)) {
         if (totalTokens + module.tokens <= this.config.maxTokens) {
           selectedModules.push(module);
@@ -454,22 +526,24 @@ export class ModularPromptAssembler {
         }
       }
     });
-    
+
     // 4. Add examples if enabled and space permits
     if (this.config.includeExamples && totalTokens + 100 < this.config.maxTokens) {
-      EXAMPLES_MODULES.forEach(module => {
+      EXAMPLES_MODULES.forEach((module) => {
         if (this.checkConditions(module.conditions, classification, memories, businessContext)) {
-          if (totalTokens + module.tokens <= this.config.maxTokens * 0.7) { // Examples take max 70%
+          if (totalTokens + module.tokens <= this.config.maxTokens * 0.7) {
+            // Examples take max 70%
             selectedModules.push(module);
             totalTokens += module.tokens;
           }
         }
       });
     }
-    
+
     // 5. Always include critical rules
-    RULES_MODULES.forEach(module => {
-      if (module.priority >= 9) { // High priority rules always included
+    RULES_MODULES.forEach((module) => {
+      if (module.priority >= 9) {
+        // High priority rules always included
         if (totalTokens + module.tokens <= this.config.maxTokens) {
           selectedModules.push(module);
           totalTokens += module.tokens;
@@ -478,11 +552,14 @@ export class ModularPromptAssembler {
         }
       }
     });
-    
+
     // 6. Add remaining rules if space permits
     if (totalTokens + 50 < this.config.maxTokens) {
-      RULES_MODULES.forEach(module => {
-        if (module.priority < 9 && this.checkConditions(module.conditions, classification, memories, businessContext)) {
+      RULES_MODULES.forEach((module) => {
+        if (
+          module.priority < 9 &&
+          this.checkConditions(module.conditions, classification, memories, businessContext)
+        ) {
           if (totalTokens + module.tokens <= this.config.maxTokens * 0.8) {
             selectedModules.push(module);
             totalTokens += module.tokens;
@@ -490,17 +567,17 @@ export class ModularPromptAssembler {
         }
       });
     }
-    
+
     // Sort by priority
     selectedModules.sort((a, b) => b.priority - a.priority);
-    
+
     return {
       modules: selectedModules,
       totalTokens,
-      warnings
+      warnings,
     };
   }
-  
+
   /**
    * Check if module conditions are met
    */
@@ -511,8 +588,8 @@ export class ModularPromptAssembler {
     businessContext?: { clientCount?: number; orderCount?: number; revenue?: number }
   ): boolean {
     if (conditions.length === 0) return true;
-    
-    return conditions.every(condition => {
+
+    return conditions.every((condition) => {
       switch (condition.field) {
         case 'intention':
           if (condition.operator === 'equals') {
@@ -521,69 +598,72 @@ export class ModularPromptAssembler {
             return (condition.value as ExtendedIntention[]).includes(classification.intention);
           }
           break;
-          
+
         case 'hasTools':
           return classification.shouldExecuteTool === condition.value;
-          
+
         case 'hasMemories':
-          return (memories.length > 0) === condition.value;
-          
-        case 'timeOfDay':
+          return memories.length > 0 === condition.value;
+
+        case 'timeOfDay': {
           const hour = new Date().getHours();
           if (condition.operator === 'gt') return hour > condition.value;
           if (condition.operator === 'lt') return hour < condition.value;
           break;
-          
+        }
+
         case 'clientType':
           // Could check businessContext for client type
           return true;
       }
-      
+
       return true;
     });
   }
-  
+
   /**
    * Convert modules to final system prompt string
    */
   formatAsSystemPrompt(assemblyResult: AssemblyResult): string {
     const sections: string[] = [];
-    
+
     // Group by type
     const grouped = {
-      identity: assemblyResult.modules.filter(m => m.type === 'identity'),
-      behavior: assemblyResult.modules.filter(m => m.type === 'behavior'),
-      tools: assemblyResult.modules.filter(m => m.type === 'tools'),
-      rules: assemblyResult.modules.filter(m => m.type === 'rules'),
-      examples: assemblyResult.modules.filter(m => m.type === 'examples')
+      identity: assemblyResult.modules.filter((m) => m.type === 'identity'),
+      behavior: assemblyResult.modules.filter((m) => m.type === 'behavior'),
+      tools: assemblyResult.modules.filter((m) => m.type === 'tools'),
+      rules: assemblyResult.modules.filter((m) => m.type === 'rules'),
+      examples: assemblyResult.modules.filter((m) => m.type === 'examples'),
     };
-    
+
     // Build sections
     if (grouped.identity.length > 0) {
-      sections.push('## TAPATYBĖ\n' + grouped.identity.map(m => m.content).join('\n\n'));
+      sections.push('## TAPATYBĖ\n' + grouped.identity.map((m) => m.content).join('\n\n'));
     }
-    
+
     if (grouped.behavior.length > 0) {
-      sections.push('## ELGESYS\n' + grouped.behavior.map(m => m.content).join('\n\n'));
+      sections.push('## ELGESYS\n' + grouped.behavior.map((m) => m.content).join('\n\n'));
     }
-    
+
     if (grouped.tools.length > 0) {
-      sections.push('## ĮRANKIAI\n' + grouped.tools.map(m => m.content).join('\n\n'));
+      sections.push('## ĮRANKIAI\n' + grouped.tools.map((m) => m.content).join('\n\n'));
     }
-    
+
     if (grouped.rules.length > 0) {
-      sections.push('## TAISYKLĖS\n' + grouped.rules.map(m => m.content).join('\n\n'));
+      sections.push('## TAISYKLĖS\n' + grouped.rules.map((m) => m.content).join('\n\n'));
     }
-    
+
     if (grouped.examples.length > 0 && this.config.includeExamples) {
-      sections.push('## PAVYZDŽIAI\n' + grouped.examples.map(m => m.content).join('\n\n'));
+      sections.push('## PAVYZDŽIAI\n' + grouped.examples.map((m) => m.content).join('\n\n'));
     }
-    
+
     // Add metadata if debug mode
     if (this.config.includeDebugInfo) {
-      sections.push(`\n---\n📊 Prompt Info: ${assemblyResult.totalTokens} tokens | ${assemblyResult.modules.length} modules | Warnings: ${assemblyResult.warnings.length}`);
+      sections.push(
+        `\n---\n📊 Prompt Info: ${assemblyResult.totalTokens} tokens | ${assemblyResult.modules.length} modules | Warnings: ${assemblyResult.warnings.length}`
+      );
     }
-    
+
     return sections.join('\n\n');
   }
 }
@@ -602,10 +682,10 @@ export function enrichWithContext(
   }
 ): string {
   let enriched = basePrompt;
-  
+
   // Add current date context
   enriched += `\n\n📅 Šiandienos data: ${context.currentDate}`;
-  
+
   // Add business context if available
   if (context.recentOrders !== undefined || context.pendingPayments !== undefined) {
     enriched += '\n📊 Verslo situacija:';
@@ -616,12 +696,12 @@ export function enrichWithContext(
       enriched += `\n- Laukiantys mokėjimai: ${context.pendingPayments}`;
     }
   }
-  
+
   // Add memory context
   if (context.memoryCount !== undefined && context.memoryCount > 0) {
     enriched += `\n\n🧠 Turi prieigą prie ${context.memoryCount} prisiminimų. Naudok juos kontekstui.`;
   }
-  
+
   return enriched;
 }
 
@@ -635,7 +715,7 @@ export function getTokenEstimate(text: string): number {
 }
 
 export function createPromptSummary(modules: PromptModule[]): string {
-  const summary = modules.map(m => `${m.type}: ${m.name} (${m.tokens}t)`).join(', ');
+  const summary = modules.map((m) => `${m.type}: ${m.name} (${m.tokens}t)`).join(', ');
   return `Prompt modules: ${summary}`;
 }
 
@@ -645,5 +725,5 @@ export const DEFAULT_PROMPT_CONFIG: PromptAssemblyConfig = {
   includeExamples: true,
   includeDebugInfo: false,
   contextWindow: 5,
-  lastMessages: []
+  lastMessages: [],
 };

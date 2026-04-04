@@ -94,47 +94,57 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
           <TrendingDown size={28} />
         </div>
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Visos išlaidos</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Visos išlaidos
+          </p>
           <p className="text-2xl font-black text-slate-900">{formatCurrency(totalExpenses)}</p>
         </div>
       </div>
 
       <div className="space-y-4">
-        {expenses.sort((a, b) => b.date.localeCompare(a.date)).map((expense) => (
-          <motion.div
-            layout
-            key={expense.id}
-            onClick={() => setSelectedExpense(expense)}
-            className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 cursor-pointer hover:border-red-100 transition-colors"
-          >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${categories[expense.category].color}`}>
-              <Wallet size={18} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-slate-900 leading-tight">{expense.title}</h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-bold uppercase tracking-tighter opacity-40">{formatDate(expense.date)}</span>
-                <span className="text-[10px] text-slate-300">•</span>
-                <span className="text-[10px] font-bold uppercase tracking-tighter opacity-40">{categories[expense.category].label}</span>
-              </div>
-            </div>
-            <div className="text-right flex items-center gap-4">
-              <p className="font-black text-red-600">-{formatCurrency(expense.amount)}</p>
-              <button
-                type="button"
-                title="Ištrinti išlaidas"
-                aria-label="Ištrinti išlaidas"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(expense.id);
-                }}
-                className="p-2 text-slate-300 hover:text-red-600 transition-colors"
+        {expenses
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .map((expense) => (
+            <motion.div
+              layout
+              key={expense.id}
+              onClick={() => setSelectedExpense(expense)}
+              className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 cursor-pointer hover:border-red-100 transition-colors"
+            >
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center ${categories[expense.category].color}`}
               >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </motion.div>
-        ))}
+                <Wallet size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-slate-900 leading-tight">{expense.title}</h3>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-tighter opacity-40">
+                    {formatDate(expense.date)}
+                  </span>
+                  <span className="text-[10px] text-slate-300">•</span>
+                  <span className="text-[10px] font-bold uppercase tracking-tighter opacity-40">
+                    {categories[expense.category].label}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right flex items-center gap-4">
+                <p className="font-black text-red-600">-{formatCurrency(expense.amount)}</p>
+                <button
+                  type="button"
+                  title="Ištrinti išlaidas"
+                  aria-label="Ištrinti išlaidas"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(expense.id);
+                  }}
+                  className="p-2 text-slate-300 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </motion.div>
+          ))}
       </div>
 
       <AnimatePresence>
@@ -166,7 +176,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pavadinimas</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Pavadinimas
+                  </label>
                   <input
                     required
                     type="text"
@@ -179,7 +191,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Suma (€)</label>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                      Suma (€)
+                    </label>
                     <input
                       required
                       type="number"
@@ -191,7 +205,12 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
                     />
                   </div>
                   <div>
-                    <label htmlFor="expense-date" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Data</label>
+                    <label
+                      htmlFor="expense-date"
+                      className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2"
+                    >
+                      Data
+                    </label>
                     <input
                       id="expense-date"
                       required
@@ -204,17 +223,22 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Kategorija</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Kategorija
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(categories).map(([key, { label }]) => (
                       <button
                         key={key}
                         type="button"
-                        onClick={() => setFormData({ ...formData, category: key as Expense['category'] })}
-                        className={`p-3 rounded-xl text-xs font-bold transition-all ${formData.category === key
-                          ? 'bg-red-600 text-white shadow-lg shadow-red-200'
-                          : 'bg-slate-50 text-slate-600 border border-slate-100'
-                          }`}
+                        onClick={() =>
+                          setFormData({ ...formData, category: key as Expense['category'] })
+                        }
+                        className={`p-3 rounded-xl text-xs font-bold transition-all ${
+                          formData.category === key
+                            ? 'bg-red-600 text-white shadow-lg shadow-red-200'
+                            : 'bg-slate-50 text-slate-600 border border-slate-100'
+                        }`}
                       >
                         {label}
                       </button>
@@ -223,7 +247,9 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Pastabos (neprivaloma)</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                    Pastabos (neprivaloma)
+                  </label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -260,12 +286,16 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
             >
               <div className="flex justify-between items-center mb-8">
                 <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${categories[selectedExpense.category].color}`}>
+                  <div
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${categories[selectedExpense.category].color}`}
+                  >
                     <Wallet size={24} />
                   </div>
                   <div>
                     <h3 className="text-xl font-black text-slate-900">Išlaidų detalės</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{categories[selectedExpense.category].label}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      {categories[selectedExpense.category].label}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -281,25 +311,39 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
 
               <div className="space-y-6">
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pavadinimas</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Pavadinimas
+                  </p>
                   <p className="text-lg font-bold text-slate-900">{selectedExpense.title}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Suma</p>
-                    <p className="text-lg font-black text-red-600">-{formatCurrency(selectedExpense.amount)}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                      Suma
+                    </p>
+                    <p className="text-lg font-black text-red-600">
+                      -{formatCurrency(selectedExpense.amount)}
+                    </p>
                   </div>
                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data</p>
-                    <p className="text-lg font-bold text-slate-900">{formatDate(selectedExpense.date)}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                      Data
+                    </p>
+                    <p className="text-lg font-bold text-slate-900">
+                      {formatDate(selectedExpense.date)}
+                    </p>
                   </div>
                 </div>
 
                 {selectedExpense.notes && (
                   <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastabos</p>
-                    <p className="text-sm text-slate-600 leading-relaxed">{selectedExpense.notes}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                      Pastabos
+                    </p>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {selectedExpense.notes}
+                    </p>
                   </div>
                 )}
 

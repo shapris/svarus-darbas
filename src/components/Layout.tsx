@@ -4,7 +4,18 @@
  */
 
 import React from 'react';
-import { LayoutDashboard, Users, Calendar, Settings, PlusCircle, LogOut, Wallet, Droplets, CreditCard } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  Calendar,
+  Settings,
+  PlusCircle,
+  LogOut,
+  Wallet,
+  Droplets,
+  CreditCard,
+  MoreHorizontal,
+} from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,6 +32,7 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
     { id: 'clients', icon: Users, label: 'Klientai' },
     { id: 'expenses', icon: Wallet, label: 'Išlaidos' },
     { id: 'payments', icon: CreditCard, label: 'Mokėjimai' },
+    { id: 'more', icon: MoreHorizontal, label: 'Daugiau' },
     { id: 'settings', icon: Settings, label: 'Nustatymai' },
   ];
 
@@ -33,7 +45,9 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
             <Droplets size={18} strokeWidth={2.25} aria-hidden />
           </div>
           <div className="min-w-0">
-            <h1 className="text-base font-bold text-slate-900 tracking-tight truncate">Švarus Darbas</h1>
+            <h1 className="text-base font-bold text-slate-900 tracking-tight truncate">
+              Švarus Darbas
+            </h1>
             <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">CRM</p>
           </div>
         </div>
@@ -50,9 +64,7 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto pb-28 px-4 pt-4">
-        {children}
-      </main>
+      <main className="flex-1 overflow-y-auto pb-28 px-4 pt-4">{children}</main>
 
       {/* Bottom Navigation */}
       <nav
@@ -78,8 +90,14 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
                     isActive ? 'bg-blue-50 shadow-sm shadow-blue-600/5' : 'hover:bg-slate-50'
                   }`}
                 >
-                  <Icon size={20} strokeWidth={isActive ? 2.25 : 2} className={isActive ? 'drop-shadow-sm' : ''} />
-                  <span className="text-[10px] mt-0.5 font-semibold leading-tight text-center">{tab.label}</span>
+                  <Icon
+                    size={20}
+                    strokeWidth={isActive ? 2.25 : 2}
+                    className={isActive ? 'drop-shadow-sm' : ''}
+                  />
+                  <span className="text-[10px] mt-0.5 font-semibold leading-tight text-center">
+                    {tab.label}
+                  </span>
                 </span>
                 {isActive && (
                   <span className="absolute top-1 left-1/2 -translate-x-1/2 w-7 h-0.5 rounded-full bg-blue-600" />

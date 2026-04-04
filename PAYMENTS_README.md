@@ -34,7 +34,7 @@ PORT=3001
 Importuokite mokėjimų schema:
 ```sql
 -- Supabase: SQL Editor -> įklijuokite payments-schema.sql
--- Firebase: Sukurkite collections pagal schema
+-- Supabase: lentelės pagal schema (žr. SQL failus repo)
 ```
 
 ### 4. Serverio Paleidimas

@@ -204,7 +204,7 @@ Total = (importance/5 × 0.20) + (recency × 0.25) + (keywords × 0.35) + (conte
 ## 🔧 Integration Points
 
 ### 1. With Existing CRM System
-- **Firebase**: Client, order, expense data
+- **Supabase**: client, order, expense data
 - **Supabase**: Additional data operations
 - **Local DB**: Memory and preference storage
 

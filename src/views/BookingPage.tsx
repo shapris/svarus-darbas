@@ -4,10 +4,27 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { getData, addData, TABLES, fetchPublicBookingSettings, submitPublicBooking, isDemoMode, isRemoteBackend } from '../supabase';
+import {
+  getData,
+  addData,
+  TABLES,
+  fetchPublicBookingSettings,
+  submitPublicBooking,
+  usesLocalStorageBackend,
+  isRemoteBackend,
+} from '../supabase';
 import { AppSettings, DEFAULT_SETTINGS, BuildingType, OrderStatus } from '../types';
 import { calculateOrderPrice, formatCurrency, geocodeAddress } from '../utils';
-import { Calendar, Clock, MapPin, User, Phone, CheckCircle2, ChevronRight, Info } from 'lucide-react';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  Phone,
+  CheckCircle2,
+  ChevronRight,
+  Info,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface BookingPageProps {
@@ -79,7 +96,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
     try {
       const normalizedPhone = formData.phone.trim() || 'nesutarta';
       const coords = await geocodeAddress(formData.address);
-      const useCloud = isRemoteBackend && !isDemoMode;
+      const useCloud = isRemoteBackend && !usesLocalStorageBackend;
 
       if (useCloud) {
         await submitPublicBooking(
@@ -193,7 +210,8 @@ export default function BookingPage({ userId }: BookingPageProps) {
           <Info className="text-amber-500 mx-auto mb-4" size={40} aria-hidden />
           <h1 className="text-xl font-bold text-slate-900 mb-2">Rezervacija neprieinama</h1>
           <p className="text-slate-600 text-sm leading-relaxed">
-            Ši įmonė laikinai išjungė viešą rezervaciją per internetą. Prašome skambinti arba rašyti tiesiogiai.
+            Ši įmonė laikinai išjungė viešą rezervaciją per internetą. Prašome skambinti arba rašyti
+            tiesiogiai.
           </p>
         </div>
       </div>
@@ -218,7 +236,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
           <div className="bg-slate-50 p-4 rounded-2xl text-left mb-8 space-y-2">
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Data:</span>
-              <span className="font-bold text-slate-700">{formData.date} {formData.time}</span>
+              <span className="font-bold text-slate-700">
+                {formData.date} {formData.time}
+              </span>
             </div>
             <div className="flex justify-between text-xs">
               <span className="text-slate-400">Kaina:</span>
@@ -239,7 +259,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
   return (
     <div className="min-h-screen bg-slate-50 p-4 pb-12 max-w-md mx-auto border-x border-slate-200">
       <header className="py-8 text-center">
-        <h1 className="text-2xl font-black text-blue-600 tracking-tight mb-2">Langų Valymo Rezervacija</h1>
+        <h1 className="text-2xl font-black text-blue-600 tracking-tight mb-2">
+          Langų Valymo Rezervacija
+        </h1>
         <p className="text-slate-500 text-sm">Užpildykite formą ir sužinokite preliminarią kainą</p>
       </header>
 
@@ -276,11 +298,15 @@ export default function BookingPage({ userId }: BookingPageProps) {
         <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <User size={16} className="text-blue-600" />
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Jūsų duomenys</h2>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Jūsų duomenys
+            </h2>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vardas</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Vardas
+            </label>
             <input
               required
               type="text"
@@ -292,7 +318,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Telefonas</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Telefonas
+            </label>
             <input
               type="tel"
               value={formData.phone}
@@ -303,7 +331,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Adresas</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Adresas
+            </label>
             <input
               required
               type="text"
@@ -315,17 +345,20 @@ export default function BookingPage({ userId }: BookingPageProps) {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastato tipas</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Pastato tipas
+            </label>
             <div className="grid grid-cols-3 gap-2">
               {(['butas', 'namas', 'ofisas', 'nesutarta'] as BuildingType[]).map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setFormData({ ...formData, buildingType: type })}
-                  className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${formData.buildingType === type
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
-                    : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200'
-                    }`}
+                  className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${
+                    formData.buildingType === type
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                      : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200'
+                  }`}
                 >
                   {type}
                 </button>
@@ -337,12 +370,19 @@ export default function BookingPage({ userId }: BookingPageProps) {
         <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <Calendar size={16} className="text-blue-600" />
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Darbų apimtis</h2>
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+              Darbų apimtis
+            </h2>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="booking-date" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Data</label>
+              <label
+                htmlFor="booking-date"
+                className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"
+              >
+                Data
+              </label>
               <input
                 id="booking-date"
                 required
@@ -353,7 +393,12 @@ export default function BookingPage({ userId }: BookingPageProps) {
               />
             </div>
             <div>
-              <label htmlFor="booking-time" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Laikas</label>
+              <label
+                htmlFor="booking-time"
+                className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"
+              >
+                Laikas
+              </label>
               <input
                 id="booking-time"
                 required
@@ -367,18 +412,30 @@ export default function BookingPage({ userId }: BookingPageProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="booking-window-count" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Langų skaičius</label>
+              <label
+                htmlFor="booking-window-count"
+                className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"
+              >
+                Langų skaičius
+              </label>
               <input
                 id="booking-window-count"
                 required
                 type="number"
                 value={formData.windowCount}
-                onChange={(e) => setFormData({ ...formData, windowCount: parseInt(e.target.value) })}
+                onChange={(e) =>
+                  setFormData({ ...formData, windowCount: parseInt(e.target.value) })
+                }
                 className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
             <div>
-              <label htmlFor="booking-floor" className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Aukštas</label>
+              <label
+                htmlFor="booking-floor"
+                className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1"
+              >
+                Aukštas
+              </label>
               <input
                 id="booking-floor"
                 required
@@ -391,18 +448,25 @@ export default function BookingPage({ userId }: BookingPageProps) {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Papildomai</label>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Papildomai
+            </label>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(formData.additionalServices).map(([key, val]) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setFormData({
-                    ...formData,
-                    additionalServices: { ...formData.additionalServices, [key]: !val }
-                  })}
-                  className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${val ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-slate-400 border-slate-100'
-                    }`}
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      additionalServices: { ...formData.additionalServices, [key]: !val },
+                    })
+                  }
+                  className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${
+                    val
+                      ? 'bg-blue-50 text-blue-600 border-blue-200'
+                      : 'bg-white text-slate-400 border-slate-100'
+                  }`}
                 >
                   {key}
                 </button>
@@ -413,7 +477,9 @@ export default function BookingPage({ userId }: BookingPageProps) {
 
         <div className="bg-slate-900 p-6 rounded-3xl shadow-xl text-white flex justify-between items-center">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Preliminari kaina</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">
+              Preliminari kaina
+            </p>
             <p className="text-3xl font-black">{formatCurrency(totalPrice)}</p>
           </div>
           <button
@@ -432,7 +498,8 @@ export default function BookingPage({ userId }: BookingPageProps) {
         <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-2xl border border-blue-100">
           <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
           <p className="text-[10px] text-blue-900 leading-relaxed">
-            Galutinė kaina gali kisti priklausomai nuo langų užterštumo ir pasiekiamumo. Meistras kainą patikslins atvykęs.
+            Galutinė kaina gali kisti priklausomai nuo langų užterštumo ir pasiekiamumo. Meistras
+            kainą patikslins atvykęs.
           </p>
         </div>
       </form>

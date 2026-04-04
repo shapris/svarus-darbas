@@ -30,9 +30,9 @@ export default class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({
       error,
-      errorInfo
+      errorInfo,
     });
-    
+
     // Log error to console in development
     if (process.env.NODE_ENV === 'development') {
       console.error('ErrorBoundary caught an error:', error, errorInfo);
@@ -55,11 +55,9 @@ export default class ErrorBoundary extends Component<Props, State> {
             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="text-red-600" size={32} />
             </div>
-            
-            <h2 className="text-xl font-bold text-slate-900 mb-2">
-              Kažkas nepavyko
-            </h2>
-            
+
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Kažkas nepavyko</h2>
+
             <p className="text-slate-600 mb-6">
               Atsiprašome už triktis. Aplikacija susidūrė su klaida.
             </p>

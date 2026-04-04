@@ -1,5 +1,7 @@
 // OpenRouter API integration for AI chat
 
+import type { FunctionDeclaration } from '@google/genai';
+
 // Helper to check if a key is an OpenRouter key
 export const isOpenRouterKey = (key: string) => key?.startsWith('sk-or-v1-');
 let openRouterGlobalCooldownUntil = 0;
@@ -10,9 +12,10 @@ export const getOpenRouterKey = () => {
   const envOr =
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENROUTER_API_KEY) ||
     (typeof process !== 'undefined' && process.env?.VITE_OPENROUTER_API_KEY) ||
-    (typeof window !== 'undefined' && (window as any).openrouter_api_key) ||
+    (typeof window !== 'undefined' &&
+      (window as Window & { openrouter_api_key?: string }).openrouter_api_key) ||
     '';
- const dedicated = localStorage.getItem('openrouter_api_key');
+  const dedicated = localStorage.getItem('openrouter_api_key');
   const custom = localStorage.getItem('custom_api_key');
 
   const key =
@@ -61,16 +64,17 @@ function isToolRoutingFailure(msg: string): boolean {
   );
 }
 
-function convertToOpenAITool(geminiTool: any) {
-  const convertTypes = (obj: any): any => {
+function convertToOpenAITool(geminiTool: FunctionDeclaration) {
+  const convertTypes = (obj: unknown): unknown => {
     if (Array.isArray(obj)) return obj.map(convertTypes);
     if (obj !== null && typeof obj === 'object') {
-      const newObj: any = {};
-      for (const key in obj) {
-        if (key === 'type' && typeof obj[key] === 'string') {
-          newObj[key] = obj[key].toLowerCase();
+      const src = obj as Record<string, unknown>;
+      const newObj: Record<string, unknown> = {};
+      for (const key of Object.keys(src)) {
+        if (key === 'type' && typeof src[key] === 'string') {
+          newObj[key] = (src[key] as string).toLowerCase();
         } else {
-          newObj[key] = convertTypes(obj[key]);
+          newObj[key] = convertTypes(src[key]);
         }
       }
       return newObj;
@@ -80,31 +84,33 @@ function convertToOpenAITool(geminiTool: any) {
   return {
     type: 'function',
     function: {
-      name: geminiTool.name,
+      name: geminiTool.name ?? 'unnamed_tool',
       description: geminiTool.description,
-      parameters: convertTypes(geminiTool.parameters)
-    }
+      parameters: convertTypes(geminiTool.parameters),
+    },
   };
 }
 
 export { convertToOpenAITool };
 
 // OpenRouter API call helper
+type OpenRouterRequestMessage = Record<string, unknown>;
+
 export const callOpenRouter = async (
-  model: string = "free-auto",
-  messages: any[],
-  tools?: any[],
-  timeout: number = 60000  // Increased to 60s for free models
+  model: string = 'free-auto',
+  messages: OpenRouterRequestMessage[],
+  tools?: FunctionDeclaration[],
+  timeout: number = 60000 // Increased to 60s for free models
 ) => {
   if (Date.now() < openRouterGlobalCooldownUntil) {
     throw new Error('OpenRouter laikinai sustabdytas dėl kvotos/policy. Bandykite vėliau.');
   }
   const apiKey = getOpenRouterKey();
-  
+
   if (!apiKey) {
     throw new Error(
-      "OpenRouter API raktas nesukonfigūruotas. " +
-      "Prašome įvesti API raktą nustatymuose arba pridėti VITE_OPENROUTER_API_KEY aplinkos kintamąjį."
+      'OpenRouter API raktas nesukonfigūruotas. ' +
+        'Prašome įvesti API raktą nustatymuose arba pridėti VITE_OPENROUTER_API_KEY aplinkos kintamąjį.'
     );
   }
 
@@ -116,11 +122,12 @@ export const callOpenRouter = async (
 
     try {
       // Convert messages to prompt format if needed
-      const prompt = messages && Array.isArray(messages) && messages.length > 0 
-        ? messages.map((m: any) => m.content).join('\n')
-        : undefined;
+      const prompt =
+        messages && Array.isArray(messages) && messages.length > 0
+          ? messages.map((m) => String(m.content ?? '')).join('\n')
+          : undefined;
 
-      const requestBody: any = {
+      const requestBody: Record<string, unknown> = {
         model: modelName,
         max_tokens: 1024,
       };
@@ -138,16 +145,16 @@ export const callOpenRouter = async (
         requestBody.tool_choice = 'auto';
       }
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "Svarus Darbas CRM",
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Svarus Darbas CRM',
         },
         body: JSON.stringify(requestBody),
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -161,14 +168,18 @@ export const callOpenRouter = async (
         }
         const msg = errBody.error?.message;
         const msgStr =
-          typeof msg === 'string' ? msg : msg != null ? JSON.stringify(msg) : `HTTP ${response.status}`;
+          typeof msg === 'string'
+            ? msg
+            : msg != null
+              ? JSON.stringify(msg)
+              : `HTTP ${response.status}`;
         throw new Error(`[${modelName}] ${response.status}: ${msgStr}`);
       }
       const data = await response.json();
       return data;
-    } catch (e: any) {
+    } catch (e: unknown) {
       clearTimeout(timeoutId);
-      if (e.name === 'AbortError') {
+      if (e instanceof Error && e.name === 'AbortError') {
         throw new Error(`[${modelName}] Timeout - modelis per lėtas`);
       }
       throw e;
@@ -200,10 +211,7 @@ export const callOpenRouter = async (
     'openai/gpt-oss-20b:free',
   ];
 
-  const userPicked =
-    model !== 'free-auto'
-      ? [model]
-      : [];
+  const userPicked = model !== 'free-auto' ? [model] : [];
 
   const modelsWithTools =
     userPicked.length > 0
@@ -215,18 +223,21 @@ export const callOpenRouter = async (
       ? [...userPicked, ...defaultFreeModelsChatOnly.filter((m) => !userPicked.includes(m))]
       : defaultFreeModelsChatOnly;
 
-  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   if (openAiTools) {
     for (const modelName of modelsWithTools) {
       try {
         return await tryModel(modelName, true);
-      } catch (e: any) {
-        const msg = e?.message || String(e);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
         console.warn(`Model ${modelName} with tools failed:`, msg);
         errors.push(msg);
         if (isRetryableOpenRouterMessage(msg) || isToolRoutingFailure(msg)) {
-          openRouterGlobalCooldownUntil = Math.max(openRouterGlobalCooldownUntil, Date.now() + getOpenRouterCooldownMs(msg));
+          openRouterGlobalCooldownUntil = Math.max(
+            openRouterGlobalCooldownUntil,
+            Date.now() + getOpenRouterCooldownMs(msg)
+          );
         }
         if (isRetryableOpenRouterMessage(msg)) {
           await sleep(800);
@@ -240,14 +251,17 @@ export const callOpenRouter = async (
   for (const modelName of modelsChatOnly) {
     try {
       return await tryModel(modelName, false);
-    } catch (e: any) {
-      const msg = e?.message || String(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       console.warn(`Model ${modelName} without tools failed:`, msg);
       if (!errors.some((err) => err.includes(modelName))) {
         errors.push(msg);
       }
       if (isRetryableOpenRouterMessage(msg) || isToolRoutingFailure(msg)) {
-        openRouterGlobalCooldownUntil = Math.max(openRouterGlobalCooldownUntil, Date.now() + getOpenRouterCooldownMs(msg));
+        openRouterGlobalCooldownUntil = Math.max(
+          openRouterGlobalCooldownUntil,
+          Date.now() + getOpenRouterCooldownMs(msg)
+        );
       }
       if (isRetryableOpenRouterMessage(msg)) {
         await sleep(800);
@@ -255,5 +269,5 @@ export const callOpenRouter = async (
     }
   }
 
-  throw new Error("Visi nemokami modeliai neprieinami. Detalės: " + errors.join(" | "));
-}
+  throw new Error('Visi nemokami modeliai neprieinami. Detalės: ' + errors.join(' | '));
+};

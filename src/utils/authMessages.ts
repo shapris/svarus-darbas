@@ -1,11 +1,12 @@
 /**
- * User-facing Lithuanian copy for auth flows (Supabase / common Firebase-style messages).
+ * User-facing Lithuanian copy for auth flows (Supabase).
  */
 
 export const AUTH_FALLBACK = {
   login: 'Nepavyko prisijungti. Patikrinkite el. paštą ir slaptažodį.',
   register: 'Registracija nepavyko. Bandykite dar kartą arba kreipkitės į administratorių.',
-  google: 'Google prisijungimas nepavyko. Įsitikinkite, kad OAuth sukonfigūruotas Supabase projekte ir naršyklė neblokuoja iššokančių langų.',
+  google:
+    'Google prisijungimas nepavyko. Įsitikinkite, kad OAuth sukonfigūruotas Supabase projekte ir naršyklė neblokuoja iššokančių langų.',
 } as const;
 
 /** Short product copy for invite / help on the landing screen */
@@ -13,7 +14,7 @@ export const AUTH_INVITE_HELP = {
   staffInvite:
     'Komandos narius kvieskite čia: „Sukurti darbuotojo paskyrą“ arba administratorius sukuria paskyrą Supabase. Naudoja tą patį įmonės el. pašto domeną arba bendrą darbo paštą.',
   clientInvite:
-    'Klientai prisijungia žaliais mygtukais arba per jūsų rezervacijos nuorodą iš „Nustatymai“ (nereikia CRM paskyros, jei tik rezervuoja).',
+    'Klientai gali rezervuoti be paskyros per jūsų rezervacijos nuorodą. Portalo saviregistracija įjungiama tik jei administratorius nustato VITE_CLIENT_SELF_REGISTRATION=true (hostinge).',
 } as const;
 
 const byNormalizedPhrase: [string, string][] = [
@@ -24,9 +25,15 @@ const byNormalizedPhrase: [string, string][] = [
   ['already registered', 'Šiuo el. paštu paskyra jau egzistuoja. Bandykite prisijungti.'],
   ['user already exists', 'Šiuo el. paštu paskyra jau egzistuoja.'],
   ['password should be at least', 'Slaptažodis per trumpas — naudokite bent 6 simbolius.'],
-  ['password is known to be weak', 'Slaptažodis per silpnas — pasirinkite ilgesnį arba unikalesnį.'],
+  [
+    'password is known to be weak',
+    'Slaptažodis per silpnas — pasirinkite ilgesnį arba unikalesnį.',
+  ],
   ['signup disabled', 'Naujų paskyrų registracija išjungta. Kreipkitės į administratorių.'],
-  ['email rate limit exceeded', 'Per daug bandymų su el. paštu. Palaukite kelias minutes ir bandykite vėl.'],
+  [
+    'email rate limit exceeded',
+    'Per daug bandymų su el. paštu. Palaukite kelias minutes ir bandykite vėl.',
+  ],
   ['rate limit', 'Per daug bandymų. Palaukite ir bandykite vėl.'],
   ['network', 'Tinklo klaida. Patikrinkite interneto ryšį.'],
   ['failed to fetch', 'Nepavyko susisiekti su serveriu. Patikrinkite ryšį.'],

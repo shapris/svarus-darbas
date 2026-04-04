@@ -1,6 +1,6 @@
 /**
  * Priority Memory Layer for AI Assistant
- * 
+ *
  * This module provides intelligent memory prioritization and relevance scoring
  * to improve AI context understanding and response quality.
  */
@@ -44,7 +44,7 @@ const DEFAULT_CONFIG: MemoryPriorityConfig = {
   recencyWeight: 0.25,
   importanceWeight: 0.2,
   keywordWeight: 0.35,
-  contextWeight: 0.2
+  contextWeight: 0.2,
 };
 
 /**
@@ -56,25 +56,25 @@ export function calculateRelevanceScore(
   config: MemoryPriorityConfig = DEFAULT_CONFIG
 ): number {
   let score = 0;
-  
+
   // 1. Base importance (user-defined)
   const importance = memory.importance || 3;
   score += (importance / 5) * config.importanceWeight;
-  
+
   // 2. Recency factor (exponential decay)
   const daysSinceCreation = getDaysBetween(new Date(memory.createdAt), new Date());
   const recencyScore = Math.exp(-daysSinceCreation / 90); // 90-day half-life
   score += recencyScore * config.recencyWeight;
-  
+
   // 3. Keyword matching with query
   const memoryKeywords = extractKeywords(memory.content);
   const queryKeywords = extractKeywords(context.query);
   const keywordOverlap = calculateJaccardSimilarity(memoryKeywords, queryKeywords);
   score += keywordOverlap * config.keywordWeight;
-  
+
   // 4. Context relevance
   let contextScore = 0;
-  
+
   // Boost if memory category matches query intent
   if (context.query.toLowerCase().includes('klient') && memory.category === 'klientas') {
     contextScore += 0.3;
@@ -85,7 +85,7 @@ export function calculateRelevanceScore(
   if (context.query.toLowerCase().includes('proces') && memory.category === 'procesas') {
     contextScore += 0.3;
   }
-  
+
   // Boost if memory links to current context
   if (context.currentClientId && memory.content.includes(context.currentClientId)) {
     contextScore += 0.2;
@@ -93,15 +93,15 @@ export function calculateRelevanceScore(
   if (context.currentOrderId && memory.content.includes(context.currentOrderId)) {
     contextScore += 0.2;
   }
-  
+
   // Conversation history relevance
   const recentHistory = context.conversationHistory.slice(-3).join(' ');
   if (recentHistory && containsKeywords(memory.content, extractKeywords(recentHistory))) {
     contextScore += 0.2;
   }
-  
+
   score += Math.min(contextScore, 1.0) * config.contextWeight;
-  
+
   return Math.min(score, 1.0);
 }
 
@@ -111,19 +111,62 @@ export function calculateRelevanceScore(
 export function extractKeywords(text: string): string[] {
   // Lithuanian stop words to filter out
   const stopWords = new Set([
-    'ir', 'ar', 'kad', 'kur', 'ką', 'kaip', 'kas', 'yra', 'buvo', 'bus',
-    'su', 'iš', 'į', 'ant', 'prie', 'per', 'be', 'tarp', 'po', 'iki',
-    'aš', 'tu', 'jis', 'ji', 'mes', 'jūs', 'jie', 'jos', 'man', 'tau',
-    'bet', 'tai', 'vis', 'tik', 'jau', 'dar', 'ne', 'taip', 'gal', 'gali',
-    'turėti', 'galėti', 'norėti', 'reikia', 'daryti', 'būti', 'eiti'
+    'ir',
+    'ar',
+    'kad',
+    'kur',
+    'ką',
+    'kaip',
+    'kas',
+    'yra',
+    'buvo',
+    'bus',
+    'su',
+    'iš',
+    'į',
+    'ant',
+    'prie',
+    'per',
+    'be',
+    'tarp',
+    'po',
+    'iki',
+    'aš',
+    'tu',
+    'jis',
+    'ji',
+    'mes',
+    'jūs',
+    'jie',
+    'jos',
+    'man',
+    'tau',
+    'bet',
+    'tai',
+    'vis',
+    'tik',
+    'jau',
+    'dar',
+    'ne',
+    'taip',
+    'gal',
+    'gali',
+    'turėti',
+    'galėti',
+    'norėti',
+    'reikia',
+    'daryti',
+    'būti',
+    'eiti',
   ]);
-  
+
   // Clean and split text (include Lithuanian: ąčęėįšųūž)
-  const words = text.toLowerCase()
+  const words = text
+    .toLowerCase()
     .replace(/[^\w\sàáâãäåæçèéêëìíîïðñòóôõöùúûüýþÿąčęėįšųūž]/g, ' ')
     .split(/\s+/)
-    .filter(word => word.length > 2 && !stopWords.has(word));
-  
+    .filter((word) => word.length > 2 && !stopWords.has(word));
+
   // Remove duplicates and return
   return [...new Set(words)];
 }
@@ -133,10 +176,10 @@ export function extractKeywords(text: string): string[] {
  */
 function calculateJaccardSimilarity(set1: string[], set2: string[]): number {
   if (set1.length === 0 || set2.length === 0) return 0;
-  
-  const intersection = set1.filter(x => set2.includes(x));
+
+  const intersection = set1.filter((x) => set2.includes(x));
   const union = new Set([...set1, ...set2]);
-  
+
   return intersection.length / union.size;
 }
 
@@ -145,7 +188,7 @@ function calculateJaccardSimilarity(set1: string[], set2: string[]): number {
  */
 function containsKeywords(text: string, keywords: string[]): boolean {
   const textLower = text.toLowerCase();
-  return keywords.some(keyword => textLower.includes(keyword.toLowerCase()));
+  return keywords.some((keyword) => textLower.includes(keyword.toLowerCase()));
 }
 
 /**
@@ -165,28 +208,28 @@ export function prioritizeMemories(
   config: MemoryPriorityConfig = DEFAULT_CONFIG
 ): PrioritizedMemory[] {
   // Convert to prioritized memories
-  const prioritized: PrioritizedMemory[] = memories.map(memory => ({
+  const prioritized: PrioritizedMemory[] = memories.map((memory) => ({
     ...memory,
     relevanceScore: calculateRelevanceScore(memory, context, config),
     priorityScore: 0, // Will be calculated below
     lastAccessed: new Date(memory.createdAt),
     accessCount: 1,
     keywords: extractKeywords(memory.content),
-    contextLinks: extractContextLinks(memory.content)
+    contextLinks: extractContextLinks(memory.content),
   }));
-  
+
   // Calculate priority score (relevance + category boost)
-  prioritized.forEach(memory => {
+  prioritized.forEach((memory) => {
     let categoryBoost = 0;
     if (memory.category === 'verslas') categoryBoost = 0.1;
     if (memory.category === 'klientas') categoryBoost = 0.05;
-    
+
     memory.priorityScore = memory.relevanceScore + categoryBoost;
   });
-  
+
   // Filter by minimum relevance and sort by priority
   return prioritized
-    .filter(memory => memory.relevanceScore >= config.minRelevanceScore)
+    .filter((memory) => memory.relevanceScore >= config.minRelevanceScore)
     .sort((a, b) => b.priorityScore - a.priorityScore)
     .slice(0, config.maxMemories);
 }
@@ -196,41 +239,39 @@ export function prioritizeMemories(
  */
 function extractContextLinks(content: string): PrioritizedMemory['contextLinks'] {
   const links: PrioritizedMemory['contextLinks'] = {};
-  
+
   // Look for client IDs (format: "klientas ID" or "client ID")
-  const clientMatch = content.match(/klientas?\s+([A-Za-z0-9-]+)/i) ||
-                     content.match(/client\s+([A-Za-z0-9-]+)/i);
+  const clientMatch =
+    content.match(/klientas?\s+([A-Za-z0-9-]+)/i) || content.match(/client\s+([A-Za-z0-9-]+)/i);
   if (clientMatch) links.clientId = clientMatch[1];
-  
+
   // Look for order IDs (format: "užsakymas ID" or "order ID")
-  const orderMatch = content.match(/užsakymas?\s+([A-Za-z0-9-]+)/i) ||
-                    content.match(/order\s+([A-Za-z0-9-]+)/i);
+  const orderMatch =
+    content.match(/užsakymas?\s+([A-Za-z0-9-]+)/i) || content.match(/order\s+([A-Za-z0-9-]+)/i);
   if (orderMatch) links.orderId = orderMatch[1];
-  
+
   return links;
 }
 
 /**
  * Format memories for AI context injection
  */
-export function formatMemoriesForContext(
-  prioritizedMemories: PrioritizedMemory[]
-): string {
+export function formatMemoriesForContext(prioritizedMemories: PrioritizedMemory[]): string {
   if (prioritizedMemories.length === 0) {
     return 'Nėra susijusių prisiminimų.';
   }
-  
+
   const formatted = prioritizedMemories.map((memory, index) => {
     const categoryEmoji = getCategoryEmoji(memory.category);
     const importanceStars = '⭐'.repeat(memory.importance || 3);
     const relevanceIndicator = memory.relevanceScore > 0.7 ? '🔥' : '💡';
-    
+
     return `${index + 1}. ${relevanceIndicator} ${categoryEmoji} [${memory.category.toUpperCase()}] ${importanceStars}
    "${memory.content}"
    ${memory.eventDate ? `📅 ${memory.eventDate}` : ''}
    Reikšmingumas: ${(memory.relevanceScore * 100).toFixed(0)}%`;
   });
-  
+
   return `📚 **ILGALAIKĖ ATMINTIS** (reikšmingiausi įrašai):
 ${formatted.join('\n\n')}`;
 }
@@ -240,24 +281,27 @@ ${formatted.join('\n\n')}`;
  */
 function getCategoryEmoji(category: Memory['category']): string {
   switch (category) {
-    case 'klientas': return '👤';
-    case 'verslas': return '💼';
-    case 'procesas': return '⚙️';
-    case 'kita': return '📌';
-    default: return '📄';
+    case 'klientas':
+      return '👤';
+    case 'verslas':
+      return '💼';
+    case 'procesas':
+      return '⚙️';
+    case 'kita':
+      return '📌';
+    default:
+      return '📄';
   }
 }
 
 /**
  * Update memory access tracking
  */
-export function updateMemoryAccess(
-  memory: PrioritizedMemory
-): PrioritizedMemory {
+export function updateMemoryAccess(memory: PrioritizedMemory): PrioritizedMemory {
   return {
     ...memory,
     lastAccessed: new Date(),
-    accessCount: memory.accessCount + 1
+    accessCount: memory.accessCount + 1,
   };
 }
 
@@ -275,9 +319,7 @@ export function isMemoryStillRelevant(
 /**
  * Get memory statistics for monitoring
  */
-export function getMemoryStatistics(
-  memories: PrioritizedMemory[]
-): {
+export function getMemoryStatistics(memories: PrioritizedMemory[]): {
   totalMemories: number;
   averageRelevance: number;
   categoryDistribution: Record<string, number>;
@@ -288,28 +330,28 @@ export function getMemoryStatistics(
       totalMemories: 0,
       averageRelevance: 0,
       categoryDistribution: {},
-      topRelevantMemories: []
+      topRelevantMemories: [],
     };
   }
-  
+
   const categoryDistribution: Record<string, number> = {};
   let totalRelevance = 0;
-  
-  memories.forEach(memory => {
+
+  memories.forEach((memory) => {
     categoryDistribution[memory.category] = (categoryDistribution[memory.category] || 0) + 1;
     totalRelevance += memory.relevanceScore;
   });
-  
+
   const topRelevantMemories = [...memories]
     .sort((a, b) => b.relevanceScore - a.relevanceScore)
     .slice(0, 5)
-    .map(m => ({ id: m.id, relevance: m.relevanceScore }));
-  
+    .map((m) => ({ id: m.id, relevance: m.relevanceScore }));
+
   return {
     totalMemories: memories.length,
     averageRelevance: totalRelevance / memories.length,
     categoryDistribution,
-    topRelevantMemories
+    topRelevantMemories,
   };
 }
 
@@ -322,39 +364,42 @@ export function shouldSuggestMemory(
   existingMemories: Memory[]
 ): { shouldRemember: boolean; suggestedContent: string; reason: string } {
   const queryLower = query.toLowerCase();
-  
+
   // Check if query contains memory-worthy patterns
   const memoryPatterns = [
     { pattern: /prisimink|įsimink|atsimink|memory/i, reason: 'Explicit memory request' },
     { pattern: /taisyklė|rule|politika/i, reason: 'Rule or policy mentioned' },
     { pattern: /visada|niekada|dažnai|retai/i, reason: 'Frequency pattern detected' },
     { pattern: /svarbu|svarbiausia|prioritet/i, reason: 'Importance indicator' },
-    { pattern: /procesas|workflow|etap/i, reason: 'Process description' }
+    { pattern: /procesas|workflow|etap/i, reason: 'Process description' },
   ];
-  
+
   for (const { pattern, reason } of memoryPatterns) {
     if (pattern.test(query)) {
       return {
         shouldRemember: true,
         suggestedContent: extractMemoryContent(query, response),
-        reason
+        reason,
       };
     }
   }
-  
+
   // Check if response contains data worth remembering
-  if (response.length > 100 && (response.toLowerCase().includes('svarbu') || response.toLowerCase().includes('reikia'))) {
+  if (
+    response.length > 100 &&
+    (response.toLowerCase().includes('svarbu') || response.toLowerCase().includes('reikia'))
+  ) {
     return {
       shouldRemember: true,
       suggestedContent: summarizeForMemory(query, response),
-      reason: 'Response contains important information'
+      reason: 'Response contains important information',
     };
   }
-  
+
   return {
     shouldRemember: false,
     suggestedContent: '',
-    reason: 'No memory-worthy content detected'
+    reason: 'No memory-worthy content detected',
   };
 }
 
@@ -363,7 +408,7 @@ export function shouldSuggestMemory(
  */
 function extractMemoryContent(query: string, response: string): string {
   // Simple extraction - in production, you might use AI for summarization
-  const queryParts = query.split(/[.!?]/).filter(p => p.trim().length > 10);
+  const queryParts = query.split(/[.!?]/).filter((p) => p.trim().length > 10);
   return queryParts[0]?.trim() || query.slice(0, 200);
 }
 
@@ -372,16 +417,18 @@ function extractMemoryContent(query: string, response: string): string {
  */
 function summarizeForMemory(query: string, response: string): string {
   // Extract key points from response
-  const keyPhrases = response.split(/[.!?]/)
-    .filter(sentence => 
-      sentence.includes('svarbu') || 
-      sentence.includes('reikia') ||
-      sentence.includes('turėtų') ||
-      sentence.length > 30
+  const keyPhrases = response
+    .split(/[.!?]/)
+    .filter(
+      (sentence) =>
+        sentence.includes('svarbu') ||
+        sentence.includes('reikia') ||
+        sentence.includes('turėtų') ||
+        sentence.length > 30
     )
     .slice(0, 2)
-    .map(s => s.trim());
-  
+    .map((s) => s.trim());
+
   return keyPhrases.join('. ') || response.slice(0, 200);
 }
 

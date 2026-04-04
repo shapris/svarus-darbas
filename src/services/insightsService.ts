@@ -1,6 +1,6 @@
 // Dashboard business insights and analytics
 
-import { Order, Client, Expense, Memory } from "../types";
+import { Order, Client, Expense, Memory } from '../types';
 import { getAiInstance, getGeminiApiKeyForSdk, consumeAiBudget } from './aiService';
 import { isOpenRouterKey, callOpenRouter } from './openRouterService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
@@ -15,7 +15,10 @@ export interface DashboardInsight {
 
 const DASHBOARD_INSIGHT_ORDER: DashboardInsightId[] = ['memory', 'market', 'operations'];
 
-export const DASHBOARD_INSIGHT_LABELS: Record<DashboardInsightId, { defaultTitle: string; badge: string }> = {
+export const DASHBOARD_INSIGHT_LABELS: Record<
+  DashboardInsightId,
+  { defaultTitle: string; badge: string }
+> = {
   memory: {
     defaultTitle: 'Asistento atmintis ir komandos tobulėjimas',
     badge: 'Atmintis',
@@ -110,7 +113,11 @@ function parseDashboardInsightsPayload(obj: unknown): DashboardInsight[] | null 
     return [
       { id: 'memory', title: DASHBOARD_INSIGHT_LABELS.memory.defaultTitle, text: a.trim() },
       { id: 'market', title: DASHBOARD_INSIGHT_LABELS.market.defaultTitle, text: (b || a).trim() },
-      { id: 'operations', title: DASHBOARD_INSIGHT_LABELS.operations.defaultTitle, text: (c || b || a).trim() },
+      {
+        id: 'operations',
+        title: DASHBOARD_INSIGHT_LABELS.operations.defaultTitle,
+        text: (c || b || a).trim(),
+      },
     ];
   }
 
@@ -121,7 +128,7 @@ function buildDashboardInsightsFallback(
   orders: Order[],
   clients: Client[],
   memories: Memory[],
-  expenses: Expense[],
+  expenses: Expense[]
 ): DashboardInsight[] {
   const teamMemories = memories.filter((m) => m.isActive !== false);
   const memoryText =
@@ -129,21 +136,27 @@ function buildDashboardInsightsFallback(
       ? `Pagal ${teamMemories.length} aktyvius asistento įrašus: ${teamMemories
           .slice(0, 5)
           .map((m) => m.content)
-          .join(' · ')}${teamMemories.length > 5 ? ' …' : ''} Peržiūrėkite visą atmintį skiltyje „Asistentas" ir atnaujinkite prioritetus komandos susirinkimui.`
+          .join(
+            ' · '
+          )}${teamMemories.length > 5 ? ' …' : ''} Peržiūrėkite visą atmintį skiltyje „Asistentas" ir atnaujinkite prioritetus komandos susirinkimui.`
       : 'Asistento atmintyje įrašų nėra — fiksuokite sprendimus, klientų ypatumus ir mokymų temas, kad valdymo komanda galėtų nuosekliai tobulėti.';
 
-  const priemones = expenses.filter((e) => e.category === 'priemonės').reduce((s, e) => s + e.amount, 0);
+  const priemones = expenses
+    .filter((e) => e.category === 'priemonės')
+    .reduce((s, e) => s + e.amount, 0);
   const kuras = expenses.filter((e) => e.category === 'kuras').reduce((s, e) => s + e.amount, 0);
   const marketText = `Išlaidų signalai: priemonės ${priemones.toFixed(0)} €, kuras ${kuras.toFixed(0)} € (iš viso ${expenses.length} įrašų). Planuokite sezono pasiūlymus ir naujų užsakymų paiešką (reklama, partneriai, B2B). Įrangai: peržiūrėkite ar priedai atitinka augantį užsakymų kiekį (${orders.length} užsakymų sistemoje).`;
 
   const now = new Date();
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-  const neglected = clients.filter((c) => {
-    const lastOrder = orders
-      .filter((o) => o.clientId === c.id)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-    return !lastOrder || new Date(lastOrder.date) < sixtyDaysAgo;
-  }).slice(0, 3);
+  const neglected = clients
+    .filter((c) => {
+      const lastOrder = orders
+        .filter((o) => o.clientId === c.id)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      return !lastOrder || new Date(lastOrder.date) < sixtyDaysAgo;
+    })
+    .slice(0, 3);
   const opsText =
     neglected.length > 0
       ? `Dėmesio reikalauja klientai (>60 d. be užsakymo): ${neglected.map((c) => `${c.name} (${c.phone || 'tel. nėra'})`).join('; ')}. Susisiekite su konkrečiu pasiūlymu ir data.`
@@ -162,7 +175,7 @@ function buildBusinessInsightsPrompt(
   orders: Order[],
   clients: Client[],
   memories: Memory[],
-  expenses: Expense[],
+  expenses: Expense[]
 ): string {
   const now = new Date();
   const month = now.getMonth() + 1;
@@ -197,7 +210,7 @@ function buildBusinessInsightsPrompt(
       acc[e.category] = (acc[e.category] || 0) + e.amount;
       return acc;
     },
-    {} as Record<string, number>,
+    {} as Record<string, number>
   );
 
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
@@ -238,13 +251,13 @@ Užsakymų iš viso: ${orders.length}, klientų: ${clients.length}
 
 --- DUOMENYS: OPERACIJOS IR KLIENTAI ---
 Pamesti ar ilgai neaktyvūs klientai (>60 d.): ${JSON.stringify(
-    neglectedClients.map((c) => ({ vardas: c.name, telefonas: c.phone, adresas: c.address })),
+    neglectedClients.map((c) => ({ vardas: c.name, telefonas: c.phone, adresas: c.address }))
   )}
 Didžiausi klientai pagal apyvartą: ${JSON.stringify(
     topSpenders.map(([id, sum]) => {
       const client = clients.find((c) => c.id === id);
       return { vardas: client?.name, sumaEur: sum, telefonas: client?.phone };
-    }),
+    })
   )}
 Paskutiniai užsakymai: ${JSON.stringify(
     orders.slice(0, 18).map((o) => ({
@@ -252,14 +265,14 @@ Paskutiniai užsakymai: ${JSON.stringify(
       kaina: o.totalPrice,
       statusas: o.status,
       adresas: o.address,
-    })),
+    }))
   )}
 Klientų imtis: ${JSON.stringify(
     clients.slice(0, 25).map((c) => ({
       vardas: c.name,
       adresas: c.address,
       telefonas: c.phone,
-    })),
+    }))
   )}
 
 UŽDUOTIS — PATEIK TIKSLIAI 3 ATSKIRAS ĮŽVALGAS (lietuviškai), kad komanda galėtų TOBULĖTI:
@@ -293,7 +306,7 @@ export async function getBusinessInsights(
   orders: Order[],
   clients: Client[],
   memories: Memory[] = [],
-  expenses: Expense[] = [],
+  expenses: Expense[] = []
 ): Promise<DashboardInsight[]> {
   const requestKey = `${orders.length}|${clients.length}|${memories.length}|${expenses.length}`;
   if (inFlightInsightsPromise && inFlightInsightsKey === requestKey) {
@@ -301,109 +314,108 @@ export async function getBusinessInsights(
   }
 
   const run = async (): Promise<DashboardInsight[]> => {
-  const apiKey =
-    localStorage.getItem('custom_api_key') ||
-    (window as any).aistudio?.getApiKey?.() ||
-    getGeminiKeyFromEnv() ||
-    '';
+    const apiKey =
+      localStorage.getItem('custom_api_key') ||
+      (window as any).aistudio?.getApiKey?.() ||
+      getGeminiKeyFromEnv() ||
+      '';
 
-  const prompt = buildBusinessInsightsPrompt(orders, clients, memories, expenses);
-  const fallback = buildDashboardInsightsFallback(orders, clients, memories, expenses);
-  const geminiKey = getGeminiApiKeyForSdk();
+    const prompt = buildBusinessInsightsPrompt(orders, clients, memories, expenses);
+    const fallback = buildDashboardInsightsFallback(orders, clients, memories, expenses);
+    const geminiKey = getGeminiApiKeyForSdk();
 
-  if (!apiKey && !geminiKey) {
+    if (!apiKey && !geminiKey) {
+      lastInsightsSource = 'fallback';
+      return fallback;
+    }
+
+    const runOpenRouterInsights = async (): Promise<DashboardInsight[] | null> => {
+      if (isCooldownActive(openRouterInsightsCooldownUntil)) {
+        return null;
+      }
+      if (!consumeAiBudget(1)) {
+        return null;
+      }
+      try {
+        const result = await callOpenRouter('free-auto', [{ role: 'user', content: prompt }]);
+        if (!result || !result.choices || !result.choices[0]) {
+          return null;
+        }
+        const text = result.choices[0].message?.content || '';
+        if (!text) return null;
+
+        const normalized = normalizeLikelyJsonFromChatModel(text);
+        const jsonSlice = normalized.startsWith('{')
+          ? normalized
+          : (normalized.match(/\{[\s\S]*\}/)?.[0] ?? text.match(/\{[\s\S]*\}/)?.[0]);
+        if (!jsonSlice) return null;
+
+        try {
+          return parseDashboardInsightsPayload(JSON.parse(jsonSlice));
+        } catch {
+          console.warn('Insights: nepavyko išanalizuoti OpenRouter JSON, bandoma kita paslauga');
+          return null;
+        }
+      } catch (e: unknown) {
+        if (isRateLimitOrQuotaError(e)) {
+          openRouterInsightsCooldownUntil = Date.now() + extractRetryDelayMs(e);
+        }
+        console.warn('OpenRouter insights:', e);
+        return null;
+      }
+    };
+
+    const runGeminiInsights = async (): Promise<DashboardInsight[] | null> => {
+      if (!geminiKey) return null;
+      if (isCooldownActive(geminiInsightsCooldownUntil)) {
+        return null;
+      }
+      if (!consumeAiBudget(1)) {
+        return null;
+      }
+      try {
+        const ai = getAiInstance(geminiKey);
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: { responseMimeType: 'application/json' },
+        });
+        const text = response.text;
+        if (!text) return null;
+
+        try {
+          return parseDashboardInsightsPayload(JSON.parse(text));
+        } catch {
+          console.warn('Insights: nepavyko išanalizuoti Gemini JSON');
+          return null;
+        }
+      } catch (error) {
+        if (isRateLimitOrQuotaError(error)) {
+          geminiInsightsCooldownUntil = Date.now() + extractRetryDelayMs(error);
+          return null;
+        }
+        // Keep dev console clean for expected provider failures.
+        return null;
+      }
+    };
+
+    /** Pirmiau Gemini — išvengiama OpenRouter „free“ dienos ribos kiekvienam dashboard atnaujinimui. */
+    const fromGeminiFirst = await runGeminiInsights();
+    if (fromGeminiFirst) {
+      lastInsightsSource = 'ai';
+      return fromGeminiFirst;
+    }
+
+    if (apiKey && isOpenRouterKey(apiKey)) {
+      const fromOr = await runOpenRouterInsights();
+      if (fromOr) {
+        lastInsightsSource = 'ai';
+        return fromOr;
+      }
+    }
+
     lastInsightsSource = 'fallback';
     return fallback;
-  }
-
-  const runOpenRouterInsights = async (): Promise<DashboardInsight[] | null> => {
-    if (isCooldownActive(openRouterInsightsCooldownUntil)) {
-      return null;
-    }
-    if (!consumeAiBudget(1)) {
-      return null;
-    }
-    try {
-      const result = await callOpenRouter('free-auto', [{ role: 'user', content: prompt }]);
-      if (!result || !result.choices || !result.choices[0]) {
-        return null;
-      }
-      const text = result.choices[0].message?.content || '';
-      if (!text) return null;
-
-      const normalized = normalizeLikelyJsonFromChatModel(text);
-      const jsonSlice =
-        normalized.startsWith('{')
-          ? normalized
-          : normalized.match(/\{[\s\S]*\}/)?.[0] ?? text.match(/\{[\s\S]*\}/)?.[0];
-      if (!jsonSlice) return null;
-
-      try {
-        return parseDashboardInsightsPayload(JSON.parse(jsonSlice));
-      } catch {
-        console.warn('Insights: nepavyko išanalizuoti OpenRouter JSON, bandoma kita paslauga');
-        return null;
-      }
-    } catch (e: unknown) {
-      if (isRateLimitOrQuotaError(e)) {
-        openRouterInsightsCooldownUntil = Date.now() + extractRetryDelayMs(e);
-      }
-      console.warn('OpenRouter insights:', e);
-      return null;
-    }
-  };
-
-  const runGeminiInsights = async (): Promise<DashboardInsight[] | null> => {
-    if (!geminiKey) return null;
-    if (isCooldownActive(geminiInsightsCooldownUntil)) {
-      return null;
-    }
-    if (!consumeAiBudget(1)) {
-      return null;
-    }
-    try {
-      const ai = getAiInstance(geminiKey);
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: { responseMimeType: 'application/json' },
-      });
-      const text = response.text;
-      if (!text) return null;
-
-      try {
-        return parseDashboardInsightsPayload(JSON.parse(text));
-      } catch {
-        console.warn('Insights: nepavyko išanalizuoti Gemini JSON');
-        return null;
-      }
-    } catch (error) {
-      if (isRateLimitOrQuotaError(error)) {
-        geminiInsightsCooldownUntil = Date.now() + extractRetryDelayMs(error);
-        return null;
-      }
-      // Keep dev console clean for expected provider failures.
-      return null;
-    }
-  };
-
-  /** Pirmiau Gemini — išvengiama OpenRouter „free“ dienos ribos kiekvienam dashboard atnaujinimui. */
-  const fromGeminiFirst = await runGeminiInsights();
-  if (fromGeminiFirst) {
-    lastInsightsSource = 'ai';
-    return fromGeminiFirst;
-  }
-
-  if (apiKey && isOpenRouterKey(apiKey)) {
-    const fromOr = await runOpenRouterInsights();
-    if (fromOr) {
-      lastInsightsSource = 'ai';
-      return fromOr;
-    }
-  }
-
-  lastInsightsSource = 'fallback';
-  return fallback;
   };
 
   inFlightInsightsKey = requestKey;

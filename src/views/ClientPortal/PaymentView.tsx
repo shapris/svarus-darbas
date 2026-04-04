@@ -4,18 +4,27 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Calendar, DollarSign, CheckCircle, AlertCircle, FileText, Download } from 'lucide-react';
+import {
+  CreditCard,
+  Calendar,
+  DollarSign,
+  CheckCircle,
+  AlertCircle,
+  FileText,
+  Download,
+} from 'lucide-react';
 import { Order, Invoice } from '../../types';
-import { 
-  createPaymentIntent, 
-  confirmPayment, 
-  generateInvoice, 
-  getInvoices, 
+import {
+  createPaymentIntent,
+  confirmPayment,
+  generateInvoice,
+  getInvoices,
+  getInvoicePdfBlob,
   formatAmountFromEur,
   getInvoiceStatusText,
   getInvoiceStatusColor,
   validatePaymentForm,
-  type PaymentFormData
+  type PaymentFormData,
 } from '../../services/paymentService';
 import { motion } from 'motion/react';
 import { useToast } from '../../hooks/useToast';
@@ -35,7 +44,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
     expiryDate: '',
     cvc: '',
     name: '',
-    email: ''
+    email: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [paymentProcessing, setPaymentProcessing] = useState(false);
@@ -47,7 +56,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
   const loadInvoices = async () => {
     try {
       const invoiceList = await getInvoices(order.clientId);
-      setInvoices(invoiceList.filter(inv => inv.order_id === order.id));
+      setInvoices(invoiceList.filter((inv) => inv.order_id === order.id));
     } catch {
       // Failed to load invoices silently
     }
@@ -64,25 +73,25 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
     try {
       // Create payment intent
       const paymentIntent = await createPaymentIntent(order);
-      
+
       // Confirm payment
       await confirmPayment(paymentIntent.client_secret!);
-      
+
       // Generate invoice
       await generateInvoice(order);
-      
+
       // Reload invoices
       await loadInvoices();
-      
+
       setShowPaymentForm(false);
       setPaymentData({
         cardNumber: '',
         expiryDate: '',
         cvc: '',
         name: '',
-        email: ''
+        email: '',
       });
-      
+
       if (onPaymentComplete) {
         onPaymentComplete();
       }
@@ -100,7 +109,10 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
 
     // Format card number
     if (name === 'cardNumber') {
-      formattedValue = value.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
+      formattedValue = value
+        .replace(/\s/g, '')
+        .replace(/(.{4})/g, '$1 ')
+        .trim();
     }
 
     // Format expiry date
@@ -113,14 +125,13 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
       formattedValue = value.replace(/\D/g, '');
     }
 
-    setPaymentData(prev => ({ ...prev, [name]: formattedValue }));
-    setFormErrors(prev => ({ ...prev, [name]: '' }));
+    setPaymentData((prev) => ({ ...prev, [name]: formattedValue }));
+    setFormErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
   const downloadInvoice = async (invoice: Invoice) => {
     try {
-      const response = await fetch(`/api/invoices/${invoice.id}/pdf`);
-      const blob = await response.blob();
+      const blob = await getInvoicePdfBlob(invoice.id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -134,8 +145,8 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
     }
   };
 
-  const isOrderPaid = invoices.some(inv => inv.status === 'paid');
-  const hasPendingInvoice = invoices.some(inv => inv.status === 'pending');
+  const isOrderPaid = invoices.some((inv) => inv.status === 'paid');
+  const hasPendingInvoice = invoices.some((inv) => inv.status === 'pending');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -223,7 +234,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
           className="bg-white rounded-lg shadow p-6"
         >
           <h2 className="text-xl font-semibold text-gray-900 mb-6">Mokėjimo Informacija</h2>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -269,9 +280,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  CVC
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">CVC</label>
                 <input
                   type="text"
                   name="cvc"
@@ -284,16 +293,12 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
                   maxLength={4}
                   disabled={paymentProcessing}
                 />
-                {formErrors.cvc && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.cvc}</p>
-                )}
+                {formErrors.cvc && <p className="mt-1 text-sm text-red-600">{formErrors.cvc}</p>}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Vardas Pavardė
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Vardas Pavardė</label>
               <input
                 type="text"
                 name="name"
@@ -305,15 +310,11 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
                 }`}
                 disabled={paymentProcessing}
               />
-              {formErrors.name && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>
-              )}
+              {formErrors.name && <p className="mt-1 text-sm text-red-600">{formErrors.name}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                El. Paštas
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">El. Paštas</label>
               <input
                 type="email"
                 name="email"
@@ -325,9 +326,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
                 }`}
                 disabled={paymentProcessing}
               />
-              {formErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
-              )}
+              {formErrors.email && <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>}
             </div>
           </div>
 
@@ -368,7 +367,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
         className="bg-white rounded-lg shadow p-6"
       >
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Sąskaitos</h2>
-        
+
         {invoices.length === 0 ? (
           <div className="text-center py-8">
             <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -390,7 +389,9 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusColor(invoice.status)}`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusColor(invoice.status)}`}
+                      >
                         {getInvoiceStatusText(invoice.status)}
                       </span>
                       <p className="text-lg font-semibold mt-1">

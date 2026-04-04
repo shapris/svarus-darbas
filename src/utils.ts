@@ -4,7 +4,7 @@
  */
 
 import { AppSettings, Order, Client, INVOICE_API_STORAGE_KEY } from './types';
-import { isDemoMode, supabase } from './supabase';
+import { usesLocalStorageBackend, supabase } from './supabase';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import dejaVuSansUrl from 'dejavu-fonts-ttf/ttf/DejaVuSans.ttf?url';
@@ -83,16 +83,16 @@ export function calculateOrderPrice(
   settings: AppSettings
 ): number {
   let total = windowCount * settings.pricePerWindow;
-  
+
   if (floor > 1) {
     total += (floor - 1) * settings.pricePerFloor;
   }
-  
+
   if (additionalServices.balkonai) total += settings.priceBalkonai;
   if (additionalServices.vitrinos) total += settings.priceVitrinos;
   if (additionalServices.terasa) total += settings.priceTerasa;
   if (additionalServices.kiti) total += settings.priceKiti;
-  
+
   return total;
 }
 
@@ -122,7 +122,11 @@ export function formatDuration(minutes: number): string {
 }
 
 /** Suspaudžia paveikslą į JPEG data URL saugojimui DB (užsakymo nuotraukos). */
-export function compressImageToJpegDataUrl(file: File, maxWidth = 1280, quality = 0.82): Promise<string> {
+export function compressImageToJpegDataUrl(
+  file: File,
+  maxWidth = 1280,
+  quality = 0.82
+): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
       reject(new Error('Pasirinkite paveikslo failą'));
@@ -161,14 +165,18 @@ export function compressImageToJpegDataUrl(file: File, maxWidth = 1280, quality 
   });
 }
 
-export async function geocodeAddress(address: string): Promise<{ lat: number, lng: number } | null> {
+export async function geocodeAddress(
+  address: string
+): Promise<{ lat: number; lng: number } | null> {
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Lithuania')}`);
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Lithuania')}`
+    );
     const data = await response.json();
     if (data && data.length > 0) {
       return {
         lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon)
+        lng: parseFloat(data[0].lon),
       };
     }
     return null;
@@ -228,10 +236,15 @@ function downloadPdfBlob(blob: Blob, filename: string): void {
  * Produkcijoje tuščia = serverio nėra – automatinis el. paštas nebandomas.
  */
 function getInvoiceApiBaseUrl(): string {
-  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, '');
+  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)
+    ?.trim()
+    .replace(/\/$/, '');
   if (envUrl) return envUrl;
   try {
-    const ls = typeof localStorage !== 'undefined' ? localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim() : '';
+    const ls =
+      typeof localStorage !== 'undefined'
+        ? localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim()
+        : '';
     if (ls) return ls.replace(/\/$/, '');
   } catch {
     /* private mode */
@@ -240,33 +253,99 @@ function getInvoiceApiBaseUrl(): string {
   return '';
 }
 
-/** Trumpa /health talpa — nebekviesti POST (503) kai Resend nesukonfigūruotas. */
-let invoiceServerEmailCache: { expires: number; enabled: boolean } | null = null;
+type InvoiceHealthJson = {
+  status?: string;
+  invoiceEmail?: boolean;
+  backend?: string;
+  hint?: string;
+  proxyError?: string;
+};
+
+function invoiceHealthUrl(base: string): string {
+  return base === '' ? '/health' : `${base.replace(/\/$/, '')}/health`;
+}
+
 const INVOICE_HEALTH_TTL_MS = 60_000;
 
-async function isInvoiceEmailServerReady(base: string): Promise<boolean> {
+type InvoiceHealthSnapshot = { httpOk: boolean; body: InvoiceHealthJson | null };
+
+/**
+ * Vienas /health skaitymas su TTL — ir „ar galima siųsti el. paštu“, ir toast hint’ai naudoja tą patį atsakymą
+ * (išvengia dvigubo fetch vienam sąskaitos veiksmui).
+ */
+let invoiceHealthSnapshotCache: {
+  base: string;
+  expires: number;
+  snapshot: InvoiceHealthSnapshot;
+} | null = null;
+
+async function getInvoiceHealthSnapshot(base: string): Promise<InvoiceHealthSnapshot> {
   const now = Date.now();
-  if (invoiceServerEmailCache && invoiceServerEmailCache.expires > now) {
-    return invoiceServerEmailCache.enabled;
+  if (
+    invoiceHealthSnapshotCache &&
+    invoiceHealthSnapshotCache.base === base &&
+    invoiceHealthSnapshotCache.expires > now
+  ) {
+    return invoiceHealthSnapshotCache.snapshot;
   }
-  const healthUrl = base === '' ? '/health' : `${base.replace(/\/$/, '')}/health`;
+
   try {
-    const r = await fetch(healthUrl, { cache: 'no-store' });
+    const r = await fetch(invoiceHealthUrl(base), { cache: 'no-store' });
     if (!r.ok) {
-      invoiceServerEmailCache = { expires: now + 15_000, enabled: false };
-      return false;
+      const snapshot = { httpOk: false, body: null };
+      invoiceHealthSnapshotCache = { base, expires: now + 15_000, snapshot };
+      return snapshot;
     }
-    const j = (await r.json().catch(() => ({}))) as { invoiceEmail?: boolean };
-    const enabled = !!j.invoiceEmail;
-    invoiceServerEmailCache = {
-      expires: now + (enabled ? INVOICE_HEALTH_TTL_MS : 20_000),
-      enabled,
+    const body = (await r.json()) as InvoiceHealthJson;
+    const snapshot = { httpOk: true, body };
+    const invoiceEmail = !!body.invoiceEmail;
+    invoiceHealthSnapshotCache = {
+      base,
+      expires: now + (invoiceEmail ? INVOICE_HEALTH_TTL_MS : 20_000),
+      snapshot,
     };
-    return enabled;
+    return snapshot;
   } catch {
-    invoiceServerEmailCache = { expires: now + 15_000, enabled: false };
-    return false;
+    const snapshot = { httpOk: false, body: null };
+    invoiceHealthSnapshotCache = { base, expires: now + 15_000, snapshot };
+    return snapshot;
   }
+}
+
+/**
+ * Aiškus tekstas vartotojui, kodėl automatinis el. paštas nebuvo naudojamas (be konsolės triukšmo).
+ */
+function invoiceAutomationHintFromHealth(
+  h: InvoiceHealthJson | null,
+  base: string
+): string | null {
+  if (!h) {
+    if (import.meta.env.PROD && base === '') return null;
+    return (
+      'Nepavyko pasiekti sąskaitų API (/health). Automatinis laiškas su PDF nebuvo siųstas. ' +
+      (import.meta.env.DEV
+        ? 'Lokaliai paleiskite API: npm run server (portas 3001) arba npm run dev:full.'
+        : 'Patikrinkite, ar API adresas teisingas ir pasiekiamas.')
+    );
+  }
+  if (h.backend === 'unavailable' || (h.proxyError && String(h.proxyError).length > 0)) {
+    return (
+      'API serveris nepasiekiamas (dažniausiai neveikia portas 3001). ' +
+      'Paleiskite terminale: npm run server arba npm run dev:full, tada bandykite dar kartą.'
+    );
+  }
+  if (!h.invoiceEmail) {
+    return (
+      'Automatinis el. paštas išjungtas: serveryje nėra RESEND_API_KEY (.env šalia server.cjs). ' +
+      'PDF paruoštas — naudokite atsisiuntimą arba paštą toliau.'
+    );
+  }
+  return null;
+}
+
+async function isInvoiceEmailServerReady(base: string): Promise<boolean> {
+  const { httpOk, body } = await getInvoiceHealthSnapshot(base);
+  return httpOk && !!body?.invoiceEmail;
 }
 
 function blobToBase64DataPart(blob: Blob): Promise<string> {
@@ -290,7 +369,11 @@ type TryServerEmailResult =
 function enrichInvoiceEmailError(status: number, rawMessage: string): string {
   const msg = rawMessage.trim() || `HTTP ${status}`;
   const low = msg.toLowerCase();
-  if (low.includes('verify a domain') || low.includes('testing emails') || low.includes('resend.com')) {
+  if (
+    low.includes('verify a domain') ||
+    low.includes('testing emails') ||
+    low.includes('resend.com')
+  ) {
     return (
       msg +
       ' — Patarimas: Resend → Domains: patvirtinkite domeną (pvz. svarusdarbas.lt), Render env Nustatykite RESEND_FROM_EMAIL iš to domeno. Kol domenas nepatvirtintas, testuokite tik siųsdami į savo patvirtintą paštą (Resend account email).'
@@ -328,7 +411,7 @@ async function trySendInvoiceEmailViaServer(
     return { kind: 'fallback' };
   }
 
-  if (isDemoMode || !supabase) {
+  if (usesLocalStorageBackend || !supabase) {
     return { kind: 'fallback' };
   }
 
@@ -407,7 +490,9 @@ function canSharePdfFile(file: File): boolean {
 /** „Bendrinti“ su PDF dažnai atveria nepatogų Windows dialogą — mobiliuose paliekame. */
 function isLikelyMobileOrTablet(): boolean {
   if (typeof navigator === 'undefined') return false;
-  return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  return /Android|iPhone|iPad|iPod|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 }
 
 /**
@@ -432,7 +517,8 @@ export async function deliverInvoicePdf(
         detail: 'Pasirinkite programą (paštas, žinutės ir kt.), kad išsiųstumėte PDF klientui.',
       };
     } catch (e) {
-      const name = e && typeof e === 'object' && 'name' in e ? String((e as { name: string }).name) : '';
+      const name =
+        e && typeof e === 'object' && 'name' in e ? String((e as { name: string }).name) : '';
       if (name === 'AbortError') {
         return { method: 'download', detail: 'Bendrinimas atšauktas.' };
       }
@@ -443,7 +529,9 @@ export async function deliverInvoicePdf(
 
   const email = client.email?.trim() ?? '';
   if (email && looksLikeValidEmail(email)) {
-    const subject = encodeURIComponent(`Sąskaita – ${order.clientName || client.name || 'klientas'}`);
+    const subject = encodeURIComponent(
+      `Sąskaita – ${order.clientName || client.name || 'klientas'}`
+    );
     const body = encodeURIComponent(INVOICE_MAIL_BODY_LT);
     const mailtoHref = `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
     // Po async (PDF + fetch) naršyklė blokuoja mailto be naujo vartotojo veiksmo — „Gerai“ čia jį atkuria.
@@ -511,7 +599,9 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   doc.setFontSize(8.5);
   const issueDate = formatDate(new Date().toISOString());
   const invNo = order.id.replace(/-/g, '').slice(0, 10).toUpperCase();
-  doc.text(`Serija SD  ·  Nr. ${invNo}  ·  Išrašymo data: ${issueDate}`, pageW / 2, 18.5, { align: 'center' });
+  doc.text(`Serija SD  ·  Nr. ${invNo}  ·  Išrašymo data: ${issueDate}`, pageW / 2, 18.5, {
+    align: 'center',
+  });
   doc.setTextColor(0, 0, 0);
 
   let y = 30;
@@ -571,7 +661,12 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   const wc = Math.max(1, order.windowCount || 0);
   const unit = order.totalPrice / wc;
   const tableData: string[][] = [
-    ['Langų valymas', `${order.windowCount} vnt.`, formatCurrency(unit), formatCurrency(order.totalPrice)],
+    [
+      'Langų valymas',
+      `${order.windowCount} vnt.`,
+      formatCurrency(unit),
+      formatCurrency(order.totalPrice),
+    ],
   ];
 
   if (order.additionalServices.balkonai) {
@@ -616,7 +711,8 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
     alternateRowStyles: { fillColor: [248, 250, 252] },
   });
 
-  const finalY = (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? y + 40;
+  const finalY =
+    (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? y + 40;
   const totalY = finalY + 14;
 
   doc.setDrawColor(...muted);
@@ -650,7 +746,10 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   return doc;
 }
 
-export async function createInvoicePdfBlob(order: Order, client: Client): Promise<{ blob: Blob; filename: string }> {
+export async function createInvoicePdfBlob(
+  order: Order,
+  client: Client
+): Promise<{ blob: Blob; filename: string }> {
   const doc = await buildInvoiceJsPdf(order, client);
   const safeName = (order.clientName || 'klientas').replace(/[^\w\u00C0-\u024f-]+/gi, '_');
   const filename = `saskaita_${safeName}_${order.date}.pdf`;
@@ -661,8 +760,12 @@ export async function createInvoicePdfBlob(order: Order, client: Client): Promis
  * Sugeneruoja sąskaitos PDF ir, jei įmanoma, automatiškai išsiunčia į kliento el. paštą
  * (server.cjs + Resend). Kitu atveju — Web Share / „mailto:“ / SMS / atsisiuntimas.
  */
-export async function generateInvoicePDF(order: Order, client: Client): Promise<InvoiceDeliveryResult> {
+export async function generateInvoicePDF(
+  order: Order,
+  client: Client
+): Promise<InvoiceDeliveryResult> {
   const { blob, filename } = await createInvoicePdfBlob(order, client);
+  const base = getInvoiceApiBaseUrl();
 
   const serverTry = await trySendInvoiceEmailViaServer(order, client, blob, filename);
   if (serverTry.kind === 'sent') {
@@ -672,5 +775,16 @@ export async function generateInvoicePDF(order: Order, client: Client): Promise<
     throw new Error(serverTry.message);
   }
 
-  return deliverInvoicePdf(order, client, blob, filename);
+  const hasClientEmail = !!(client.email?.trim() && looksLikeValidEmail(client.email.trim()));
+  let hint: string | null = null;
+  if (hasClientEmail && (import.meta.env.DEV || base !== '')) {
+    const { body: healthBody } = await getInvoiceHealthSnapshot(base);
+    hint = invoiceAutomationHintFromHealth(healthBody, base);
+  }
+
+  const result = await deliverInvoicePdf(order, client, blob, filename);
+  if (hint) {
+    return { ...result, detail: `${hint.trim()}\n\n${result.detail}` };
+  }
+  return result;
 }

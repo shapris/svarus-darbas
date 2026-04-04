@@ -89,7 +89,16 @@ export default function ClientAddressAutocomplete({
         geometry?: { location?: { lat: () => number; lng: () => number } };
       };
     };
-    const g = (window as unknown as { google: { maps: { places: { Autocomplete: new (el: HTMLInputElement, o: object) => GAc }; event: { clearInstanceListeners: (x: GAc) => void } } } }).google;
+    const g = (
+      window as unknown as {
+        google: {
+          maps: {
+            places: { Autocomplete: new (el: HTMLInputElement, o: object) => GAc };
+            event: { clearInstanceListeners: (x: GAc) => void };
+          };
+        };
+      }
+    ).google;
     if (!g?.maps?.places?.Autocomplete) return;
 
     const ac = new g.maps.places.Autocomplete(inputRef.current, {
@@ -132,12 +141,15 @@ export default function ClientAddressAutocomplete({
       />
       {!MAPS_KEY && (
         <p className="text-[10px] text-slate-400 leading-snug">
-          Google vietos paieškai pridėkite <code className="text-slate-600">VITE_GOOGLE_MAPS_API_KEY</code>{' '}
-          (Maps JavaScript API + Places API). Vis tiek galite įrašyti adresą ranka.
+          Google vietos paieškai pridėkite{' '}
+          <code className="text-slate-600">VITE_GOOGLE_MAPS_API_KEY</code> (Maps JavaScript API +
+          Places API). Vis tiek galite įrašyti adresą ranka.
         </p>
       )}
       {!!MAPS_KEY && mapsError && (
-        <p className="text-[10px] text-amber-600 leading-snug">Nepavyko įkelti Google Maps. Patikrinkite API raktą ir projekto nustatymus.</p>
+        <p className="text-[10px] text-amber-600 leading-snug">
+          Nepavyko įkelti Google Maps. Patikrinkite API raktą ir projekto nustatymus.
+        </p>
       )}
       {showLink && (
         <a

@@ -14,8 +14,7 @@ Klientų portalas leidžia jūsų klientams:
 
 Importuokite SQL schema:
 ```sql
--- Supabase: Eikite į SQL Editor -> įklijuokite client-portal-schema.sql
--- Firebase: Sukurkite profiles collection su tokia pačia struktūra
+-- Supabase: eikite į SQL Editor → įklijuokite client-portal-schema.sql
 ```
 
 ### 2. Aplinkos Kintamieji
@@ -24,10 +23,6 @@ Importuokite SQL schema:
 ```bash
 VITE_SUPABASE_URL=jūsų-supabase-url
 VITE_SUPABASE_ANON_KEY=jūsų-supabase-anon-key
-# ARBA
-VITE_USE_FIREBASE=true
-VITE_FIREBASE_API_KEY=jūsų-firebase-key
-VITE_FIREBASE_PROJECT_ID=jūsų-project-id
 ```
 
 ### 3. Paleidimas

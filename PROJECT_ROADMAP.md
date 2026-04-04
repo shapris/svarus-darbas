@@ -24,7 +24,7 @@
 1.5. Atskirta "staff" vs "client" rolės
 ```
 
-**Technologijos:** Firebase Auth / Supabase Auth
+**Technologijos:** Supabase Auth
 
 ---
 

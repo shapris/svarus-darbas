@@ -1,8 +1,8 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   --color-crm-primary: oklch(0.5 0.2 264);
   --color-crm-primary-hover: oklch(0.45 0.2 264);
 }
@@ -14,7 +14,8 @@
   font-size: 0.75rem;
 }
 
-.markdown-body th, .markdown-body td {
+.markdown-body th,
+.markdown-body td {
   border: 1px solid #e2e8f0;
   padding: 0.4rem;
   text-align: left;
@@ -45,7 +46,9 @@
   margin: 0.4rem 0;
 }
 
-.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
   font-weight: bold;
   margin-top: 0.8rem;
   margin-bottom: 0.4rem;

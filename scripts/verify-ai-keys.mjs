@@ -12,10 +12,16 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 const gemini = process.env.VITE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || '';
 const openrouter = process.env.VITE_OPENROUTER_API_KEY?.trim() || '';
 
-const GEMINI_MODELS_TRY = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'];
+const GEMINI_MODELS_TRY = [
+  'gemini-2.5-flash',
+  'gemini-flash-latest',
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+];
 
 async function testGemini() {
-  if (!gemini) return { name: 'Gemini', ok: false, detail: 'Nėra VITE_GEMINI_API_KEY / GEMINI_API_KEY' };
+  if (!gemini)
+    return { name: 'Gemini', ok: false, detail: 'Nėra VITE_GEMINI_API_KEY / GEMINI_API_KEY' };
 
   for (const model of GEMINI_MODELS_TRY) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(gemini)}`;
@@ -88,7 +94,11 @@ async function testOpenRouter() {
       return { name: 'OpenRouter', ok: true, detail: `chat/completions OK (${model})` };
     } catch (e) {
       if (model === OPENROUTER_MODELS_TRY[OPENROUTER_MODELS_TRY.length - 1]) {
-        return { name: 'OpenRouter', ok: false, detail: e instanceof Error ? e.message : String(e) };
+        return {
+          name: 'OpenRouter',
+          ok: false,
+          detail: e instanceof Error ? e.message : String(e),
+        };
       }
     }
   }

@@ -6,14 +6,34 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Client, BuildingType, Order, OrderStatus } from '../types';
 import { getData, addData, updateData, deleteData, TABLES } from '../supabase';
-import { Search, Plus, User as UserIcon, Phone, MapPin, Building, MoreVertical, X, Edit, Trash2, History, ChevronRight, Loader2, Star, Users, AlertTriangle, UserCheck } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  User as UserIcon,
+  Phone,
+  MapPin,
+  Building,
+  MoreVertical,
+  X,
+  Edit,
+  Trash2,
+  History,
+  ChevronRight,
+  Loader2,
+  Star,
+  Users,
+  AlertTriangle,
+  UserCheck,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDate, formatCurrency } from '../utils';
 import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { clientSegmentation, type ClientSegment } from '../services/clientSegmentation';
-import ClientAddressAutocomplete, { googleMapsSearchUrl } from '../components/ClientAddressAutocomplete';
+import ClientAddressAutocomplete, {
+  googleMapsSearchUrl,
+} from '../components/ClientAddressAutocomplete';
 
 interface LocalUser {
   uid: string;
@@ -35,9 +55,13 @@ const ORDER_STATUS_LABEL_LT: Record<OrderStatus, string> = {
 };
 
 function formatClientSaveError(err: unknown): string {
-  const msg = err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
-    ? (err as { message: string }).message
-    : '';
+  const msg =
+    err &&
+    typeof err === 'object' &&
+    'message' in err &&
+    typeof (err as { message: unknown }).message === 'string'
+      ? (err as { message: string }).message
+      : '';
   return msg ? ` (${msg})` : '';
 }
 
@@ -62,24 +86,28 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
     notes: '',
   });
 
-  const onAddressFieldChange = useCallback((address: string, coords?: { lat: number; lng: number }) => {
-    setFormData((prev) => ({
-      ...prev,
-      address,
-      ...(coords ? { lat: coords.lat, lng: coords.lng } : { lat: undefined, lng: undefined }),
-    }));
-  }, []);
+  const onAddressFieldChange = useCallback(
+    (address: string, coords?: { lat: number; lng: number }) => {
+      setFormData((prev) => ({
+        ...prev,
+        address,
+        ...(coords ? { lat: coords.lat, lng: coords.lng } : { lat: undefined, lng: undefined }),
+      }));
+    },
+    []
+  );
 
-  const filteredClients = clients.filter(c =>
-    (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.address || "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone || "").includes(search) ||
-    (c.email || "").toLowerCase().includes(search.toLowerCase())
+  const filteredClients = clients.filter(
+    (c) =>
+      (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.address || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.phone || '').includes(search) ||
+      (c.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     if (!formData.name.trim()) {
       showToast.error('Privaloma nurodyti kliento vardą');
@@ -107,7 +135,16 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       }
       setIsAdding(false);
       setEditingClient(null);
-      setFormData({ name: '', phone: 'nesutarta', email: '', address: '', lat: undefined, lng: undefined, buildingType: 'butas', notes: '' });
+      setFormData({
+        name: '',
+        phone: 'nesutarta',
+        email: '',
+        address: '',
+        lat: undefined,
+        lng: undefined,
+        buildingType: 'butas',
+        notes: '',
+      });
     } catch (error) {
       showToast.error(`Nepavyko išsaugoti kliento${formatClientSaveError(error)}`);
       console.error('Error saving client:', error);
@@ -134,7 +171,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   const handleDelete = async (id: string) => {
     if (isRestrictedStaff) return;
     if (!window.confirm('Ar tikrai norite ištrinti šį klientą?')) return;
-    
+
     setIsDeleting(id);
     try {
       await deleteData(TABLES.CLIENTS, id);
@@ -148,7 +185,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
   };
 
   const getClientOrders = (clientId: string) => {
-    return orders.filter(o => o.clientId === clientId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return orders
+      .filter((o) => o.clientId === clientId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   useEffect(() => {
@@ -233,18 +272,26 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-slate-900">{client.name}</h3>
                     {getClientOrders(client.id).length >= 5 && (
-                      <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest border border-amber-200">VIP</span>
+                      <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest border border-amber-200">
+                        VIP
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 mt-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{client.buildingType}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      {client.buildingType}
+                    </span>
                     <span className="text-[10px] text-slate-300">•</span>
-                    <span className="text-[10px] font-bold text-blue-600">{getClientOrders(client.id).length} užsakymai</span>
+                    <span className="text-[10px] font-bold text-blue-600">
+                      {getClientOrders(client.id).length} užsakymai
+                    </span>
                     {!isRestrictedStaff && (
                       <>
                         <span className="text-[10px] text-slate-300">•</span>
                         <span className="text-[10px] font-bold text-emerald-600">
-                          {formatCurrency(getClientOrders(client.id).reduce((sum, o) => sum + o.totalPrice, 0))}
+                          {formatCurrency(
+                            getClientOrders(client.id).reduce((sum, o) => sum + o.totalPrice, 0)
+                          )}
                         </span>
                       </>
                     )}
@@ -271,16 +318,23 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   <Edit size={18} aria-hidden />
                 </button>
                 {!isRestrictedStaff && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleDelete(client.id); }}
-                  title="Ištrinti klientą"
-                  aria-label={`Ištrinti klientą ${client.name || ''}`}
-                  className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                  disabled={isDeleting === client.id}
-                >
-                  {isDeleting === client.id ? <LoadingSpinner size="sm" /> : <Trash2 size={18} aria-hidden />}
-                </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(client.id);
+                    }}
+                    title="Ištrinti klientą"
+                    aria-label={`Ištrinti klientą ${client.name || ''}`}
+                    className="p-2 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                    disabled={isDeleting === client.id}
+                  >
+                    {isDeleting === client.id ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <Trash2 size={18} aria-hidden />
+                    )}
+                  </button>
                 )}
               </div>
             </div>
@@ -288,7 +342,12 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
             <div className="grid grid-cols-2 gap-2">
               <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100">
                 <Phone size={14} className="text-slate-400 shrink-0" />
-                <a href={`tel:${client.phone}`} className="hover:text-blue-600 truncate font-medium">{client.phone}</a>
+                <a
+                  href={`tel:${client.phone}`}
+                  className="hover:text-blue-600 truncate font-medium"
+                >
+                  {client.phone}
+                </a>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 min-w-0">
                 <MapPin size={14} className="text-slate-400 shrink-0" />
@@ -310,7 +369,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
 
             {client.notes && (
               <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Pastabos</p>
+                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">
+                  Pastabos
+                </p>
                 <p className="text-xs text-amber-900/70 italic leading-relaxed">{client.notes}</p>
               </div>
             )}
@@ -338,7 +399,10 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                 </h3>
                 <button
                   type="button"
-                  onClick={() => { setIsAdding(false); setEditingClient(null); }}
+                  onClick={() => {
+                    setIsAdding(false);
+                    setEditingClient(null);
+                  }}
                   title="Uždaryti"
                   aria-label="Uždaryti kliento formą"
                   className="p-2 text-slate-400 hover:text-slate-600"
@@ -349,7 +413,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Vardas</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Vardas
+                  </label>
                   <input
                     required
                     type="text"
@@ -360,7 +426,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Telefonas</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Telefonas
+                  </label>
                   <input
                     type="tel"
                     value={formData.phone}
@@ -370,7 +438,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">El. paštas (sąskaitoms)</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    El. paštas (sąskaitoms)
+                  </label>
                   <input
                     type="email"
                     inputMode="email"
@@ -382,7 +452,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Adresas</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Adresas
+                  </label>
                   <ClientAddressAutocomplete
                     key={editingClient?.id ?? 'new-client'}
                     value={formData.address}
@@ -392,17 +464,20 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastato tipas</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Pastato tipas
+                  </label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(['butas', 'namas', 'ofisas', 'nesutarta'] as BuildingType[]).map((type) => (
                       <button
                         key={type}
                         type="button"
                         onClick={() => setFormData({ ...formData, buildingType: type })}
-                        className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${formData.buildingType === type
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
-                          : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200'
-                          }`}
+                        className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${
+                          formData.buildingType === type
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                            : 'bg-white text-slate-500 border-slate-100 hover:border-blue-200'
+                        }`}
                       >
                         {type}
                       </button>
@@ -410,7 +485,9 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pastabos</label>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                    Pastabos
+                  </label>
                   <textarea
                     rows={3}
                     value={formData.notes}
@@ -470,15 +547,21 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
               <div className="space-y-4">
                 {getClientOrders(viewingHistory.id).length > 0 ? (
                   getClientOrders(viewingHistory.id).map((order) => (
-                    <div key={order.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                    <div
+                      key={order.id}
+                      className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center"
+                    >
                       <div>
                         <p className="text-xs font-bold text-slate-900">{formatDate(order.date)}</p>
                         <p className="text-[10px] text-slate-400 font-medium">
-                          {order.windowCount} langai • {ORDER_STATUS_LABEL_LT[order.status] ?? order.status}
+                          {order.windowCount} langai •{' '}
+                          {ORDER_STATUS_LABEL_LT[order.status] ?? order.status}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-black text-slate-900">{formatCurrency(order.totalPrice)}</p>
+                        <p className="text-sm font-black text-slate-900">
+                          {formatCurrency(order.totalPrice)}
+                        </p>
                         <ChevronRight size={14} className="text-slate-300 ml-auto mt-1" />
                       </div>
                     </div>

@@ -35,8 +35,7 @@ $keys = @(
   "VITE_GOOGLE_MAPS_API_KEY",
   "VITE_STRIPE_PUBLISHABLE_KEY",
   "VITE_INVOICE_API_BASE_URL",
-  "VITE_DEMO_MODE",
-  "VITE_USE_FIREBASE"
+  "VITE_DEMO_MODE"
 )
 
 Write-Host "Tikrinamas vercel prisijungimas..."

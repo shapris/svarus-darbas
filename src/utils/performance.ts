@@ -20,7 +20,7 @@ export class PerformanceMonitor {
       this.metrics.set(name, []);
     }
     this.metrics.get(name)!.push(value);
-    
+
     // Keep only last 100 measurements
     const values = this.metrics.get(name)!;
     if (values.length > 100) {
@@ -36,14 +36,14 @@ export class PerformanceMonitor {
 
   static getMetrics(): Record<string, { avg: number; count: number }> {
     const result: Record<string, { avg: number; count: number }> = {};
-    
+
     this.metrics.forEach((values, name) => {
       result[name] = {
         avg: values.reduce((sum, v) => sum + v, 0) / values.length,
-        count: values.length
+        count: values.length,
       };
     });
-    
+
     return result;
   }
 }
@@ -54,23 +54,23 @@ export function memoize<T extends (...args: any[]) => any>(
   keyGenerator?: (...args: Parameters<T>) => string
 ): T {
   const cache = new Map<string, ReturnType<T>>();
-  
+
   return ((...args: Parameters<T>) => {
     const key = keyGenerator ? keyGenerator(...args) : JSON.stringify(args);
-    
+
     if (cache.has(key)) {
       return cache.get(key);
     }
-    
+
     const result = fn(...args);
     cache.set(key, result);
-    
+
     // Limit cache size
     if (cache.size > 1000) {
       const firstKey = cache.keys().next().value;
       cache.delete(firstKey);
     }
-    
+
     return result;
   }) as T;
 }
@@ -81,7 +81,7 @@ export function debounce<T extends (...args: any[]) => any>(
   delay: number
 ): (...args: Parameters<T>) => void {
   let timeoutId: NodeJS.Timeout;
-  
+
   return (...args: Parameters<T>) => {
     clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
@@ -94,7 +94,7 @@ export function throttle<T extends (...args: any[]) => any>(
   delay: number
 ): (...args: Parameters<T>) => void {
   let lastCall = 0;
-  
+
   return (...args: Parameters<T>) => {
     const now = Date.now();
     if (now - lastCall >= delay) {
@@ -126,7 +126,7 @@ export class VirtualScroller {
     const visibleCount = Math.ceil(this.containerHeight / this.itemHeight);
     const end = Math.min(start + visibleCount + 1, this.totalCount);
     const offsetY = start * this.itemHeight;
-    
+
     return { start, end, offsetY };
   }
 
@@ -175,19 +175,22 @@ export class LazyLoader {
 }
 
 // Image optimization
-export function optimizeImage(src: string, options: {
-  width?: number;
-  height?: number;
-  quality?: number;
-  format?: 'webp' | 'avif' | 'jpeg' | 'png';
-}): string {
+export function optimizeImage(
+  src: string,
+  options: {
+    width?: number;
+    height?: number;
+    quality?: number;
+    format?: 'webp' | 'avif' | 'jpeg' | 'png';
+  }
+): string {
   const params = new URLSearchParams();
-  
+
   if (options.width) params.set('w', options.width.toString());
   if (options.height) params.set('h', options.height.toString());
   if (options.quality) params.set('q', options.quality.toString());
   if (options.format) params.set('f', options.format);
-  
+
   const paramString = params.toString();
   return paramString ? `${src}?${paramString}` : src;
 }
@@ -202,29 +205,29 @@ export class BundleAnalyzer {
     // This would typically be done at build time
     // Here we provide runtime estimates
     const recommendations: string[] = [];
-    
+
     // Check if performance is poor
     const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
     if (loadTime > 3000) {
       recommendations.push('Consider lazy loading heavy components');
     }
-    
+
     const perf = performance as Performance & {
       memory?: { usedJSHeapSize: number; totalJSHeapSize: number };
     };
     if (perf.memory) {
       const usedMemory = perf.memory.usedJSHeapSize;
       const totalMemory = perf.memory.totalJSHeapSize;
-      
+
       if (usedMemory / totalMemory > 0.8) {
         recommendations.push('Memory usage is high, consider cleanup');
       }
     }
-    
+
     return {
       totalSize: 0, // Would be calculated from actual bundle
       chunkSizes: {},
-      recommendations
+      recommendations,
     };
   }
 }
@@ -237,11 +240,7 @@ export class RequestBatcher<T> {
   private readonly batchDelay: number;
   private readonly processor: (batch: T[]) => Promise<void>;
 
-  constructor(
-    batchSize: number,
-    batchDelay: number,
-    processor: (batch: T[]) => Promise<void>
-  ) {
+  constructor(batchSize: number, batchDelay: number, processor: (batch: T[]) => Promise<void>) {
     this.batchSize = batchSize;
     this.batchDelay = batchDelay;
     this.processor = processor;
@@ -249,7 +248,7 @@ export class RequestBatcher<T> {
 
   add(item: T): void {
     this.batch.push(item);
-    
+
     if (this.batch.length >= this.batchSize) {
       this.flush();
     } else if (!this.batchTimeout) {
@@ -259,14 +258,14 @@ export class RequestBatcher<T> {
 
   private async flush(): Promise<void> {
     if (this.batch.length === 0) return;
-    
+
     const batch = this.batch.splice(0);
-    
+
     if (this.batchTimeout) {
       clearTimeout(this.batchTimeout);
       this.batchTimeout = null;
     }
-    
+
     try {
       await this.processor(batch);
     } catch (error) {
@@ -284,7 +283,8 @@ export class CacheManager<T> {
   private cache: Map<string, { value: T; timestamp: number; ttl: number }> = new Map();
   private readonly defaultTTL: number;
 
-  constructor(defaultTTL: number = 5 * 60 * 1000) { // 5 minutes default
+  constructor(defaultTTL: number = 5 * 60 * 1000) {
+    // 5 minutes default
     this.defaultTTL = defaultTTL;
   }
 
@@ -292,20 +292,20 @@ export class CacheManager<T> {
     this.cache.set(key, {
       value,
       timestamp: Date.now(),
-      ttl: ttl || this.defaultTTL
+      ttl: ttl || this.defaultTTL,
     });
   }
 
   get(key: string): T | null {
     const item = this.cache.get(key);
-    
+
     if (!item) return null;
-    
+
     if (Date.now() - item.timestamp > item.ttl) {
       this.cache.delete(key);
       return null;
     }
-    
+
     return item.value;
   }
 
@@ -323,7 +323,7 @@ export class CacheManager<T> {
 
   cleanup(): void {
     const now = Date.now();
-    
+
     for (const [key, item] of this.cache.entries()) {
       if (now - item.timestamp > item.ttl) {
         this.cache.delete(key);
@@ -340,11 +340,11 @@ export class CacheManager<T> {
 export function usePerformanceMonitor(componentName: string) {
   const startRender = () => PerformanceMonitor.startTimer(`${componentName}_render`);
   const startMount = () => PerformanceMonitor.startTimer(`${componentName}_mount`);
-  
+
   return {
     startRender,
     startMount,
-    getMetrics: () => PerformanceMonitor.getAverageMetric(`${componentName}_render`)
+    getMetrics: () => PerformanceMonitor.getAverageMetric(`${componentName}_render`),
   };
 }
 
@@ -355,17 +355,17 @@ export class ResourceOptimizer {
 
   static async loadScript(src: string): Promise<void> {
     if (this.loadedScripts.has(src)) return;
-    
+
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = src;
       script.async = true;
-      
+
       script.onload = () => {
         this.loadedScripts.add(src);
         resolve();
       };
-      
+
       script.onerror = reject;
       document.head.appendChild(script);
     });
@@ -373,17 +373,17 @@ export class ResourceOptimizer {
 
   static async loadStyle(href: string): Promise<void> {
     if (this.loadedStyles.has(href)) return;
-    
+
     return new Promise((resolve, reject) => {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = href;
-      
+
       link.onload = () => {
         this.loadedStyles.add(href);
         resolve();
       };
-      
+
       link.onerror = reject;
       document.head.appendChild(link);
     });

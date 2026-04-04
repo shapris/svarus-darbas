@@ -3,6 +3,11 @@
 -- Problema: 404 ant /rest/v1/rpc/get_booking_settings arba submit_public_booking
 -- Sprendimas: Supabase → SQL Editor → įklijuokite ir paleiskite VISĄ šį skriptą.
 --
+-- Cloud checklist (Track A — owner_id):
+-- 1) settings turi owner_id (žr. production_owner_id_schema.sql arba migracijos).
+-- 2) Šį failą vykdykite tik jei Track A; Track B jau turi RPC 20250322120000 migracijoje.
+-- 3) Po SQL: Dashboard → Authentication → Policies, jei reikia — leisti anon RPC (pagal jūsų saugos modelį).
+--
 -- SVARBU — dvi schemos repo:
 -- • Jei DB sukurta iš supabase/migrations/20250322120000_crm_schema.sql (stulpelis uid,
 --   kabantys camelCase vardai) — toje migracijoje JAU yra get_booking_settings / submit_public_booking.

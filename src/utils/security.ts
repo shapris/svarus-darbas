@@ -18,12 +18,14 @@ export const isValidPhone = (phone: string): boolean => {
 };
 
 // Password strength validation
-export const validatePassword = (password: string): {
+export const validatePassword = (
+  password: string
+): {
   isValid: boolean;
   errors: string[];
 } => {
   const errors: string[] = [];
-  
+
   if (password.length < 8) {
     errors.push('Slaptažodis turi būti bent 8 simbolių ilgio');
   }
@@ -36,10 +38,10 @@ export const validatePassword = (password: string): {
   if (!/[0-9]/.test(password)) {
     errors.push('Slaptažodyje turi būti bent vienas skaičius');
   }
-  
+
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
   };
 };
 
@@ -56,19 +58,21 @@ export const sanitizeInput = (input: string): string => {
 };
 
 // Validate and sanitize form data
-export const validateFormData = (data: Record<string, any>): {
+export const validateFormData = (
+  data: Record<string, any>
+): {
   isValid: boolean;
   sanitized: Record<string, any>;
   errors: Record<string, string>;
 } => {
   const sanitized: Record<string, any> = {};
   const errors: Record<string, string> = {};
-  
+
   for (const [key, value] of Object.entries(data)) {
     if (typeof value === 'string') {
       const clean = sanitizeInput(value.trim());
       sanitized[key] = clean;
-      
+
       if (clean.length === 0 && value.length > 0) {
         errors[key] = 'Netinkamas įvesties formatas';
       }
@@ -76,11 +80,11 @@ export const validateFormData = (data: Record<string, any>): {
       sanitized[key] = value;
     }
   }
-  
+
   return {
     isValid: Object.keys(errors).length === 0,
     sanitized,
-    errors
+    errors,
   };
 };
 
@@ -89,37 +93,37 @@ export class RateLimiter {
   private attempts: Map<string, number[]> = new Map();
   private readonly maxAttempts: number;
   private readonly windowMs: number;
-  
+
   constructor(maxAttempts = 5, windowMs = 60000) {
     this.maxAttempts = maxAttempts;
     this.windowMs = windowMs;
   }
-  
+
   canProceed(key: string): boolean {
     const now = Date.now();
     const attempts = this.attempts.get(key) || [];
-    
+
     // Remove old attempts outside the window
-    const validAttempts = attempts.filter(time => now - time < this.windowMs);
-    
+    const validAttempts = attempts.filter((time) => now - time < this.windowMs);
+
     if (validAttempts.length >= this.maxAttempts) {
       return false;
     }
-    
+
     validAttempts.push(now);
     this.attempts.set(key, validAttempts);
     return true;
   }
-  
+
   getRemainingTime(key: string): number {
     const attempts = this.attempts.get(key) || [];
     if (attempts.length === 0) return 0;
-    
+
     const oldestAttempt = Math.min(...attempts);
     const remaining = this.windowMs - (Date.now() - oldestAttempt);
     return Math.max(0, remaining);
   }
-  
+
   reset(key: string): void {
     this.attempts.delete(key);
   }
@@ -133,7 +137,7 @@ export const registerRateLimiter = new RateLimiter(3, 3600000); // 3 attempts pe
 export const generateCSRFToken = (): string => {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
-  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
 };
 
 // Secure storage helpers
@@ -148,12 +152,12 @@ export const secureStorage = {
       localStorage.setItem(key, value);
     }
   },
-  
+
   get: (key: string): string | null => {
     try {
       const value = localStorage.getItem(key);
       if (!value) return null;
-      
+
       // Try to decode
       try {
         return atob(value);
@@ -164,17 +168,17 @@ export const secureStorage = {
       return null;
     }
   },
-  
+
   remove: (key: string): void => {
     localStorage.removeItem(key);
-  }
+  },
 };
 
 // Security headers for fetch requests
 export const secureHeaders = () => ({
   'Content-Type': 'application/json',
   'X-Requested-With': 'XMLHttpRequest',
-  'X-CSRF-Token': secureStorage.get('csrf_token') || ''
+  'X-CSRF-Token': secureStorage.get('csrf_token') || '',
 });
 
 // Input validation helpers
@@ -183,16 +187,16 @@ export const validators = {
     if (typeof value === 'string') return value.trim().length > 0;
     return value !== null && value !== undefined;
   },
-  
+
   minLength: (value: string, min: number): boolean => value.length >= min,
-  
+
   maxLength: (value: string, max: number): boolean => value.length <= max,
-  
+
   numeric: (value: string): boolean => /^\d+$/.test(value),
-  
+
   date: (value: string): boolean => !isNaN(Date.parse(value)),
-  
-  price: (value: number): boolean => value >= 0 && !isNaN(value)
+
+  price: (value: number): boolean => value >= 0 && !isNaN(value),
 };
 
 // Audit logging
@@ -202,12 +206,12 @@ export const auditLog = (action: string, details: Record<string, any>): void => 
     action,
     details: sanitizeInput(JSON.stringify(details)),
     userAgent: navigator.userAgent,
-    url: window.location.href
+    url: window.location.href,
   };
-  
+
   // Send to analytics or monitoring service
   console.log('[AUDIT]', entry);
-  
+
   // Could also send to backend
   // fetch('/api/audit', { method: 'POST', body: JSON.stringify(entry) });
 };

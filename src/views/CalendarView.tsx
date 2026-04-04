@@ -6,21 +6,31 @@
 import React, { useMemo, useState } from 'react';
 import { Order, Employee, Client, OrderStatus } from '../types';
 import { formatCurrency } from '../utils';
-import { Calendar as CalendarIcon, MapPin, ChevronLeft, ChevronRight, Clock, Users, Save, Trash2, X } from 'lucide-react';
-import { updateData, deleteData, TABLES } from '../supabase';
+import {
+  Calendar as CalendarIcon,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Users,
+  Save,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { formatSupabaseUserError, updateData, deleteData, TABLES } from '../supabase';
 import { useToast } from '../hooks/useToast';
-import { 
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  isSameMonth, 
-  isSameDay, 
+import {
+  format,
+  addMonths,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  isSameMonth,
+  isSameDay,
   addDays,
-  parseISO
+  parseISO,
 } from 'date-fns';
 import { lt } from 'date-fns/locale';
 
@@ -91,7 +101,12 @@ function estimateOrderDuration(order: Order): number {
   return Math.max(45, Math.min(210, base + windowPart + floorPart + extraPart));
 }
 
-export default function CalendarView({ orders, employees, clients, onOpenClient }: CalendarViewProps) {
+export default function CalendarView({
+  orders,
+  employees,
+  clients,
+  onOpenClient,
+}: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isDayDetailsOpen, setIsDayDetailsOpen] = useState(false);
@@ -103,7 +118,13 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
   const [employeeFilter, setEmployeeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
   const [areaFilter, setAreaFilter] = useState<string>('');
-  const [editForm, setEditForm] = useState<{ date: string; time: string; status: OrderStatus; employeeId: string; notes: string }>({
+  const [editForm, setEditForm] = useState<{
+    date: string;
+    time: string;
+    status: OrderStatus;
+    employeeId: string;
+    notes: string;
+  }>({
     date: '',
     time: '10:00',
     status: 'suplanuota',
@@ -123,13 +144,21 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
   const renderHeader = () => {
     return (
       <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-        <button onClick={prevMonth} title="Ankstesnis mėnuo" className="p-2 hover:bg-slate-50 rounded-full transition-colors">
+        <button
+          onClick={prevMonth}
+          title="Ankstesnis mėnuo"
+          className="p-2 hover:bg-slate-50 rounded-full transition-colors"
+        >
           <ChevronLeft size={20} className="text-slate-600" />
         </button>
         <h2 className="text-lg font-black text-slate-900 capitalize tracking-wide">
           {format(currentMonth, 'MMMM yyyy', { locale: lt })}
         </h2>
-        <button onClick={nextMonth} title="Kitas mėnuo" className="p-2 hover:bg-slate-50 rounded-full transition-colors">
+        <button
+          onClick={nextMonth}
+          title="Kitas mėnuo"
+          className="p-2 hover:bg-slate-50 rounded-full transition-colors"
+        >
           <ChevronRight size={20} className="text-slate-600" />
         </button>
       </div>
@@ -142,7 +171,10 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
 
     for (let i = 0; i < 7; i++) {
       days.push(
-        <div key={i} className="text-center font-bold text-[10px] text-slate-400 uppercase tracking-widest py-2">
+        <div
+          key={i}
+          className="text-center font-bold text-[10px] text-slate-400 uppercase tracking-widest py-2"
+        >
           {format(addDays(startDate, i), 'EEEEEE', { locale: lt })}
         </div>
       );
@@ -156,20 +188,20 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
     const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
 
-    const dateFormat = "yyyy-MM-dd";
+    const dateFormat = 'yyyy-MM-dd';
     const rows = [];
     let days = [];
     let day = startDate;
-    let formattedDate = "";
+    let formattedDate = '';
 
     while (day <= endDate) {
       for (let i = 0; i < 7; i++) {
         formattedDate = format(day, dateFormat);
         const cloneDay = day;
-        
+
         // Find orders for this day
-        const dayOrders = orders.filter(o => normalizeOrderDateKey(o.date) === formattedDate);
-        
+        const dayOrders = orders.filter((o) => normalizeOrderDateKey(o.date) === formattedDate);
+
         days.push(
           <div
             key={day.toString()}
@@ -184,27 +216,29 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
             }}
             className={`min-h-[80px] p-1 border border-slate-50 transition-all cursor-pointer relative ${
               !isSameMonth(day, monthStart)
-                ? "bg-slate-50/50 text-slate-300"
+                ? 'bg-slate-50/50 text-slate-300'
                 : isSameDay(day, selectedDate)
-                ? "bg-blue-50 border-blue-200 text-blue-700"
-                : "bg-white text-slate-700 hover:bg-slate-50"
-            } ${isSameDay(day, new Date()) ? "font-black" : "font-medium"} ${
-              dragOverDate === formattedDate ? "ring-2 ring-blue-300 bg-blue-50/70" : ""
+                  ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : 'bg-white text-slate-700 hover:bg-slate-50'
+            } ${isSameDay(day, new Date()) ? 'font-black' : 'font-medium'} ${
+              dragOverDate === formattedDate ? 'ring-2 ring-blue-300 bg-blue-50/70' : ''
             }`}
           >
-            <span className={`text-xs p-1.5 flex items-center justify-center w-6 h-6 rounded-full ${isSameDay(day, new Date()) ? 'bg-blue-600 text-white' : ''}`}>
+            <span
+              className={`text-xs p-1.5 flex items-center justify-center w-6 h-6 rounded-full ${isSameDay(day, new Date()) ? 'bg-blue-600 text-white' : ''}`}
+            >
               {format(day, 'd')}
             </span>
-            
+
             <div className="mt-1 flex flex-col gap-1 px-1">
-              {dayOrders.slice(0, 2).map(order => {
-                const employee = employees.find(e => e.id === order.employeeId);
+              {dayOrders.slice(0, 2).map((order) => {
+                const employee = employees.find((e) => e.id === order.employeeId);
                 const employeeColor = (employee?.color || '').toLowerCase();
                 const colorClass = EMPLOYEE_COLOR_CLASS[employeeColor] || 'bg-slate-400';
-                
+
                 return (
-                  <div 
-                    key={order.id} 
+                  <div
+                    key={order.id}
                     className={`text-[8px] truncate px-1.5 py-0.5 rounded-sm font-bold flex items-center gap-1 text-white ${colorClass}`}
                   >
                     <span>{order.time}</span>
@@ -229,13 +263,17 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       );
       days = [];
     }
-    return <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">{rows}</div>;
+    return (
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+        {rows}
+      </div>
+    );
   };
 
   const selectedDateString = format(selectedDate, 'yyyy-MM-dd');
   const clientsById = useMemo(() => new Map(clients.map((c) => [c.id, c])), [clients]);
   const selectedOrders = orders
-    .filter(o => normalizeOrderDateKey(o.date) === selectedDateString)
+    .filter((o) => normalizeOrderDateKey(o.date) === selectedDateString)
     .sort((a, b) => a.time.localeCompare(b.time));
   const filteredSelectedOrders = selectedOrders.filter((order) => {
     if (employeeFilter !== 'all' && (order.employeeId || '') !== employeeFilter) return false;
@@ -299,7 +337,8 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       showToast.success('Užsakymas atnaujintas kalendoriuje');
     } catch (e) {
       console.error('Calendar update failed', e);
-      showToast.error('Nepavyko atnaujinti užsakymo');
+      const hint = formatSupabaseUserError(e);
+      showToast.error(hint ? `Nepavyko atnaujinti užsakymo: ${hint}` : 'Nepavyko atnaujinti užsakymo');
     } finally {
       setIsSaving(false);
     }
@@ -314,7 +353,8 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       if (editingOrderId === orderId) setEditingOrderId(null);
     } catch (e) {
       console.error('Calendar delete failed', e);
-      showToast.error('Nepavyko ištrinti užsakymo');
+      const hint = formatSupabaseUserError(e);
+      showToast.error(hint ? `Nepavyko ištrinti užsakymo: ${hint}` : 'Nepavyko ištrinti užsakymo');
     } finally {
       setIsDeleting(null);
     }
@@ -330,18 +370,33 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       showToast.success(`Statusas pakeistas į "${status}"`);
     } catch (e) {
       console.error('Calendar status update failed', e);
-      showToast.error('Nepavyko pakeisti statuso');
+      const hint = formatSupabaseUserError(e);
+      showToast.error(hint ? `Nepavyko pakeisti statuso: ${hint}` : 'Nepavyko pakeisti statuso');
     }
   };
 
-  const getPrimaryStatusAction = (status: OrderStatus): { next: OrderStatus | null; label: string; className: string } => {
+  const getPrimaryStatusAction = (
+    status: OrderStatus
+  ): { next: OrderStatus | null; label: string; className: string } => {
     if (status === 'suplanuota') {
-      return { next: 'vykdoma', label: 'Pradėti darbą', className: 'bg-blue-600 text-white hover:bg-blue-700' };
+      return {
+        next: 'vykdoma',
+        label: 'Pradėti darbą',
+        className: 'bg-blue-600 text-white hover:bg-blue-700',
+      };
     }
     if (status === 'vykdoma') {
-      return { next: 'atlikta', label: 'Pažymėti atlikta', className: 'bg-emerald-600 text-white hover:bg-emerald-700' };
+      return {
+        next: 'atlikta',
+        label: 'Pažymėti atlikta',
+        className: 'bg-emerald-600 text-white hover:bg-emerald-700',
+      };
     }
-    return { next: null, label: 'Darbas užbaigtas', className: 'bg-slate-100 text-slate-500 cursor-default' };
+    return {
+      next: null,
+      label: 'Darbas užbaigtas',
+      className: 'bg-slate-100 text-slate-500 cursor-default',
+    };
   };
 
   const handleDropSwap = async (targetOrder: Order) => {
@@ -355,7 +410,8 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       showToast.success('Užsakymų laikai sukeisti');
     } catch (e) {
       console.error('Calendar drag/drop swap failed', e);
-      showToast.error('Nepavyko sukeisti užsakymų laikų');
+      const hint = formatSupabaseUserError(e);
+      showToast.error(hint ? `Nepavyko sukeisti laikų: ${hint}` : 'Nepavyko sukeisti užsakymų laikų');
     } finally {
       setIsSaving(false);
       setDraggedOrderId(null);
@@ -373,7 +429,10 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       showToast.success(`Užsakymas perkeltas į ${targetDate}`);
     } catch (e) {
       console.error('Calendar drag/drop date move failed', e);
-      showToast.error('Nepavyko perkelti užsakymo į pasirinktą datą');
+      const hint = formatSupabaseUserError(e);
+      showToast.error(
+        hint ? `Nepavyko perkelti užsakymo: ${hint}` : 'Nepavyko perkelti užsakymo į pasirinktą datą'
+      );
     } finally {
       setIsSaving(false);
       setDraggedOrderId(null);
@@ -399,10 +458,18 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
       <div className="mt-8">
         <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm mb-4">
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Išmanus planavimas</span>
-            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
-              loadPercent >= 85 ? 'bg-rose-50 text-rose-600' : loadPercent >= 60 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
-            }`}>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Išmanus planavimas
+            </span>
+            <span
+              className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
+                loadPercent >= 85
+                  ? 'bg-rose-50 text-rose-600'
+                  : loadPercent >= 60
+                    ? 'bg-amber-50 text-amber-600'
+                    : 'bg-emerald-50 text-emerald-600'
+              }`}
+            >
               Dienos apkrova {loadPercent}%
             </span>
             <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-blue-50 text-blue-600">
@@ -415,7 +482,8 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
 
           {conflicts.length > 0 ? (
             <p className="text-xs text-rose-600 font-semibold">
-              Aptikti laiko konfliktai ({conflicts.length}). Peržiūrėkite užsakymų laikus ir perkelkite dalį darbų į kitą valandą.
+              Aptikti laiko konfliktai ({conflicts.length}). Peržiūrėkite užsakymų laikus ir
+              perkelkite dalį darbų į kitą valandą.
             </p>
           ) : (
             <p className="text-xs text-emerald-600 font-semibold">
@@ -424,21 +492,22 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
           )}
 
           <p className="text-xs text-slate-500 mt-2">
-            Siūlomi laisvi laikai naujam užsakymui (apie {DEFAULT_SLOT_DURATION} min):
-            {' '}
+            Siūlomi laisvi laikai naujam užsakymui (apie {DEFAULT_SLOT_DURATION} min):{' '}
             {suggestedSlots.length ? suggestedSlots.join(', ') : 'laisvų langų nebeliko'}
           </p>
           {draggedOrderId && (
             <p className="text-xs text-blue-700 font-semibold mt-2">
-              Tempimo režimas aktyvus: nutempkite užsakymą ant kitos dienos langelio arba ant kito užsakymo laiko.
+              Tempimo režimas aktyvus: nutempkite užsakymą ant kitos dienos langelio arba ant kito
+              užsakymo laiko.
             </p>
           )}
         </div>
 
         <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-          Darbai: <span className="text-blue-600">{format(selectedDate, 'MMMM d d.', { locale: lt })}</span>
+          Darbai:{' '}
+          <span className="text-blue-600">{format(selectedDate, 'MMMM d d.', { locale: lt })}</span>
         </h3>
-        
+
         <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm mb-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             <select
@@ -449,7 +518,9 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
             >
               <option value="all">Visi darbuotojai</option>
               {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>{emp.name}</option>
+                <option key={emp.id} value={emp.id}>
+                  {emp.name}
+                </option>
               ))}
             </select>
             <select
@@ -477,15 +548,20 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
         {filteredSelectedOrders.length > 0 ? (
           <div className="space-y-3">
             {filteredSelectedOrders.map((order) => {
-              const employee = employees.find(e => e.id === order.employeeId);
+              const employee = employees.find((e) => e.id === order.employeeId);
               const client = clientsById.get(order.clientId);
-              const displayClientName = (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
-              const displayAddress = (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
+              const displayClientName =
+                (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
+              const displayAddress =
+                (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
               const displayPhone = (client?.phone || '').trim() || 'nesutarta';
               const isEditing = editingOrderId === order.id;
-              
+
               return (
-                <div key={order.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-blue-200 transition-colors">
+                <div
+                  key={order.id}
+                  className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:border-blue-200 transition-colors"
+                >
                   <div className="flex items-center gap-4">
                     <div
                       draggable
@@ -503,11 +579,17 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                       }`}
                       title="Tempkite ant kito darbo, kad sukeistumėte laikus"
                     >
-                      <span className="text-sm font-black leading-none">{order.time.split(':')[0]}</span>
-                      <span className="text-[10px] font-bold opacity-60">{order.time.split(':')[1]}</span>
+                      <span className="text-sm font-black leading-none">
+                        {order.time.split(':')[0]}
+                      </span>
+                      <span className="text-[10px] font-bold opacity-60">
+                        {order.time.split(':')[1]}
+                      </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-900 text-base truncate">{displayClientName}</h4>
+                      <h4 className="font-bold text-slate-900 text-base truncate">
+                        {displayClientName}
+                      </h4>
                       <div className="flex items-center gap-1 text-xs text-slate-500 mt-1">
                         <MapPin size={12} className="shrink-0" />
                         <span className="truncate">{displayAddress}</span>
@@ -519,17 +601,22 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                             <span>{employee.name}</span>
                           </div>
                         )}
-                        <span className="text-xs text-slate-500">
-                          Tel.: {displayPhone}
-                        </span>
+                        <span className="text-xs text-slate-500">Tel.: {displayPhone}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-black text-slate-900 text-lg">{formatCurrency(order.totalPrice)}</p>
-                      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg mt-1 inline-block ${
-                        order.status === 'atlikta' ? 'bg-emerald-50 text-emerald-600' :
-                        order.status === 'vykdoma' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
-                      }`}>
+                      <p className="font-black text-slate-900 text-lg">
+                        {formatCurrency(order.totalPrice)}
+                      </p>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg mt-1 inline-block ${
+                          order.status === 'atlikta'
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : order.status === 'vykdoma'
+                              ? 'bg-blue-50 text-blue-600'
+                              : 'bg-amber-50 text-amber-600'
+                        }`}
+                      >
                         {order.status}
                       </span>
                     </div>
@@ -573,7 +660,9 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                         />
                         <select
                           value={editForm.status}
-                          onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value as OrderStatus }))}
+                          onChange={(e) =>
+                            setEditForm((p) => ({ ...p, status: e.target.value as OrderStatus }))
+                          }
                           title="Užsakymo statusas"
                           className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
                         >
@@ -584,13 +673,17 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                         </select>
                         <select
                           value={editForm.employeeId}
-                          onChange={(e) => setEditForm((p) => ({ ...p, employeeId: e.target.value }))}
+                          onChange={(e) =>
+                            setEditForm((p) => ({ ...p, employeeId: e.target.value }))
+                          }
                           title="Priskirtas darbuotojas"
                           className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
                         >
                           <option value="">Be darbuotojo</option>
                           {employees.map((emp) => (
-                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name}
+                            </option>
                           ))}
                         </select>
                       </div>
@@ -622,7 +715,8 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                     </div>
                   )}
                   <div className="mt-2 text-[11px] text-slate-500">
-                    Kliento valdymui spauskite klientų skiltį, užsakymo redagavimui galite naudoti kalendorių arba užsakymų sąrašą.
+                    Kliento valdymui spauskite klientų skiltį, užsakymo redagavimui galite naudoti
+                    kalendorių arba užsakymų sąrašą.
                   </div>
                 </div>
               );
@@ -631,7 +725,9 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
         ) : (
           <div className="bg-white p-10 rounded-3xl border border-dashed border-slate-200 text-center">
             <Clock size={32} className="text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm font-medium italic">Šią dieną suplanuotų darbų nėra</p>
+            <p className="text-slate-400 text-sm font-medium italic">
+              Šią dieną suplanuotų darbų nėra
+            </p>
           </div>
         )}
       </div>
@@ -653,22 +749,27 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
               </button>
             </div>
 
-        {filteredSelectedOrders.length === 0 ? (
+            {filteredSelectedOrders.length === 0 ? (
               <div className="bg-slate-50 rounded-2xl p-6 text-center text-slate-500 text-sm">
                 Pagal pasirinktus filtrus užsakymų nėra.
               </div>
             ) : (
               <div className="space-y-3">
                 {filteredSelectedOrders.map((order) => {
-                  const employee = employees.find(e => e.id === order.employeeId);
+                  const employee = employees.find((e) => e.id === order.employeeId);
                   const client = clientsById.get(order.clientId);
-                  const displayClientName = (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
-                  const displayAddress = (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
+                  const displayClientName =
+                    (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
+                  const displayAddress =
+                    (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
                   const displayPhone = (client?.phone || '').trim() || 'nesutarta';
                   const isEditing = editingOrderId === order.id;
 
                   return (
-                    <div key={`modal-${order.id}`} className="border border-slate-100 rounded-2xl p-4">
+                    <div
+                      key={`modal-${order.id}`}
+                      className="border border-slate-100 rounded-2xl p-4"
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="font-bold text-slate-900">{displayClientName}</p>
@@ -690,19 +791,23 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                           >
                             {order.time}
                           </p>
-                          <p className="text-xs text-slate-500">{formatCurrency(order.totalPrice)}</p>
+                          <p className="text-xs text-slate-500">
+                            {formatCurrency(order.totalPrice)}
+                          </p>
                         </div>
                       </div>
 
                       <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
                         <div className="flex items-center gap-2 text-xs">
-                          <span className={`px-2 py-1 rounded-lg font-semibold ${
-                            order.status === 'atlikta'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : order.status === 'vykdoma'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-amber-50 text-amber-700'
-                          }`}>
+                          <span
+                            className={`px-2 py-1 rounded-lg font-semibold ${
+                              order.status === 'atlikta'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : order.status === 'vykdoma'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : 'bg-amber-50 text-amber-700'
+                            }`}
+                          >
                             Statusas: {order.status}
                           </span>
                           <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700">
@@ -723,7 +828,11 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                               </button>
                             );
                           })()}
-                          <button type="button" onClick={() => beginEdit(order)} className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => beginEdit(order)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200"
+                          >
                             Redaguoti
                           </button>
                         </div>
@@ -741,7 +850,11 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                         >
                           Kliento kortelė
                         </button>
-                        <button type="button" onClick={() => removeOrder(order.id)} className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => removeOrder(order.id)}
+                          className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-semibold"
+                        >
                           {isDeleting === order.id ? 'Trinama...' : 'Ištrinti'}
                         </button>
                       </div>
@@ -749,25 +862,73 @@ export default function CalendarView({ orders, employees, clients, onOpenClient 
                       {isEditing && (
                         <div className="mt-3 p-3 rounded-2xl border border-blue-100 bg-blue-50/40">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            <input type="date" value={editForm.date} onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))} title="Užsakymo data" className="bg-white border border-slate-200 rounded-xl p-2 text-xs" />
-                            <input type="time" value={editForm.time} onChange={(e) => setEditForm((p) => ({ ...p, time: e.target.value }))} title="Užsakymo laikas" className="bg-white border border-slate-200 rounded-xl p-2 text-xs" />
-                            <select value={editForm.status} onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value as OrderStatus }))} title="Užsakymo statusas" className="bg-white border border-slate-200 rounded-xl p-2 text-xs">
+                            <input
+                              type="date"
+                              value={editForm.date}
+                              onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))}
+                              title="Užsakymo data"
+                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
+                            />
+                            <input
+                              type="time"
+                              value={editForm.time}
+                              onChange={(e) => setEditForm((p) => ({ ...p, time: e.target.value }))}
+                              title="Užsakymo laikas"
+                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
+                            />
+                            <select
+                              value={editForm.status}
+                              onChange={(e) =>
+                                setEditForm((p) => ({
+                                  ...p,
+                                  status: e.target.value as OrderStatus,
+                                }))
+                              }
+                              title="Užsakymo statusas"
+                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
+                            >
                               <option value="suplanuota">suplanuota</option>
                               <option value="vykdoma">vykdoma</option>
                               <option value="atlikta">atlikta</option>
                             </select>
-                            <select value={editForm.employeeId} onChange={(e) => setEditForm((p) => ({ ...p, employeeId: e.target.value }))} title="Priskirtas darbuotojas" className="bg-white border border-slate-200 rounded-xl p-2 text-xs">
+                            <select
+                              value={editForm.employeeId}
+                              onChange={(e) =>
+                                setEditForm((p) => ({ ...p, employeeId: e.target.value }))
+                              }
+                              title="Priskirtas darbuotojas"
+                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
+                            >
                               <option value="">Be darbuotojo</option>
-                              {employees.map((emp) => <option key={`modal-emp-${emp.id}`} value={emp.id}>{emp.name}</option>)}
+                              {employees.map((emp) => (
+                                <option key={`modal-emp-${emp.id}`} value={emp.id}>
+                                  {emp.name}
+                                </option>
+                              ))}
                             </select>
                           </div>
-                          <textarea rows={2} value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} className="w-full mt-2 bg-white border border-slate-200 rounded-xl p-2 text-xs" placeholder="Pastabos" />
+                          <textarea
+                            rows={2}
+                            value={editForm.notes}
+                            onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
+                            className="w-full mt-2 bg-white border border-slate-200 rounded-xl p-2 text-xs"
+                            placeholder="Pastabos"
+                          />
                           <div className="flex gap-2 mt-2">
-                            <button type="button" disabled={isSaving} onClick={() => saveEdit(order)} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() => saveEdit(order)}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 inline-flex items-center gap-1"
+                            >
                               <Save size={12} />
                               {isSaving ? 'Saugoma...' : 'Išsaugoti'}
                             </button>
-                            <button type="button" onClick={() => setEditingOrderId(null)} className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700">
+                            <button
+                              type="button"
+                              onClick={() => setEditingOrderId(null)}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700"
+                            >
                               Atšaukti
                             </button>
                           </div>

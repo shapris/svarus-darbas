@@ -1,13 +1,13 @@
 /**
  * Advanced Planning Layer for Multi-Step Workflows
- * 
+ *
  * Provides intelligent planning and execution of complex, multi-step tasks.
  * Enables the AI agent to break down complex queries into sequential steps
  * with rollback capabilities and progress tracking.
  */
 
 import { ExtendedIntention, ClassificationResult } from './hybridClassifier';
-import { routeAndExecute, ToolExecutionResult } from './toolRouter';
+import { routeAndExecute } from './toolRouter';
 
 // ============================================================
 // TYPES & INTERFACES
@@ -23,7 +23,7 @@ export interface PlanStep {
   status?: StepStatus;
   description: string;
   action: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   dependencies: string[];
   expectedOutput?: string;
   fallbackAction?: string;
@@ -44,7 +44,7 @@ export interface ExecutionPlan {
   startedAt?: Date;
   completedAt?: Date;
   context: PlanContext;
-  results: Map<string, any>;
+  results: Map<string, unknown>;
   errors: string[];
 }
 
@@ -65,9 +65,9 @@ export interface PlanContext {
 export interface StepExecutionResult {
   stepId: string;
   status: StepStatus;
-  output?: any;
+  output?: unknown;
   error?: string;
-  executionTime: number;  // In milliseconds
+  executionTime: number; // In milliseconds
   nextStepId?: string;
 }
 
@@ -80,7 +80,7 @@ export interface PlanSummary {
   failedSteps: number;
   skippedSteps: number;
   status: PlanStatus;
-  progress: number;  // 0-100
+  progress: number; // 0-100
   estimatedTimeRemaining?: number;
   nextActions: string[];
 }
@@ -94,7 +94,13 @@ interface PlanTemplate {
   name: string;
   description: string;
   triggers: RegExp[];
-  createSteps: (params: any, context: PlanContext) => PlanStep[];
+  createSteps: (params: Record<string, unknown>, context: PlanContext) => PlanStep[];
+}
+
+function coerceRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 const PLAN_TEMPLATES: PlanTemplate[] = [
@@ -103,7 +109,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
     name: 'Mėnesinė verslo apžvalga',
     description: 'Sukuria išsamią verslo ataskaitą su rekomendacijomis',
     triggers: [/mėnesin.*apžvalg/i, /verslo.*ataskait/i, /monthly.*review/i, /kas\s*mėn\s*vyko/i],
-    createSteps: (params, context) => [
+    createSteps: (_params, _context) => [
       {
         id: '1',
         type: 'analysis',
@@ -113,7 +119,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '2',
@@ -124,7 +130,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '3',
@@ -135,7 +141,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '4',
@@ -146,39 +152,39 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '5',
         type: 'analysis',
         description: 'Analizuoti duomenis ir sugeneruoti rekomendacijas',
         action: 'analyze_and_recommend',
-        parameters: { 
-          useResultsFrom: ['1', '2', '3', '4'] 
+        parameters: {
+          useResultsFrom: ['1', '2', '3', '4'],
         },
         dependencies: ['1', '2', '3', '4'],
         timeout: 60,
         retryCount: 0,
-        maxRetries: 1
-      }
-    ]
+        maxRetries: 1,
+      },
+    ],
   },
   {
     id: 'client_onboarding',
     name: 'Naujo kliento integravimas',
     description: 'Visas procesas nuo kontakto iki pirmo užsakymo',
     triggers: [/naujas.*klientas/i, /pridėt.*klient/i, /naujas.*užsakov/i, /onboarding/i],
-    createSteps: (params, context) => [
+    createSteps: (params, _context) => [
       {
         id: '1',
         type: 'tool_execution',
         description: 'Pridėti naują klientą į sistemą',
         action: 'add_client',
-        parameters: params.clientData || {},
+        parameters: coerceRecord(params.clientData),
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '2',
@@ -189,18 +195,18 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['1'],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '3',
         type: 'tool_execution',
         description: 'Sukurti pradinį užsakymą',
         action: 'add_order',
-        parameters: params.orderData || {},
+        parameters: coerceRecord(params.orderData),
         dependencies: ['1', '2'],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '4',
@@ -210,12 +216,12 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         parameters: {
           content: 'Naujas klientas: $step1.clientName - $step2.needsSummary',
           category: 'klientas',
-          importance: 4
+          importance: 4,
         },
         dependencies: ['1', '2'],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '5',
@@ -226,16 +232,16 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['3'],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 1
-      }
-    ]
+        maxRetries: 1,
+      },
+    ],
   },
   {
     id: 'unpaid_invoices_followup',
     name: 'Neapmokėtų sąskaitų sekimas',
     description: 'Randa ir primena apie neapmokėtas sąskaitas',
     triggers: [/neapmokėt.*sąskait/i, /skol.*priminim/i, /unpaid.*followup/i, /kas\s*skoling/i],
-    createSteps: (params, context) => [
+    createSteps: (_params, _context) => [
       {
         id: '1',
         type: 'tool_execution',
@@ -245,7 +251,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '2',
@@ -256,7 +262,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['1'],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '3',
@@ -267,7 +273,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['2'],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '4',
@@ -278,7 +284,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['3'],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '5',
@@ -289,16 +295,16 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['1', '2', '4'],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 1
-      }
-    ]
+        maxRetries: 1,
+      },
+    ],
   },
   {
     id: 'seasonal_preparation',
     name: 'Sezoninio pasiruošimo planas',
     description: 'Paruošia verslą sezonui (vasarai/žiemai)',
     triggers: [/sezon.*pasiruošim/i, /vasar.*plan/i, /žiem.*plan/i, /seasonal.*prep/i],
-    createSteps: (params, context) => [
+    createSteps: (params, _context) => [
       {
         id: '1',
         type: 'analysis',
@@ -308,7 +314,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '2',
@@ -319,7 +325,7 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '3',
@@ -330,29 +336,29 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: [],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '4',
         type: 'analysis',
         description: 'Analizuoti konkurencinę aplinką ir rinkos tendencijas',
         action: 'analyze_market',
-        parameters: { season: params.season || 'summer' },
+        parameters: { season: String(params.season ?? 'summer') },
         dependencies: ['1', '2'],
         timeout: 60,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '5',
         type: 'tool_execution',
         description: 'Sukurti rinkodaros planą neaktyviems klientams',
         action: 'create_marketing_campaign',
-        parameters: { target: 'inactive_clients', season: params.season || 'summer' },
+        parameters: { target: 'inactive_clients', season: String(params.season ?? 'summer') },
         dependencies: ['3', '4'],
         timeout: 60,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '6',
@@ -363,10 +369,10 @@ const PLAN_TEMPLATES: PlanTemplate[] = [
         dependencies: ['1', '2', '3', '4', '5'],
         timeout: 45,
         retryCount: 0,
-        maxRetries: 1
-      }
-    ]
-  }
+        maxRetries: 1,
+      },
+    ],
+  },
 ];
 
 // ============================================================
@@ -377,49 +383,49 @@ export class PlanningEngine {
   private activePlans: Map<string, ExecutionPlan> = new Map();
   private planHistory: PlanSummary[] = [];
   private maxConcurrentPlans: number = 3;
-  
+
   /**
    * Analyze if query requires planning
    */
   shouldUsePlanning(query: string, classification: ClassificationResult): boolean {
     const queryLower = query.toLowerCase();
-    
+
     // Check for multi-step indicators
     const multiStepIndicators = [
-      /ir\s.*tada/i,  // "and then"
-      /po\s*to\s*kai/i,  // "after that when"
-      /visų\s*pirma/i,  // "first of all"
-      /galiausiai/i,  // "finally"
-      /planuok/i,  // "plan"
-      /procesas/i,  // "process"
-      /etapais/i,  // "in stages"
-      /žingsniais/i,  // "in steps"
-      /visą\s*procesą/i,  // "the whole process"
-      /nuo\s*pradžių\s*iki\s*pabaigos/i  // "from start to finish"
+      /ir\s.*tada/i, // "and then"
+      /po\s*to\s*kai/i, // "after that when"
+      /visų\s*pirma/i, // "first of all"
+      /galiausiai/i, // "finally"
+      /planuok/i, // "plan"
+      /procesas/i, // "process"
+      /etapais/i, // "in stages"
+      /žingsniais/i, // "in steps"
+      /visą\s*procesą/i, // "the whole process"
+      /nuo\s*pradžių\s*iki\s*pabaigos/i, // "from start to finish"
     ];
-    
-    const hasMultiStepIndicator = multiStepIndicators.some(pattern => pattern.test(queryLower));
-    
+
+    const hasMultiStepIndicator = multiStepIndicators.some((pattern) => pattern.test(queryLower));
+
     // Check for complex intentions that typically require planning
     const complexIntentions: ExtendedIntention[] = [
       'business_forecast',
       'client_segments',
       'seasonal_services',
       'ai_plan',
-      'ai_optimize'
+      'ai_optimize',
     ];
-    
+
     const isComplexIntention = complexIntentions.includes(classification.intention);
-    
+
     // Check query length (complex queries tend to be longer)
     const isComplexQuery = query.split(/\s+/).length > 15;
-    
+
     // Check for multiple intents
     const hasMultipleIntents = (query.match(/\b(ir|irba|bei|taippat)\b/g) || []).length > 1;
-    
+
     return hasMultiStepIndicator || isComplexIntention || (isComplexQuery && hasMultipleIntents);
   }
-  
+
   /**
    * Create a plan based on query and context
    */
@@ -430,15 +436,15 @@ export class PlanningEngine {
   ): ExecutionPlan | null {
     // Try to match with existing templates
     for (const template of PLAN_TEMPLATES) {
-      if (template.triggers.some(pattern => pattern.test(query))) {
+      if (template.triggers.some((pattern) => pattern.test(query))) {
         return this.createPlanFromTemplate(template, query, classification, context);
       }
     }
-    
+
     // No template matched, create a custom plan
     return this.createCustomPlan(query, classification, context);
   }
-  
+
   /**
    * Create plan from template
    */
@@ -449,12 +455,12 @@ export class PlanningEngine {
     context: PlanContext
   ): ExecutionPlan {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Extract parameters from query
     const params = this.extractPlanParameters(query, classification);
-    
+
     const steps = template.createSteps(params, context);
-    
+
     return {
       id: planId,
       name: template.name,
@@ -466,10 +472,10 @@ export class PlanningEngine {
       createdAt: new Date(),
       context,
       results: new Map(),
-      errors: []
+      errors: [],
     };
   }
-  
+
   /**
    * Create custom plan for non-template queries
    */
@@ -479,7 +485,7 @@ export class PlanningEngine {
     context: PlanContext
   ): ExecutionPlan {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const steps: PlanStep[] = [
       {
         id: '1',
@@ -490,7 +496,7 @@ export class PlanningEngine {
         dependencies: [],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '2',
@@ -501,7 +507,7 @@ export class PlanningEngine {
         dependencies: ['1'],
         timeout: 30,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '3',
@@ -512,7 +518,7 @@ export class PlanningEngine {
         dependencies: ['2'],
         timeout: 60,
         retryCount: 0,
-        maxRetries: 2
+        maxRetries: 2,
       },
       {
         id: '4',
@@ -523,7 +529,7 @@ export class PlanningEngine {
         dependencies: ['3'],
         timeout: 60,
         retryCount: 0,
-        maxRetries: 1
+        maxRetries: 1,
       },
       {
         id: '5',
@@ -534,10 +540,10 @@ export class PlanningEngine {
         dependencies: ['4'],
         timeout: 60,
         retryCount: 0,
-        maxRetries: 1
-      }
+        maxRetries: 1,
+      },
     ];
-    
+
     return {
       id: planId,
       name: 'Custom Plan',
@@ -549,61 +555,64 @@ export class PlanningEngine {
       createdAt: new Date(),
       context,
       results: new Map(),
-      errors: []
+      errors: [],
     };
   }
-  
+
   /**
    * Extract parameters from query for plan creation
    */
-  private extractPlanParameters(query: string, classification: ClassificationResult): Record<string, any> {
-    const params: Record<string, any> = {};
-    
+  private extractPlanParameters(
+    query: string,
+    _classification: ClassificationResult
+  ): Record<string, unknown> {
+    const params: Record<string, unknown> = {};
+
     // Extract time periods
     if (/mėnes/i.test(query)) params.period = 'month';
     if (/savait/i.test(query)) params.period = 'week';
     if (/metai/i.test(query)) params.period = 'year';
-    
+
     // Extract seasons
     if (/vasar/i.test(query)) params.season = 'summer';
     if (/žiem/i.test(query)) params.season = 'winter';
-    
+
     // Extract numbers
     const numberMatch = query.match(/(\d+)/);
     if (numberMatch) params.number = parseInt(numberMatch[1]);
-    
+
     return params;
   }
-  
+
   /**
    * Execute a plan step
    */
   async executeStep(
     plan: ExecutionPlan,
     step: PlanStep,
-    context: PlanContext
+    _context: PlanContext
   ): Promise<StepExecutionResult> {
     const startTime = Date.now();
-    
+
     try {
       // Check dependencies
-      const unmetDependencies = step.dependencies.filter(depId => {
-        const depStep = plan.steps.find(s => s.id === depId);
+      const unmetDependencies = step.dependencies.filter((depId) => {
+        const depStep = plan.steps.find((s) => s.id === depId);
         return !depStep || depStep.status !== 'completed';
       });
-      
+
       if (unmetDependencies.length > 0) {
         return {
           stepId: step.id,
           status: 'failed',
           error: `Unmet dependencies: ${unmetDependencies.join(', ')}`,
-          executionTime: Date.now() - startTime
+          executionTime: Date.now() - startTime,
         };
       }
-      
+
       // Execute based on step type
-      let result: any;
-      
+      let result: unknown;
+
       switch (step.type) {
         case 'tool_execution':
           result = await this.executeToolStep(step, plan);
@@ -620,152 +629,180 @@ export class PlanningEngine {
         default:
           throw new Error(`Unknown step type: ${step.type}`);
       }
-      
+
       // Store result
       plan.results.set(step.id, result);
-      
+
       return {
         stepId: step.id,
         status: 'completed',
         output: result,
-        executionTime: Date.now() - startTime
+        executionTime: Date.now() - startTime,
       };
-      
-    } catch (error: any) {
-      plan.errors.push(`Step ${step.id}: ${error.message}`);
-      
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      plan.errors.push(`Step ${step.id}: ${msg}`);
+
       // Check if we should retry
       if (step.retryCount < step.maxRetries) {
         step.retryCount++;
         return {
           stepId: step.id,
           status: 'failed',
-          error: error.message,
-          executionTime: Date.now() - startTime
+          error: msg,
+          executionTime: Date.now() - startTime,
         };
       }
-      
+
       // Check for fallback
       if (step.fallbackAction) {
         try {
           const fallbackResult = await this.executeFallback(step.fallbackAction, plan);
           plan.results.set(step.id, fallbackResult);
-          
+
           return {
             stepId: step.id,
             status: 'completed',
             output: fallbackResult,
-            executionTime: Date.now() - startTime
+            executionTime: Date.now() - startTime,
           };
-        } catch (fallbackError: any) {
+        } catch (fallbackError: unknown) {
+          const fb =
+            fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
           return {
             stepId: step.id,
             status: 'failed',
-            error: `${error.message} | Fallback also failed: ${fallbackError.message}`,
-            executionTime: Date.now() - startTime
+            error: `${msg} | Fallback also failed: ${fb}`,
+            executionTime: Date.now() - startTime,
           };
         }
       }
-      
+
       return {
         stepId: step.id,
         status: 'failed',
-        error: error.message,
-        executionTime: Date.now() - startTime
+        error: msg,
+        executionTime: Date.now() - startTime,
       };
     }
   }
-  
+
   /**
    * Execute tool step
    */
-  private async executeToolStep(step: PlanStep, plan: ExecutionPlan): Promise<any> {
-    // Resolve parameter references (e.g., $step1.clientId)
-    const resolvedParams = this.resolveParameters(step.parameters, plan);
-    
+  private async executeToolStep(step: PlanStep, plan: ExecutionPlan): Promise<unknown> {
+    // Resolve parameter references (e.g., $step1.clientId) — kol kas neperduodama į routeAndExecute
+    void this.resolveParameters(step.parameters, plan);
+
     const result = await routeAndExecute(step.action, {
       clients: plan.context.businessData.totalClients > 0 ? [] : [],
       orders: [],
       expenses: [],
-      memories: []
+      memories: [],
     });
-    
+
     if (!result.success) {
       throw new Error(result.error || 'Tool execution failed');
     }
-    
+
     return result.data;
   }
-  
+
   /**
    * Execute analysis step (simulated)
    */
-  private async executeAnalysisStep(step: PlanStep, plan: ExecutionPlan): Promise<any> {
-    // In a real implementation, this would use LLM for analysis
-    // For now, return mock analysis
+  private async executeAnalysisStep(step: PlanStep, plan: ExecutionPlan): Promise<unknown> {
+    const { totalClients, totalOrders, totalRevenue, totalExpenses } = plan.context.businessData;
+    const findings: string[] = [];
+    if (totalOrders > 0) {
+      findings.push(`CRM turi ${totalOrders} užsakymų įrašų.`);
+    } else {
+      findings.push('Užsakymų istorija dar tuščia arba neperduota į planą.');
+    }
+    if (totalClients > 0) findings.push(`Aktyvuota ${totalClients} klientų kortelių.`);
+    if (totalRevenue > 0)
+      findings.push(`Suvestinės pajamos (apytiksliai): ${totalRevenue.toFixed(2)} EUR.`);
+    if (totalExpenses > 0)
+      findings.push(`Suvestinės išlaidos (apytiksliai): ${totalExpenses.toFixed(2)} EUR.`);
+    const recommendations: string[] =
+      totalOrders >= 5
+        ? [
+            'Peržiūrėkite užsakymų pasiskirstymą kalendoriuje',
+            'Susiekite didžiausias pajamas su klientų segmentais',
+          ]
+        : ['Užpildykite užsakymus ir klientus CRM — tada analizė bus tikslesnė'];
     return {
       type: 'analysis',
       stepId: step.id,
       description: step.description,
-      findings: ['Analysis completed successfully'],
-      recommendations: ['Consider reviewing the data patterns']
+      findings,
+      recommendations,
     };
   }
-  
+
   /**
    * Execute decision step (simulated)
    */
-  private async executeDecisionStep(step: PlanStep, plan: ExecutionPlan): Promise<any> {
-    // In a real implementation, this would use LLM for decision making
-    // For now, return mock decision based on parameters
+  private async executeDecisionStep(step: PlanStep, plan: ExecutionPlan): Promise<unknown> {
+    const { totalOrders, totalClients } = plan.context.businessData;
+    const proceed = totalOrders > 0 || totalClients > 0;
     return {
       type: 'decision',
       stepId: step.id,
-      decision: 'Proceed with next action',
-      rationale: 'Based on available data and business rules',
-      selectedAction: step.action
+      decision: proceed ? 'Tęsti su sekančiu žingsniu' : 'Pirmiausia papildyti CRM duomenis',
+      rationale: proceed
+        ? 'Yra pakankamai konteksto iš klientų / užsakymų skaičiaus'
+        : 'Trūksta pagrindinių įrašų — sprendimai būtų neinformatyvūs',
+      selectedAction: step.action,
     };
   }
-  
+
   /**
    * Execute LLM reasoning step (simulated)
    */
-  private async executeLLMStep(step: PlanStep, plan: ExecutionPlan): Promise<any> {
-    // In a real implementation, this would call LLM
-    // For now, return mock reasoning
+  private async executeLLMStep(step: PlanStep, plan: ExecutionPlan): Promise<unknown> {
+    const { totalOrders, totalClients, totalRevenue, totalExpenses } = plan.context.businessData;
+    const net = totalRevenue - totalExpenses;
+    const reasoning = `Planas grindžiamas suvestine: užsakymai=${totalOrders}, klientai=${totalClients}, pajamos−išlaidos≈${net.toFixed(2)} EUR.`;
     return {
       type: 'llm_reasoning',
       stepId: step.id,
-      reasoning: 'Generated based on collected data and analysis',
-      conclusion: 'Action plan recommended',
-      confidence: 0.85
+      reasoning,
+      conclusion:
+        totalOrders > 0
+          ? 'Rekomenduojama vykdyti suplanuotus CRM veiksmus'
+          : 'Pirmiausia rinkti daugiau užsakymų duomenų',
+      confidence: totalOrders >= 3 ? 0.82 : 0.55,
     };
   }
-  
+
   /**
    * Execute fallback action
    */
-  private async executeFallback(action: string, plan: ExecutionPlan): Promise<any> {
+  private async executeFallback(action: string, _plan: ExecutionPlan): Promise<unknown> {
     return {
       type: 'fallback',
       action,
-      message: 'Fallback executed successfully'
+      message: 'Fallback executed successfully',
     };
   }
-  
+
   /**
    * Resolve parameter references in plan
    */
-  private resolveParameters(params: Record<string, any>, plan: ExecutionPlan): Record<string, any> {
-    const resolved: Record<string, any> = {};
-    
+  private resolveParameters(
+    params: Record<string, unknown>,
+    plan: ExecutionPlan
+  ): Record<string, unknown> {
+    const resolved: Record<string, unknown> = {};
+
     for (const [key, value] of Object.entries(params)) {
       if (typeof value === 'string' && value.startsWith('$step')) {
         // Extract step reference: $step1.clientId -> stepId: '1', param: 'clientId'
         const match = value.match(/\$(\w+)\.(\w+)/);
         if (match) {
           const [, stepId, paramName] = match;
-          const stepResult = plan.results.get(stepId);
+          const stepResult = plan.results.get(stepId) as Record<string, unknown> | undefined;
           if (stepResult && stepResult[paramName] !== undefined) {
             resolved[key] = stepResult[paramName];
           } else {
@@ -774,9 +811,12 @@ export class PlanningEngine {
         } else {
           resolved[key] = value;
         }
-      } else if (Array.isArray(value) && value.every(v => typeof v === 'string' && v.startsWith('$'))) {
+      } else if (
+        Array.isArray(value) &&
+        value.every((v) => typeof v === 'string' && v.startsWith('$'))
+      ) {
         // Array of step references
-        resolved[key] = value.map(v => {
+        resolved[key] = value.map((v) => {
           const match = v.match(/\$(\w+)/);
           if (match) {
             const stepId = match[1];
@@ -788,41 +828,41 @@ export class PlanningEngine {
         resolved[key] = value;
       }
     }
-    
+
     return resolved;
   }
-  
+
   /**
    * Execute entire plan
    */
   async executePlan(plan: ExecutionPlan): Promise<PlanSummary> {
     plan.status = 'executing';
     plan.startedAt = new Date();
-    
+
     for (let i = 0; i < plan.steps.length; i++) {
       const step = plan.steps[i];
-      
+
       // Check if dependencies are met
-      const canProceed = step.dependencies.every(depId => {
-        const depStep = plan.steps.find(s => s.id === depId);
+      const canProceed = step.dependencies.every((depId) => {
+        const depStep = plan.steps.find((s) => s.id === depId);
         return depStep && depStep.status === 'completed';
       });
-      
+
       if (!canProceed) {
         step.status = 'skipped';
         continue;
       }
-      
+
       step.status = 'executing';
       plan.currentStepIndex = i;
-      
+
       const result = await this.executeStep(plan, step, plan.context);
-      
+
       if (result.status === 'completed') {
         step.status = 'completed';
       } else if (result.status === 'failed') {
         step.status = 'failed';
-        
+
         // Check if we should continue or abort
         if (step.fallbackAction) {
           // Fallback was attempted, continue
@@ -834,43 +874,45 @@ export class PlanningEngine {
         }
       }
     }
-    
+
     // Update plan status
     if (plan.status === 'executing') {
-      const allCompleted = plan.steps.every(s => s.status === 'completed' || s.status === 'skipped');
+      const allCompleted = plan.steps.every(
+        (s) => s.status === 'completed' || s.status === 'skipped'
+      );
       plan.status = allCompleted ? 'completed' : 'failed';
     }
-    
+
     plan.completedAt = new Date();
-    
+
     // Create summary
     const summary = this.createPlanSummary(plan);
     this.planHistory.push(summary);
-    
+
     return summary;
   }
-  
+
   /**
    * Create plan summary
    */
   private createPlanSummary(plan: ExecutionPlan): PlanSummary {
-    const completedSteps = plan.steps.filter(s => s.status === 'completed').length;
-    const failedSteps = plan.steps.filter(s => s.status === 'failed').length;
-    const skippedSteps = plan.steps.filter(s => s.status === 'skipped').length;
-    
+    const completedSteps = plan.steps.filter((s) => s.status === 'completed').length;
+    const failedSteps = plan.steps.filter((s) => s.status === 'failed').length;
+    const skippedSteps = plan.steps.filter((s) => s.status === 'skipped').length;
+
     const progress = Math.round((completedSteps / plan.steps.length) * 100);
-    
+
     // Estimate time remaining (simple calculation)
     const avgStepTime = 30; // seconds per step (average)
     const remainingSteps = plan.steps.length - completedSteps - failedSteps - skippedSteps;
     const estimatedTimeRemaining = remainingSteps * avgStepTime;
-    
+
     // Get next actions
     const nextActions = plan.steps
-      .filter(s => s.status === 'pending')
+      .filter((s) => s.status === 'pending')
       .slice(0, 3)
-      .map(s => s.description);
-    
+      .map((s) => s.description);
+
     return {
       planId: plan.id,
       name: plan.name,
@@ -882,10 +924,10 @@ export class PlanningEngine {
       status: plan.status,
       progress,
       estimatedTimeRemaining,
-      nextActions
+      nextActions,
     };
   }
-  
+
   /**
    * Get active plan summary
    */
@@ -893,7 +935,7 @@ export class PlanningEngine {
     const plan = this.activePlans.get(planId);
     return plan ? this.createPlanSummary(plan) : null;
   }
-  
+
   /**
    * Pause plan execution
    */
@@ -905,7 +947,7 @@ export class PlanningEngine {
     }
     return false;
   }
-  
+
   /**
    * Resume plan execution
    */
@@ -917,7 +959,7 @@ export class PlanningEngine {
     }
     return null;
   }
-  
+
   /**
    * Cancel plan execution
    */
@@ -929,14 +971,14 @@ export class PlanningEngine {
     }
     return false;
   }
-  
+
   /**
    * Get plan history
    */
   getPlanHistory(limit: number = 10): PlanSummary[] {
     return this.planHistory.slice(-limit);
   }
-  
+
   /**
    * Get plan statistics
    */
@@ -948,18 +990,18 @@ export class PlanningEngine {
     successRate: number;
   } {
     const total = this.planHistory.length;
-    const completed = this.planHistory.filter(p => p.status === 'completed').length;
-    const failed = this.planHistory.filter(p => p.status === 'failed').length;
-    
+    const completed = this.planHistory.filter((p) => p.status === 'completed').length;
+    const failed = this.planHistory.filter((p) => p.status === 'failed').length;
+
     const totalSteps = this.planHistory.reduce((sum, p) => sum + p.totalSteps, 0);
     const averageSteps = total > 0 ? totalSteps / total : 0;
-    
+
     return {
       totalPlans: total,
       completedPlans: completed,
       failedPlans: failed,
       averageSteps,
-      successRate: total > 0 ? (completed / total) * 100 : 0
+      successRate: total > 0 ? (completed / total) * 100 : 0,
     };
   }
 }
@@ -971,10 +1013,7 @@ export class PlanningEngine {
 /**
  * Check if planning is needed for this query
  */
-export function shouldUsePlanning(
-  query: string,
-  classification: ClassificationResult
-): boolean {
+export function shouldUsePlanning(query: string, classification: ClassificationResult): boolean {
   const planningEngine = new PlanningEngine();
   return planningEngine.shouldUsePlanning(query, classification);
 }
@@ -988,20 +1027,20 @@ export async function executeWithPlanning(
   context: PlanContext
 ): Promise<{ summary: PlanSummary; finalResponse: string }> {
   const planningEngine = new PlanningEngine();
-  
+
   // Create plan
   const plan = planningEngine.createPlan(query, classification, context);
-  
+
   if (!plan) {
     throw new Error('Failed to create plan for query');
   }
-  
+
   // Execute plan
   const summary = await planningEngine.executePlan(plan);
-  
+
   // Generate final response based on results
   const finalResponse = generatePlanResponse(summary, plan);
-  
+
   return { summary, finalResponse };
 }
 
@@ -1012,34 +1051,34 @@ function generatePlanResponse(summary: PlanSummary, plan: ExecutionPlan): string
   let response = `📋 **${summary.name}**\n\n`;
   response += `🎯 Tikslas: ${summary.goal}\n\n`;
   response += `📊 Progresas: ${summary.progress}% (${summary.completedSteps}/${summary.totalSteps} žingsnių)\n\n`;
-  
+
   if (summary.status === 'completed') {
     response += `✅ Planas sėkmingai įvykdytas!\n\n`;
-    
+
     // Add key results
     const keyResults = Array.from(plan.results.entries())
       .filter(([_, result]) => result && typeof result === 'object')
       .slice(0, 3)
       .map(([stepId, result]) => {
-        const step = plan.steps.find(s => s.id === stepId);
+        const step = plan.steps.find((s) => s.id === stepId);
         return `• ${step?.description || stepId}: ${JSON.stringify(result).substring(0, 100)}...`;
       })
       .join('\n');
-    
+
     if (keyResults) {
       response += `📈 Pagrindiniai rezultatai:\n${keyResults}\n\n`;
     }
   } else if (summary.status === 'failed') {
     response += `❌ Planas nepavyko. Klaidos:\n`;
-    plan.errors.slice(0, 3).forEach(error => {
+    plan.errors.slice(0, 3).forEach((error) => {
       response += `• ${error}\n`;
     });
   }
-  
+
   if (summary.nextActions.length > 0) {
     response += `\n⏭️ Kitas žingsnis: ${summary.nextActions[0]}`;
   }
-  
+
   return response;
 }
 

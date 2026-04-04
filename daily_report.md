@@ -51,7 +51,7 @@
 | Parametras         | Reikšmė                                                             |
 | ------------------ | ------------------------------------------------------------------- |
 | **Tipas**          | React + TypeScript + Vite CRM                                       |
-| **Tech Stack**     | React 19, Tailwind 4, Firebase/Supabase, PWA                        |
+| **Tech Stack**     | React 19, Tailwind 4, Supabase, PWA                                 |
 | **Komponentai**    | 11 views + ChatAssistant + Layout                                   |
 | **AI Servisai**    | Hybrid Classifier, Memory Priority, Planning Engine, Modular Prompt |
 | **Build Statusas** | ✅ Sėkmingas (22.27s)                                               |
@@ -118,7 +118,6 @@ src/
 ├── views/          (11 puslapių)
 ├── App.tsx         (Pagrindinis)
 ├── supabase.ts     (Duomenų bazė)
-├── firebase.ts     (Firebase)
 └── types.ts        (Tipai)
 ```
 

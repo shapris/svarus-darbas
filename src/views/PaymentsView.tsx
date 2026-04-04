@@ -4,9 +4,23 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { CreditCard, DollarSign, FileText, Download, RefreshCw, AlertCircle, CheckCircle, Clock, X } from 'lucide-react';
+import {
+  CreditCard,
+  DollarSign,
+  FileText,
+  Download,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  X,
+} from 'lucide-react';
 import { Client, Invoice, Order, Transaction } from '../types';
-import { formatAmountFromEur, getInvoiceStatusText, getInvoiceStatusColor } from '../services/paymentService';
+import {
+  formatAmountFromEur,
+  getInvoiceStatusText,
+  getInvoiceStatusColor,
+} from '../services/paymentService';
 import { fetchPaymentsWorkspaceData, updateInvoiceStatusInSupabase } from '../supabase';
 import { motion } from 'motion/react';
 import { useToast } from '../hooks/useToast';
@@ -60,19 +74,23 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
       setInvoices(result.invoices);
       setTransactions(result.transactions);
     } catch (err) {
-      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '';
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : '';
       showToast.error(msg ? `Nepavyko įkelti mokėjimų: ${msg}` : 'Nepavyko įkelti mokėjimų');
     } finally {
       setLoading(false);
     }
-  }, [user?.uid]);
+  }, [user?.uid, showToast]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
   const clientNameForInvoice = useCallback(
-    (invoice: Invoice) => clients.find((c) => c.id === invoice.client_id)?.name ?? invoice.client_id,
+    (invoice: Invoice) =>
+      clients.find((c) => c.id === invoice.client_id)?.name ?? invoice.client_id,
     [clients]
   );
 
@@ -85,16 +103,14 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
     const order = orders.find((o) => o.id === invoice.order_id);
     const client =
       order != null
-        ? clients.find((c) => c.id === order.clientId) ?? clients.find((c) => c.id === invoice.client_id)
+        ? (clients.find((c) => c.id === order.clientId) ??
+          clients.find((c) => c.id === invoice.client_id))
         : clients.find((c) => c.id === invoice.client_id);
     if (order && client) {
       try {
         const result = await generateInvoicePDF(order, client);
-        showToast.success(
-          `${result.detail} (Sąskaitos nuoroda DB nebuvo — duomenys iš užsakymo.)`
-        );
-      } catch (e) {
-        console.error(e);
+        showToast.success(`${result.detail} (Sąskaitos nuoroda DB nebuvo — duomenys iš užsakymo.)`);
+      } catch {
         showToast.error('Nepavyko sugeneruoti PDF.');
       }
       return;
@@ -111,8 +127,13 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
       setSelectedInvoice(null);
       showToast.success('Sąskaitos statusas atnaujintas');
     } catch (err) {
-      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: string }).message) : '';
-      showToast.error(msg ? `Nepavyko atnaujinti sąskaitos: ${msg}` : 'Nepavyko atnaujinti sąskaitos statuso');
+      const msg =
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: string }).message)
+          : '';
+      showToast.error(
+        msg ? `Nepavyko atnaujinti sąskaitos: ${msg}` : 'Nepavyko atnaujinti sąskaitos statuso'
+      );
     }
   };
 
@@ -152,7 +173,10 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
         </div>
       )}
       {!tablesMissing && workspaceError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+        <div
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+          role="alert"
+        >
           {workspaceError}
         </div>
       )}
@@ -328,10 +352,14 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {invoice.created_at ? new Date(invoice.created_at).toLocaleDateString('lt-LT') : '—'}
+                            {invoice.created_at
+                              ? new Date(invoice.created_at).toLocaleDateString('lt-LT')
+                              : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('lt-LT') : '—'}
+                            {invoice.due_date
+                              ? new Date(invoice.due_date).toLocaleDateString('lt-LT')
+                              : '—'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
@@ -462,7 +490,9 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
             </div>
             <div className="space-y-3">
               <p className="text-sm text-gray-600">Sąskaita #{selectedInvoice.id.slice(-8)}</p>
-              <p className="text-sm text-gray-600">Suma: {formatAmountFromEur(selectedInvoice.amount)}</p>
+              <p className="text-sm text-gray-600">
+                Suma: {formatAmountFromEur(selectedInvoice.amount)}
+              </p>
               <div className="flex space-x-3">
                 <button
                   type="button"

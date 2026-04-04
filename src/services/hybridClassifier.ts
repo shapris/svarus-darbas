@@ -1,18 +1,51 @@
 // Hybrid Classifier - simplified version for testing
-export type ExtendedIntention = 
-  | 'business_summary' | 'business_forecast' | 'revenue_analysis' | 'expense_analysis'
-  | 'profit_margin' | 'seasonal_analysis' | 'growth_trends'
-  | 'neglected_clients' | 'client_history' | 'client_preferences' | 'client_segments'
-  | 'vip_clients' | 'new_clients' | 'inactive_clients'
-  | 'unpaid_orders' | 'pending_orders' | 'completed_orders' | 'order_details'
-  | 'order_statistics' | 'recurring_orders' | 'batch_operations'
-  | 'payment_status' | 'debt_analysis' | 'invoice_management' | 'profit_calculation'
+export type ExtendedIntention =
+  | 'business_summary'
+  | 'business_forecast'
+  | 'revenue_analysis'
+  | 'expense_analysis'
+  | 'profit_margin'
+  | 'seasonal_analysis'
+  | 'growth_trends'
+  | 'neglected_clients'
+  | 'client_history'
+  | 'client_preferences'
+  | 'client_segments'
+  | 'vip_clients'
+  | 'new_clients'
+  | 'inactive_clients'
+  | 'unpaid_orders'
+  | 'pending_orders'
+  | 'completed_orders'
+  | 'order_details'
+  | 'order_statistics'
+  | 'recurring_orders'
+  | 'batch_operations'
+  | 'payment_status'
+  | 'debt_analysis'
+  | 'invoice_management'
+  | 'profit_calculation'
   | 'cost_breakdown'
-  | 'cleaning_schedule' | 'service_pricing' | 'equipment_inventory'
-  | 'safety_protocols' | 'quality_standards' | 'seasonal_services'
-  | 'send_reminder' | 'generate_sms' | 'client_followup' | 'review_requests'
-  | 'ai_explain' | 'ai_suggest' | 'ai_review' | 'ai_optimize' | 'ai_plan'
-  | 'greeting' | 'farewell' | 'help_request' | 'status_check' | 'general_chat';
+  | 'cleaning_schedule'
+  | 'service_pricing'
+  | 'equipment_inventory'
+  | 'safety_protocols'
+  | 'quality_standards'
+  | 'seasonal_services'
+  | 'send_reminder'
+  | 'generate_sms'
+  | 'client_followup'
+  | 'review_requests'
+  | 'ai_explain'
+  | 'ai_suggest'
+  | 'ai_review'
+  | 'ai_optimize'
+  | 'ai_plan'
+  | 'greeting'
+  | 'farewell'
+  | 'help_request'
+  | 'status_check'
+  | 'general_chat';
 
 export interface ClassificationResult {
   intention: ExtendedIntention;
@@ -30,10 +63,10 @@ export interface ClassificationResult {
 
 export const HYBRID_CLASSIFIER_CONFIG = {
   keywordConfidenceThreshold: 0.85,
-  llmConfidenceThreshold: 0.70,
+  llmConfidenceThreshold: 0.7,
   enableLLMFallback: true,
   cacheLLMResults: true,
-  cacheTimeoutMs: 300000
+  cacheTimeoutMs: 300000,
 };
 
 // Simple classifier for testing
@@ -43,7 +76,7 @@ export async function classifyIntentHybrid(
   config?: any
 ): Promise<ClassificationResult> {
   const textLower = text.toLowerCase();
-  
+
   // === CLIENT MANAGEMENT ===
   if (/prid/i.test(textLower) && /klient/i.test(textLower)) {
     return {
@@ -53,10 +86,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: true,
       toolName: 'add_client',
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   if (/neaktyv.*klient|pamest.*klient|seniai.*(ne)?(lankyt|aplankyt)/i.test(textLower)) {
     return {
       intention: 'neglected_clients',
@@ -65,10 +98,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: true,
       toolName: 'get_neglected_clients',
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   if (/top.*klient|geriausi.*klient|vip.*klient/i.test(textLower)) {
     return {
       intention: 'vip_clients',
@@ -77,10 +110,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: true,
       toolName: 'get_top_clients',
       parameters: { limit: 5, by: 'revenue' },
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === BUSINESS ANALYTICS ===
   if (/verslo.*suvestin|pelnas|pajam.*išlaid/i.test(textLower)) {
     return {
@@ -90,10 +123,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: true,
       toolName: 'get_business_summary',
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === ORDER MANAGEMENT ===
   if (/neapmokėt.*užsakym|skol/i.test(textLower)) {
     return {
@@ -103,10 +136,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: true,
       toolName: 'get_unpaid_orders',
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === COMMUNICATION ===
   if (/sms|priminim|žinut/i.test(textLower)) {
     return {
@@ -116,10 +149,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: true,
       toolName: 'generate_reminder_message',
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === SAFETY ===
   if (/saugos|safety/i.test(textLower)) {
     return {
@@ -129,10 +162,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: false,
       toolName: null,
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === HELP ===
   if (/pagalbos|ką.*gali|help/i.test(textLower)) {
     return {
@@ -142,10 +175,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: false,
       toolName: null,
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === AI EXPLANATION ===
   if (/paaišk|kaip.*veiki|system/i.test(textLower)) {
     return {
@@ -155,10 +188,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: false,
       toolName: null,
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // === GREETING ===
   if (/labas|sveikas|hi|hello/i.test(textLower)) {
     return {
@@ -168,10 +201,10 @@ export async function classifyIntentHybrid(
       shouldExecuteTool: false,
       toolName: null,
       parameters: {},
-      alternatives: []
+      alternatives: [],
     };
   }
-  
+
   // Default
   return {
     intention: 'general_chat',
@@ -181,7 +214,7 @@ export async function classifyIntentHybrid(
     toolName: null,
     parameters: {},
     fallbackReason: 'No clear keyword match',
-    alternatives: []
+    alternatives: [],
   };
 }
 

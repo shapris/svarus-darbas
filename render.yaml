@@ -1,0 +1,13 @@
+# Render Blueprint (API: server.cjs)
+# Naujas Web Service → „Apply render.yaml“ arba rankiniu: Build npm ci, Start npm start.
+# Slaptus raktus (RESEND, SUPABASE_SERVICE_ROLE_KEY ir kt.) įveskite Render → Environment.
+
+services:
+  - type: web
+    name: svarus-darbas-api
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health

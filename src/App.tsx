@@ -3,13 +3,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, lazy, Suspense, useCallback, useMemo } from 'react';
-import { signIn, signUp, signOut, signInWithGoogle, getCurrentUser, subscribeToData, getData, addData, updateData, TABLES, testConnection, AuthUser, isDemoMode, usesFirebase, getUserProfile, createDefaultProfile, requestPasswordResetEmail } from './supabase';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import {
+  signIn,
+  signUp,
+  signOut,
+  signInWithGoogle,
+  getCurrentUser,
+  subscribeToData,
+  getData,
+  addData,
+  TABLES,
+  testConnection,
+  AuthUser,
+  needsBackendSetup,
+  usesLocalStorageBackend,
+  getUserProfile,
+  createDefaultProfile,
+  requestPasswordResetEmail,
+  isClientSelfRegistrationEnabled,
+} from './supabase';
 import Layout from './components/Layout';
+import BackendSetupRequired from './components/BackendSetupRequired';
 import { OrgAccessProvider } from './contexts/OrgAccessContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { FullPageLoader } from './components/LoadingSpinner';
-import { Client, Order, AppSettings, DEFAULT_SETTINGS, Expense, Employee, Memory, UserProfile, INVOICE_API_STORAGE_KEY } from './types';
+import {
+  Client,
+  Order,
+  AppSettings,
+  DEFAULT_SETTINGS,
+  Expense,
+  Employee,
+  Memory,
+  UserProfile,
+  INVOICE_API_STORAGE_KEY,
+} from './types';
 import { Droplets } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ToastContainer } from './components/Toast';
@@ -38,10 +67,12 @@ const TeamView = lazy(() => import('./views/TeamView'));
 const InventoryView = lazy(() => import('./views/InventoryView'));
 const PaymentsView = lazy(() => import('./views/PaymentsView'));
 const ResetPasswordView = lazy(() => import('./views/ResetPasswordView'));
+const MoreSectionsView = lazy(() => import('./views/MoreSectionsView'));
 
 // Optimized toast system - removed DOM manipulation
 
 export default function App() {
+  const clientSelfRegistrationEnabled = isClientSelfRegistrationEnabled();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -52,7 +83,9 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showLoginForm, setShowLoginForm] = useState<'login' | 'register' | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [connectionStatus, setConnectionStatus] = useState<
+    'checking' | 'connected' | 'disconnected'
+  >('checking');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -67,7 +100,9 @@ export default function App() {
 
   // Client Portal State
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [showClientPortal, setShowClientPortal] = useState<'login' | 'register' | 'dashboard' | null>(null);
+  const [showClientPortal, setShowClientPortal] = useState<
+    'login' | 'register' | 'dashboard' | null
+  >(null);
 
   // Set saved email on load
   useEffect(() => {
@@ -85,11 +120,7 @@ export default function App() {
       localStorage.setItem('custom_api_key', String(or).trim());
       return;
     }
-    const gem =
-      import.meta.env.VITE_GEMINI_API_KEY ||
-      (typeof process !== 'undefined'
-        ? String((process.env as Record<string, string | undefined>).GEMINI_API_KEY ?? '').trim()
-        : '');
+    const gem = import.meta.env.VITE_GEMINI_API_KEY;
     if (gem) {
       localStorage.setItem('custom_api_key', gem);
     }
@@ -104,52 +135,69 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    // Auto-login: try to restore from localStorage
-    const savedUser = localStorage.getItem('saved_user');
-    if (savedUser) {
-      try {
-        const userObj = JSON.parse(savedUser);
-        if (userObj.uid && userObj.email) {
-          setUser(userObj);
-          setLoading(false);
-          return;
+    if (needsBackendSetup) {
+      if (!cancelled) setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (usesLocalStorageBackend) {
+      const savedUser = localStorage.getItem('saved_user');
+      if (savedUser) {
+        try {
+          const userObj = JSON.parse(savedUser);
+          if (userObj.uid && userObj.email) {
+            setUser(userObj);
+            setLoading(false);
+            return () => {
+              cancelled = true;
+            };
+          }
+        } catch {
+          localStorage.removeItem('saved_user');
         }
-      } catch (e) {
-        localStorage.removeItem('saved_user');
       }
     }
 
     (async () => {
-      // Only auto-login in demo mode
-      if (!isDemoMode) {
-        // Supabase configured - don't auto-login, wait for user to sign in
+      if (!usesLocalStorageBackend) {
         if (!cancelled) setLoading(false);
-        // Test connection and update status
-        testConnection().then(connected => {
-          if (!cancelled) setConnectionStatus(connected ? 'connected' : 'disconnected');
-        }).catch(() => {
-          if (!cancelled) setConnectionStatus('disconnected');
-        });
+        testConnection()
+          .then((connected) => {
+            if (!cancelled) setConnectionStatus(connected ? 'connected' : 'disconnected');
+          })
+          .catch(() => {
+            if (!cancelled) setConnectionStatus('disconnected');
+          });
         return;
       }
 
       try {
-        const currentUser = await getCurrentUser();
+        const sessionUser = await getCurrentUser();
         if (cancelled) return;
 
-        // Auto-login with demo user (only in demo mode)
-        const demoEmail = 'demo@example.com';
-        const demoPassword = 'demo123';
+        if (sessionUser?.uid) {
+          setUser({
+            uid: sessionUser.uid,
+            email: sessionUser.email || '',
+            displayName: sessionUser.displayName,
+            photoURL: sessionUser.photoURL,
+          });
+          return;
+        }
+
+        const devEmail = 'demo@example.com';
+        const devPassword = 'demo123';
 
         try {
-          let result = await signIn(demoEmail, demoPassword).catch(() => null);
+          let result = await signIn(devEmail, devPassword).catch(() => null);
           if (cancelled) return;
 
           if (!result?.user) {
-            // Create demo user
-            await signUp(demoEmail, demoPassword, 'Demo User');
+            await signUp(devEmail, devPassword, 'Kūrimo naudotojas');
             if (cancelled) return;
-            result = await signIn(demoEmail, demoPassword);
+            result = await signIn(devEmail, devPassword);
           }
 
           if (cancelled) return;
@@ -157,20 +205,13 @@ export default function App() {
           if (userData) {
             setUser({
               uid: userData.id,
-              email: userData.email || demoEmail,
-              displayName: 'Demo User',
+              email: userData.email || devEmail,
+              displayName: 'Kūrimo naudotojas',
               photoURL: null,
             });
           }
-        } catch (e) {
-          console.error('Demo auto-login failed:', e);
-          // Still set a demo user directly
-          setUser({
-            uid: 'demo-user-123',
-            email: demoEmail,
-            displayName: 'Demo User',
-            photoURL: null,
-          });
+        } catch {
+          /* demo prisijungimas nepavyko — vartotojas gali prisijungti ranka */
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -191,7 +232,7 @@ export default function App() {
     }
 
     // Load user profile to determine role
-    getUserProfile(user.uid).then(profile => {
+    getUserProfile(user.uid).then((profile) => {
       if (profile) {
         setUserProfile(profile);
         // If user is client, show client portal
@@ -201,16 +242,24 @@ export default function App() {
           setShowClientPortal(null);
         }
       } else {
-        // Create default profile for staff users
-        createDefaultProfile(user.uid, user.email, 'admin').then(newProfile => {
-          setUserProfile(newProfile);
-          setShowClientPortal(null);
-        });
+        createDefaultProfile(user.uid, user.email, 'staff')
+          .then((newProfile) => {
+            setUserProfile(newProfile);
+            setShowClientPortal(null);
+          })
+          .catch((e) => {
+            showToastRef.current.error(
+              e instanceof Error
+                ? e.message
+                : 'Nepavyko sukurti naudotojo profilio. Patikrinkite Supabase / RLS.'
+            );
+          });
       }
     });
 
     // Load Settings
-    getData<any>(TABLES.SETTINGS, user.uid).then(settingsData => {
+    type SettingsRow = AppSettings & { invoice_api_base_url?: string };
+    getData<SettingsRow>(TABLES.SETTINGS, user.uid).then((settingsData) => {
       let fromLs = '';
       try {
         fromLs = localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim() ?? '';
@@ -218,7 +267,7 @@ export default function App() {
         /* */
       }
       if (settingsData.length > 0) {
-        const row = settingsData[0] as AppSettings & { invoice_api_base_url?: string };
+        const row = settingsData[0];
         setSettings({
           ...DEFAULT_SETTINGS,
           ...row,
@@ -316,20 +365,22 @@ export default function App() {
           photoURL: userData.user_metadata?.avatar_url || null,
         };
         setUser(userObj);
-        
+
         // Auto-login: save to localStorage if remember me is checked
         if (rememberMe) {
-          localStorage.setItem('saved_user', JSON.stringify(userObj));
+          if (usesLocalStorageBackend) {
+            localStorage.setItem('saved_user', JSON.stringify(userObj));
+          } else {
+            localStorage.removeItem('saved_user');
+          }
           localStorage.setItem('saved_email', email);
+        } else {
+          localStorage.removeItem('saved_user');
+          localStorage.removeItem('saved_email');
         }
       }
       setShowLoginForm(null);
-      // Show info if using demo fallback
-      if ('isDemoFallback' in result) {
-        showToast.info('Jungiamasi į demonstracinį režimą');
-      }
     } catch (error: unknown) {
-      console.error('Login failed:', error);
       showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.login));
     }
   };
@@ -350,14 +401,8 @@ export default function App() {
         });
       }
       setShowLoginForm(null);
-      // Show info if using demo fallback
-      if ('isDemoFallback' in result) {
-        showToast.success('Paskyra sukurta demonstraciniame režime');
-      } else {
-        showToast.success('Paskyra sukurta. Jūs automatiškai prisijungėte.');
-      }
+      showToast.success('Paskyra sukurta. Jūs automatiškai prisijungėte.');
     } catch (error: unknown) {
-      console.error('Registration failed:', error);
       showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.register));
     }
   };
@@ -376,7 +421,7 @@ export default function App() {
 
   const handleClientLogin = (authUser: AuthUser) => {
     setUser(authUser);
-    getUserProfile(authUser.uid).then(profile => {
+    getUserProfile(authUser.uid).then((profile) => {
       if (profile?.role === 'client') {
         setUserProfile(profile);
         setShowClientPortal('dashboard');
@@ -397,7 +442,7 @@ export default function App() {
       clientId: client.id,
       name: client.name,
       phone: client.phone,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
     setUserProfile(profile);
     setShowClientPortal('dashboard');
@@ -419,6 +464,15 @@ export default function App() {
     );
   }
 
+  if (needsBackendSetup && !isBookingPage && !isResetPasswordPage) {
+    return (
+      <>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        <BackendSetupRequired />
+      </>
+    );
+  }
+
   if (isResetPasswordPage) {
     return (
       <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
@@ -429,11 +483,13 @@ export default function App() {
 
   if (isBookingPage && bookingUserId) {
     return (
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      }>
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        }
+      >
         <BookingPage userId={bookingUserId} />
       </Suspense>
     );
@@ -442,242 +498,299 @@ export default function App() {
   if (!user) {
     return (
       <>
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="bg-white p-8 rounded-2xl shadow-md max-w-sm w-full text-center border border-slate-200"
-        >
-          <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-5 text-white">
-            <Droplets size={28} strokeWidth={2} />
-          </div>
-          <h1 className="text-xl font-semibold text-slate-900 mb-2">Švarus Darbas CRM</h1>
-          <p className="text-slate-600 mb-3 text-sm leading-relaxed">Valdykite užsakymus, klientus ir komandą vienoje sistemoje.</p>
-          <div className="mb-4 text-left text-[12px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-3">
-            <p className="font-semibold text-slate-800 mb-1">Greitas startas komandai:</p>
-            <p>1. Sukurkite darbuotojo paskyrą.</p>
-            <p>2. Prisijunkite ir atsidarykite „Nustatymai“.</p>
-            <p>3. Pasidalinkite rezervacijos nuoroda su klientais.</p>
-          </div>
-          <div className="mb-4 text-left text-[11px] text-slate-600 bg-white border border-slate-100 rounded-lg p-3 space-y-1.5">
-            <p><span className="font-semibold text-slate-800">Komanda:</span> {AUTH_INVITE_HELP.staffInvite}</p>
-            <p><span className="font-semibold text-slate-800">Klientai:</span> {AUTH_INVITE_HELP.clientInvite}</p>
-          </div>
-          {!isDemoMode && usesFirebase && (
-            <div className="mb-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-700 text-left border border-slate-100">
-              Duomenys saugomi Google Firebase (debesis). Įjunkite Email/Google prisijungimą Firebase konsolėje.
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white p-8 rounded-2xl shadow-md max-w-sm w-full text-center border border-slate-200"
+          >
+            <div className="w-14 h-14 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-5 text-white">
+              <Droplets size={28} strokeWidth={2} />
             </div>
-          )}
-          {!isDemoMode && !usesFirebase && (
-            <div className="mb-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-700 text-left border border-slate-100">
-              Duomenys saugomi Supabase (debesis). Google prisijungimas galimas, jei sukonfigūruota projekte.
+            <h1 className="text-xl font-semibold text-slate-900 mb-2">Švarus Darbas CRM</h1>
+            <p className="text-slate-600 mb-3 text-sm leading-relaxed">
+              Valdykite užsakymus, klientus ir komandą vienoje sistemoje.
+            </p>
+            <div className="mb-4 text-left text-[12px] text-slate-600 bg-slate-50 border border-slate-100 rounded-lg p-3">
+              <p className="font-semibold text-slate-800 mb-1">Greitas startas komandai:</p>
+              <p>1. Sukurkite darbuotojo paskyrą.</p>
+              <p>2. Prisijunkite ir atsidarykite „Nustatymai“.</p>
+              <p>3. Pasidalinkite rezervacijos nuoroda su klientais.</p>
             </div>
-          )}
-          {connectionStatus === 'checking' && !isDemoMode && (
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700 text-center border border-blue-100 flex items-center justify-center gap-2">
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
-              Tikrinama ryšys su duomenų baze...
+            <div className="mb-4 text-left text-[11px] text-slate-600 bg-white border border-slate-100 rounded-lg p-3 space-y-1.5">
+              <p>
+                <span className="font-semibold text-slate-800">Komanda:</span>{' '}
+                {AUTH_INVITE_HELP.staffInvite}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-800">Klientai:</span>{' '}
+                {AUTH_INVITE_HELP.clientInvite}
+              </p>
             </div>
-          )}
-          {connectionStatus === 'disconnected' && !isDemoMode && (
-            <>
-              <div className="mb-4 p-3 bg-red-50 rounded-lg text-xs text-red-700 text-left border border-red-100">
-                ⚠️ Nepavyko prisijungti prie duomenų bazės. Patikrinkite interneto ryšį arba kreipkitės į administratorių.
+            {!usesLocalStorageBackend && (
+              <div className="mb-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-700 text-left border border-slate-100">
+                Duomenys saugomi Supabase (debesis). Google prisijungimas galimas, jei
+                sukonfigūruota projekte.
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="lg"
-                fullWidth
-                className="mb-3"
-                onClick={() => {
-                  setConnectionStatus('checking');
-                  testConnection().then(connected => {
-                    setConnectionStatus(connected ? 'connected' : 'disconnected');
-                  }).catch(() => {
-                    setConnectionStatus('disconnected');
-                  });
-                }}
-              >
-                Bandyti vėl
-              </Button>
-            </>
-          )}
-          {isDemoMode && (
-            <div className="mb-4 p-3 bg-amber-50 rounded-lg text-xs text-amber-900 text-left border border-amber-100">
-              Vietinis režimas: duomenys saugomi šioje naršyklėje. Debesiui: Firebase (<code className="text-[11px] bg-amber-100/80 px-1 rounded">VITE_USE_FIREBASE</code> + raktai) arba Supabase (<code className="text-[11px] bg-amber-100/80 px-1 rounded">VITE_SUPABASE_*</code>).
-            </div>
-          )}
+            )}
+            {connectionStatus === 'checking' && !usesLocalStorageBackend && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700 text-center border border-blue-100 flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                Tikrinama ryšys su duomenų baze...
+              </div>
+            )}
+            {connectionStatus === 'disconnected' && !usesLocalStorageBackend && (
+              <>
+                <div className="mb-4 p-3 bg-red-50 rounded-lg text-xs text-red-700 text-left border border-red-100">
+                  ⚠️ Nepavyko prisijungti prie duomenų bazės. Patikrinkite interneto ryšį arba
+                  kreipkitės į administratorių.
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className="mb-3"
+                  onClick={() => {
+                    setConnectionStatus('checking');
+                    testConnection()
+                      .then((connected) => {
+                        setConnectionStatus(connected ? 'connected' : 'disconnected');
+                      })
+                      .catch(() => {
+                        setConnectionStatus('disconnected');
+                      });
+                  }}
+                >
+                  Bandyti vėl
+                </Button>
+              </>
+            )}
+            {usesLocalStorageBackend && (
+              <div className="mb-4 p-3 bg-amber-50 rounded-lg text-xs text-amber-900 text-left border border-amber-100">
+                Vietinis kūrimo režimas: duomenys tik šioje naršyklėje. Produkcijai naudokite
+                Supabase; šį režimą įjungia{' '}
+                <code className="text-[11px] bg-amber-100/80 px-1 rounded">
+                  VITE_ALLOW_OFFLINE_CRM=true
+                </code>
+                .
+              </div>
+            )}
 
-          {!showLoginForm ? (
-            <>
-              <Button
-                variant="primary"
-                size="lg"
-                fullWidth
-                className="mb-3"
-                onClick={() => { setShowClientPortal(null); setShowLoginForm('login'); }}
-              >
-                Darbuotojo prisijungimas
-              </Button>
-              <Button
-                variant="success"
-                size="lg"
-                fullWidth
-                className="mb-3"
-                onClick={() => { setShowLoginForm(null); setShowClientPortal('login'); }}
-              >
-                Kliento prisijungimas
-              </Button>
-              <Button
-                variant="secondary"
-                size="md"
-                fullWidth
-                className="mt-3"
-                onClick={() => { setShowClientPortal(null); setShowLoginForm('register'); }}
-              >
-                Sukurti darbuotojo paskyrą
-              </Button>
-              <Button
-                variant="successSoft"
-                size="md"
-                fullWidth
-                className="mt-3"
-                onClick={() => { setShowLoginForm(null); setShowClientPortal('register'); }}
-              >
-                Sukurti kliento paskyrą
-              </Button>
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
+            {!showLoginForm ? (
+              <>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  fullWidth
+                  className="mb-3"
+                  onClick={() => {
+                    setShowClientPortal(null);
+                    setShowLoginForm('login');
+                  }}
+                >
+                  Darbuotojo prisijungimas
+                </Button>
+                <Button
+                  variant="success"
+                  size="lg"
+                  fullWidth
+                  className="mb-3"
+                  onClick={() => {
+                    setShowLoginForm(null);
+                    setShowClientPortal('login');
+                  }}
+                >
+                  Kliento prisijungimas
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  className="mt-3"
+                  onClick={() => {
+                    setShowClientPortal(null);
+                    setShowLoginForm('register');
+                  }}
+                >
+                  Sukurti darbuotojo paskyrą
+                </Button>
+                <Button
+                  variant="successSoft"
+                  size="md"
+                  fullWidth
+                  className="mt-3"
+                  onClick={() => {
+                    setShowLoginForm(null);
+                    setShowClientPortal('register');
+                  }}
+                  disabled={!clientSelfRegistrationEnabled}
+                >
+                  {clientSelfRegistrationEnabled
+                    ? 'Sukurti kliento paskyrą'
+                    : 'Kliento registracija valdoma administratoriaus'}
+                </Button>
+                <div className="relative my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-slate-500">arba</span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-slate-500">arba</span>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                fullWidth
-                className="font-medium"
-                onClick={async () => {
-                  try {
-                    await signInWithGoogle();
-                  } catch (error: unknown) {
-                    console.error('Google login failed:', error);
-                    showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.google));
-                  }
-                }}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  className="font-medium"
+                  onClick={async () => {
+                    try {
+                      await signInWithGoogle();
+                    } catch (error: unknown) {
+                      showToast.error(formatAuthErrorForUser(error, AUTH_FALLBACK.google));
+                    }
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" className="w-5 h-5">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    />
+                  </svg>
+                  Prisijungti su Google
+                </Button>
+              </>
+            ) : (
+              <form
+                onSubmit={(e) =>
+                  showLoginForm === 'login' ? handleLogin(e, rememberMe) : handleRegister(e)
+                }
               >
-                <svg viewBox="0 0 24 24" className="w-5 h-5">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                Prisijungti su Google
-              </Button>
-            </>
-          ) : (
-            <form onSubmit={(e) => showLoginForm === 'login' ? handleLogin(e, rememberMe) : handleRegister(e)}>
-              {showLoginForm === 'register' && (
+                {showLoginForm === 'register' && (
+                  <input
+                    type="text"
+                    placeholder="Vardas"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="w-full mb-3 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    required
+                  />
+                )}
                 <input
-                  type="text"
-                  placeholder="Vardas"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
+                  type="email"
+                  placeholder="El. paštas"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full mb-3 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                   required
                 />
-              )}
-              <input
-                type="email"
-                placeholder="El. paštas"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full mb-3 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                required
-              />
-              <input
-                type="password"
-                placeholder="Slaptažodis"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full mb-4 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                required
-              />
-              {showLoginForm === 'login' && (
-                <>
-                  <div className="text-right -mt-2 mb-3">
-                    <button
-                      type="button"
-                      title="Siųsti slaptažodžio atkūrimo nuorodą į el. paštą"
-                      onClick={async () => {
-                        const trimmed = email.trim();
-                        if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                          showToast.error('Įveskite el. paštą aukščiau, tada spauskite „Pamiršote slaptažodį?“.');
-                          return;
-                        }
-                        try {
-                          await requestPasswordResetEmail(trimmed);
-                          showToast.success('Jei paskyra egzistuoja, netrukus gausite laišką su nuoroda.');
-                        } catch (e: unknown) {
-                          showToast.error(formatAuthErrorForUser(e, 'Nepavyko išsiųsti atkūrimo laiško.'));
-                        }
-                      }}
-                      className="text-xs text-blue-600 hover:text-blue-800"
-                    >
-                      Pamiršote slaptažodį?
-                    </button>
-                  </div>
-                  <label className="flex items-center gap-2 mb-4 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-slate-600">Prisiminti mane kitą kartą</span>
-                  </label>
-                </>
-              )}
-              <Button type="submit" variant="primary" size="lg" fullWidth>
-                {showLoginForm === 'login' ? 'Prisijungti' : 'Sukurti paskyrą'}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="md"
-                fullWidth
-                className="mt-3 text-slate-500 text-sm font-normal"
-                onClick={() => setShowLoginForm(null)}
-              >
-                Atgal
-              </Button>
-            </form>
-          )}
-        </motion.div>
-      </div>
-      {showClientPortal === 'login' && (
-        <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
-          <ClientLogin
-            onSuccess={handleClientLogin}
-            onRegister={() => setShowClientPortal('register')}
-            onBack={() => setShowClientPortal(null)}
-          />
-        </Suspense>
-      )}
-      {showClientPortal === 'register' && (
-        <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
-          <ClientRegistration
-            onSuccess={handleClientRegister}
-            onBack={() => setShowClientPortal('login')}
-          />
-        </Suspense>
-      )}
+                <input
+                  type="password"
+                  placeholder="Slaptažodis"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full mb-4 px-4 py-3 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                  required
+                />
+                {usesLocalStorageBackend && showLoginForm === 'login' && (
+                  <p className="text-xs text-slate-500 mb-4 -mt-2">
+                    Vietinis CRM (be Supabase): numatytoji kūrimo paskyra{' '}
+                    <span className="font-mono">demo@example.com</span> /{' '}
+                    <span className="font-mono">demo123</span>, arba kurkite naują paskyrą žemiau.
+                  </p>
+                )}
+                {showLoginForm === 'login' && (
+                  <>
+                    <div className="text-right -mt-2 mb-3">
+                      <button
+                        type="button"
+                        title="Siųsti slaptažodžio atkūrimo nuorodą į el. paštą"
+                        onClick={async () => {
+                          const trimmed = email.trim();
+                          if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                            showToast.error(
+                              'Įveskite el. paštą aukščiau, tada spauskite „Pamiršote slaptažodį?“.'
+                            );
+                            return;
+                          }
+                          try {
+                            await requestPasswordResetEmail(trimmed);
+                            showToast.success(
+                              'Jei paskyra egzistuoja, netrukus gausite laišką su nuoroda.'
+                            );
+                          } catch (e: unknown) {
+                            showToast.error(
+                              formatAuthErrorForUser(e, 'Nepavyko išsiųsti atkūrimo laiško.')
+                            );
+                          }
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        Pamiršote slaptažodį?
+                      </button>
+                    </div>
+                    <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-slate-600">Prisiminti mane kitą kartą</span>
+                    </label>
+                  </>
+                )}
+                <Button type="submit" variant="primary" size="lg" fullWidth>
+                  {showLoginForm === 'login' ? 'Prisijungti' : 'Sukurti paskyrą'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  fullWidth
+                  className="mt-3 text-slate-500 text-sm font-normal"
+                  onClick={() => setShowLoginForm(null)}
+                >
+                  Atgal
+                </Button>
+              </form>
+            )}
+          </motion.div>
+        </div>
+        {showClientPortal === 'login' && (
+          <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
+            <ClientLogin
+              onSuccess={handleClientLogin}
+              onRegister={() => setShowClientPortal('register')}
+              onBack={() => setShowClientPortal(null)}
+              allowRegistration={clientSelfRegistrationEnabled}
+            />
+          </Suspense>
+        )}
+        {showClientPortal === 'register' && (
+          <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
+            <ClientRegistration
+              allowRegistration={clientSelfRegistrationEnabled}
+              onSuccess={handleClientRegister}
+              onBack={() => setShowClientPortal('login')}
+            />
+          </Suspense>
+        )}
       </>
     );
   }
@@ -686,19 +799,58 @@ export default function App() {
     const content = (() => {
       switch (activeTab) {
         case 'dashboard':
-          return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} user={user} settings={settings} />;
+          return (
+            <Dashboard
+              orders={orders}
+              clients={clients}
+              expenses={expenses}
+              memories={memories}
+              setActiveTab={setActiveTab}
+              user={user}
+              settings={settings}
+            />
+          );
         case 'clients':
           return <ClientsView clients={clients} orders={orders} user={user} />;
         case 'orders':
-          return <OrdersView orders={orders} clients={clients} settings={settings} user={user} employees={employees} />;
+          return (
+            <OrdersView
+              orders={orders}
+              clients={clients}
+              settings={settings}
+              user={user}
+              employees={employees}
+            />
+          );
         case 'calendar':
-          return <CalendarView orders={orders} employees={employees} clients={clients} onOpenClient={() => setActiveTab('clients')} />;
+          return (
+            <CalendarView
+              orders={orders}
+              employees={employees}
+              clients={clients}
+              onOpenClient={() => setActiveTab('clients')}
+            />
+          );
         case 'settings':
-          return <SettingsView settings={settings} setSettings={setSettings} user={user} memories={memories} />;
+          return (
+            <SettingsView
+              settings={settings}
+              setSettings={setSettings}
+              user={user}
+              memories={memories}
+            />
+          );
         case 'expenses':
           return <ExpensesView expenses={expenses} user={user} />;
         case 'analytics':
-          return <AnalyticsView orders={orders} expenses={expenses} clients={clients} settings={settings} />;
+          return (
+            <AnalyticsView
+              orders={orders}
+              expenses={expenses}
+              clients={clients}
+              settings={settings}
+            />
+          );
         case 'logistics':
           return <LogisticsView orders={orders} />;
         case 'team':
@@ -707,17 +859,29 @@ export default function App() {
           return <InventoryView userId={user.uid} />;
         case 'payments':
           return <PaymentsView user={user} clients={clients} orders={orders} />;
+        case 'more':
+          return <MoreSectionsView setActiveTab={setActiveTab} />;
         default:
-          return <Dashboard orders={orders} clients={clients} expenses={expenses} memories={memories} setActiveTab={setActiveTab} />;
+          return (
+            <Dashboard
+              orders={orders}
+              clients={clients}
+              expenses={expenses}
+              memories={memories}
+              setActiveTab={setActiveTab}
+            />
+          );
       }
     })();
 
     return (
-      <Suspense fallback={
-        <div className="flex items-center justify-center p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      }>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        }
+      >
         {content}
       </Suspense>
     );
@@ -728,52 +892,45 @@ export default function App() {
       <div className="min-h-screen bg-slate-50">
         {/* Toast Container */}
         <ToastContainer toasts={toasts} onRemove={removeToast} />
-        
+
         {showClientPortal === 'dashboard' && user && userProfile && (
-          <ClientDashboard
-            user={user}
-            profile={userProfile}
-            onLogout={handleClientLogout}
-          />
+          <ClientDashboard user={user} profile={userProfile} onLogout={handleClientLogout} />
         )}
 
-      {/* Staff CRM */}
-      {!showClientPortal && user && (
-        <OrgAccessProvider value={{ isRestrictedStaff: userProfile?.role === 'staff' }}>
-          <Layout 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            onLogout={handleLogout}
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
+        {/* Staff CRM */}
+        {!showClientPortal && user && (
+          <OrgAccessProvider value={{ isRestrictedStaff: userProfile?.role === 'staff' }}>
+            <Layout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {renderContent()}
+                </motion.div>
+              </AnimatePresence>
+              <Suspense
+                fallback={
+                  <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  </div>
+                }
               >
-                {renderContent()}
-              </motion.div>
-            </AnimatePresence>
-            <Suspense fallback={
-              <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-              </div>
-            }>
-              <ChatAssistant
-                user={user}
-                clients={clients}
-                orders={orders}
-                expenses={expenses}
-                settings={settings}
-                activeTab={activeTab}
-              />
-            </Suspense>
-          </Layout>
-        </OrgAccessProvider>
-      )}
-
+                <ChatAssistant
+                  user={user}
+                  clients={clients}
+                  orders={orders}
+                  expenses={expenses}
+                  settings={settings}
+                  activeTab={activeTab}
+                />
+              </Suspense>
+            </Layout>
+          </OrgAccessProvider>
+        )}
       </div>
     </ErrorBoundary>
   );

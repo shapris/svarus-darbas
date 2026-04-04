@@ -7,8 +7,38 @@ import React, { useState, useEffect } from 'react';
 import { Order, Client, Expense, Memory } from '../types';
 import { AuthUser } from '../supabase';
 import { formatCurrency, formatDate } from '../utils';
-import { CheckCircle2, Clock, Calendar as CalendarIcon, TrendingUp, TrendingDown, Plus, Users, FileText, Sparkles, Cloud, Sun, CloudRain, Thermometer, MapPin, PieChart, Package, Users2, MessageSquare, Bell, Send } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import {
+  CheckCircle2,
+  Clock,
+  Calendar as CalendarIcon,
+  TrendingUp,
+  TrendingDown,
+  Plus,
+  Users,
+  FileText,
+  Sparkles,
+  Cloud,
+  Sun,
+  CloudRain,
+  Thermometer,
+  MapPin,
+  PieChart,
+  Package,
+  Users2,
+  MessageSquare,
+  Bell,
+  Send,
+} from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from 'recharts';
 import { generateSpeech, getSpeechAudio, stopAllAudio } from '../services/ttsService';
 import {
   DASHBOARD_INSIGHT_LABELS,
@@ -43,7 +73,15 @@ function resolveGeminiVoice(): GeminiTtsVoice {
   return (allowed.includes(v as GeminiTtsVoice) ? v : 'Zephyr') as GeminiTtsVoice;
 }
 
-export default function Dashboard({ orders, clients, expenses, memories, setActiveTab, user, settings }: DashboardProps) {
+export default function Dashboard({
+  orders,
+  clients,
+  expenses,
+  memories,
+  setActiveTab,
+  user,
+  settings,
+}: DashboardProps) {
   const [insights, setInsights] = useState<DashboardInsight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
@@ -57,17 +95,17 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
   useEffect(() => {
     smsService.loadReminders();
     smsService.clearOldReminders();
-    
+
     // Check for pending reminders every minute
     const interval = setInterval(() => {
       smsService.checkPendingReminders(orders, clients, settings || {});
       setSmsStats(smsService.getReminderStats());
     }, 60000);
-    
+
     // Initial check
     smsService.checkPendingReminders(orders, clients, settings || {});
     setSmsStats(smsService.getReminderStats());
-    
+
     return () => clearInterval(interval);
   }, [orders, clients, settings]);
 
@@ -75,13 +113,15 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
     const fetchWeather = async () => {
       try {
         // Klaipėda coordinates
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=55.7068&longitude=21.1443&current_weather=true');
+        const res = await fetch(
+          'https://api.open-meteo.com/v1/forecast?latitude=55.7068&longitude=21.1443&current_weather=true'
+        );
         const data = await res.json();
         const code = data.current_weather.weathercode;
         setWeather({
           temp: Math.round(data.current_weather.temperature),
           condition: code > 50 ? 'Lietus' : code > 0 ? 'Debesuota' : 'Giedra',
-          isRainy: code > 50
+          isRainy: code > 50,
         });
       } catch {
         // Weather fetch failed silently
@@ -107,7 +147,7 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 typeof x === 'object' &&
                 'id' in x &&
                 'text' in x &&
-                typeof (x as DashboardInsight).text === 'string',
+                typeof (x as DashboardInsight).text === 'string'
             )
           ) {
             const blocks = parsed as DashboardInsight[];
@@ -160,11 +200,11 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
 
   useEffect(() => {
     const quotes = [
-      "Sėkmė yra ne galutinis taškas, o drąsa tęsti.",
-      "Geriausias būdas nuspėti ateitį yra ją sukurti patiems.",
-      "Kiekvienas švarus langas yra nauja galimybė pamatyti pasaulį geriau.",
-      "Verslas auga ten, kur yra dėmesys detalėms ir klientui.",
-      "Niekada nepasiduokite, nes būtent tada, kai sunkiausia, įvyksta proveržis."
+      'Sėkmė yra ne galutinis taškas, o drąsa tęsti.',
+      'Geriausias būdas nuspėti ateitį yra ją sukurti patiems.',
+      'Kiekvienas švarus langas yra nauja galimybė pamatyti pasaulį geriau.',
+      'Verslas auga ten, kur yra dėmesys detalėms ir klientui.',
+      'Niekada nepasiduokite, nes būtent tada, kai sunkiausia, įvyksta proveržis.',
     ];
     const quote = quotes[Math.floor(Math.random() * quotes.length)];
     setDailyQuote(quote);
@@ -173,16 +213,16 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
     const prefetchQuote = async () => {
       const audio = await getSpeechAudio(quote, 'Zephyr');
       if (audio) {
-        setCachedAudios(prev => ({ ...prev, 'daily-quote': audio }));
+        setCachedAudios((prev) => ({ ...prev, 'daily-quote': audio }));
       }
     };
     prefetchQuote();
   }, []);
 
   const today = new Date().toISOString().split('T')[0];
-  const todayOrders = orders.filter(o => o.date === today);
-  const pendingOrders = orders.filter(o => o.status === 'suplanuota');
-  const completedOrders = orders.filter(o => o.status === 'atlikta');
+  const todayOrders = orders.filter((o) => o.date === today);
+  const pendingOrders = orders.filter((o) => o.status === 'suplanuota');
+  const completedOrders = orders.filter((o) => o.status === 'atlikta');
 
   const totalRevenue = completedOrders.reduce((sum, o) => sum + o.totalPrice, 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -192,12 +232,16 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
   const threeMonthsAgo = new Date();
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-  const reEngagementClients = clients.filter(client => {
-    const clientOrders = orders.filter(o => o.clientId === client.id);
-    if (clientOrders.length === 0) return false;
-    const lastOrderDate = new Date(Math.max(...clientOrders.map(o => new Date(o.date).getTime())));
-    return lastOrderDate < threeMonthsAgo;
-  }).slice(0, 3);
+  const reEngagementClients = clients
+    .filter((client) => {
+      const clientOrders = orders.filter((o) => o.clientId === client.id);
+      if (clientOrders.length === 0) return false;
+      const lastOrderDate = new Date(
+        Math.max(...clientOrders.map((o) => new Date(o.date).getTime()))
+      );
+      return lastOrderDate < threeMonthsAgo;
+    })
+    .slice(0, 3);
 
   // Prepare chart data (last 6 months)
   const last6Months = Array.from({ length: 6 }, (_, i) => {
@@ -206,38 +250,68 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
     return {
       month: d.getMonth(),
       year: d.getFullYear(),
-      label: d.toLocaleString('lt-LT', { month: 'short' })
+      label: d.toLocaleString('lt-LT', { month: 'short' }),
     };
   }).reverse();
 
   const chartData = last6Months.map(({ month, year, label }) => {
-    const monthOrders = orders.filter(o => {
+    const monthOrders = orders.filter((o) => {
       const d = new Date(o.date);
       return d.getMonth() === month && d.getFullYear() === year && o.status === 'atlikta';
     });
-    const monthExpenses = expenses.filter(e => {
+    const monthExpenses = expenses.filter((e) => {
       const d = new Date(e.date);
       return d.getMonth() === month && d.getFullYear() === year;
     });
 
     const revenue = monthOrders.reduce((sum, o) => sum + o.totalPrice, 0);
     const cost = monthExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const taxes = monthExpenses.filter(e => e.category === 'mokesčiai').reduce((sum, e) => sum + e.amount, 0);
+    const taxes = monthExpenses
+      .filter((e) => e.category === 'mokesčiai')
+      .reduce((sum, e) => sum + e.amount, 0);
 
     return {
       name: label.charAt(0).toUpperCase() + label.slice(1),
       Pajamos: revenue,
       Išlaidos: cost - taxes,
       Mokesčiai: taxes,
-      Pelnas: revenue - cost
+      Pelnas: revenue - cost,
     };
   });
 
   const stats = [
-    { label: 'Šiandien', value: todayOrders.length, icon: CalendarIcon, color: 'text-blue-600', bg: 'bg-blue-50', tab: 'calendar' as const },
-    { label: 'Laukia', value: pendingOrders.length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', tab: 'orders' as const },
-    { label: 'Pelnas', value: formatCurrency(profit), icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50', tab: 'analytics' as const },
-    { label: 'SMS priminimai', value: smsStats.pending, icon: MessageSquare, color: 'text-purple-600', bg: 'bg-purple-50', tab: 'settings' as const },
+    {
+      label: 'Šiandien',
+      value: todayOrders.length,
+      icon: CalendarIcon,
+      color: 'text-blue-600',
+      bg: 'bg-blue-50',
+      tab: 'calendar' as const,
+    },
+    {
+      label: 'Laukia',
+      value: pendingOrders.length,
+      icon: Clock,
+      color: 'text-amber-600',
+      bg: 'bg-amber-50',
+      tab: 'orders' as const,
+    },
+    {
+      label: 'Pelnas',
+      value: formatCurrency(profit),
+      icon: TrendingUp,
+      color: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+      tab: 'analytics' as const,
+    },
+    {
+      label: 'SMS priminimai',
+      value: smsStats.pending,
+      icon: MessageSquare,
+      color: 'text-purple-600',
+      bg: 'bg-purple-50',
+      tab: 'settings' as const,
+    },
   ];
 
   const overduePlannedOrders = pendingOrders.filter((o) => o.date < today);
@@ -245,7 +319,9 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
   const staleClientsCount = clients.filter((client) => {
     const clientOrders = orders.filter((o) => o.clientId === client.id);
     if (clientOrders.length === 0) return false;
-    const lastOrderDate = new Date(Math.max(...clientOrders.map((o) => new Date(o.date).getTime())));
+    const lastOrderDate = new Date(
+      Math.max(...clientOrders.map((o) => new Date(o.date).getTime()))
+    );
     return lastOrderDate < threeMonthsAgo;
   }).length;
 
@@ -286,12 +362,12 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
 
   const handleOpenMap = () => {
     if (todayOrders.length === 0) return;
-    const addresses = todayOrders.map(o => encodeURIComponent(o.address)).join('/');
+    const addresses = todayOrders.map((o) => encodeURIComponent(o.address)).join('/');
     window.open(`https://www.google.com/maps/dir/${addresses}`, '_blank');
   };
 
   const nextOrder = todayOrders
-    .filter(o => o.status !== 'atlikta')
+    .filter((o) => o.status !== 'atlikta')
     .sort((a, b) => a.time.localeCompare(b.time))[0];
 
   const handleSpeak = async (text: string, index: number) => {
@@ -351,7 +427,9 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
-                <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md">Artimiausias darbas</span>
+                <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md">
+                  Artimiausias darbas
+                </span>
                 <span className="text-xs font-bold opacity-80">{nextOrder.time}</span>
               </div>
               <h2 className="text-2xl font-black mb-1 leading-tight">{nextOrder.clientName}</h2>
@@ -369,14 +447,24 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         )}
 
         {weather && (
-          <section className={`md:w-64 p-6 rounded-[2.5rem] shadow-sm border ${weather.isRainy ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-100'}`}>
+          <section
+            className={`md:w-64 p-6 rounded-[2.5rem] shadow-sm border ${weather.isRainy ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-100'}`}
+          >
             <div className="flex justify-between items-start mb-6">
-              <div className={`${weather.isRainy ? 'bg-blue-500/20' : 'bg-amber-50'} p-3 rounded-2xl`}>
-                {weather.isRainy ? <CloudRain size={24} className="text-blue-400" /> : <Sun size={24} className="text-amber-500" />}
+              <div
+                className={`${weather.isRainy ? 'bg-blue-500/20' : 'bg-amber-50'} p-3 rounded-2xl`}
+              >
+                {weather.isRainy ? (
+                  <CloudRain size={24} className="text-blue-400" />
+                ) : (
+                  <Sun size={24} className="text-amber-500" />
+                )}
               </div>
               <div className="text-right">
                 <p className="text-2xl font-black">{weather.temp}°C</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">{weather.condition}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest opacity-60">
+                  {weather.condition}
+                </p>
               </div>
             </div>
             <div className="space-y-2">
@@ -391,29 +479,42 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         )}
       </div>
 
-      {memories.filter(m => (m.importance || 3) >= 4 && m.isActive !== false).length > 0 && (
+      {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length > 0 && (
         <section className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-amber-600">🔔</span>
             <h2 className="text-lg font-bold text-amber-900">Svarbūs priminimai</h2>
             <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-200 px-2 py-1 rounded-full">
-              {memories.filter(m => (m.importance || 3) >= 4 && m.isActive !== false).length}
+              {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length}
             </span>
           </div>
           <div className="space-y-3">
-            {memories.filter(m => (m.importance || 3) >= 4 && m.isActive !== false).slice(0, 3).map((mem) => (
-              <div key={mem.id} className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="text-amber-500 mt-1">⭐⭐⭐⭐⭐</div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900">{mem.content}</p>
-                    <p className="text-[10px] text-amber-600 mt-1">
-                      {mem.category === 'verslas' ? '💼 Verslas' : mem.category === 'klientas' ? '👤 Klientas' : mem.category === 'procesas' ? '⚙️ Procesas' : '📋 Kita'}: {mem.createdAt?.split('T')[0] || 'N/A'}
-                    </p>
+            {memories
+              .filter((m) => (m.importance || 3) >= 4 && m.isActive !== false)
+              .slice(0, 3)
+              .map((mem) => (
+                <div
+                  key={mem.id}
+                  className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="text-amber-500 mt-1">⭐⭐⭐⭐⭐</div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-900">{mem.content}</p>
+                      <p className="text-[10px] text-amber-600 mt-1">
+                        {mem.category === 'verslas'
+                          ? '💼 Verslas'
+                          : mem.category === 'klientas'
+                            ? '👤 Klientas'
+                            : mem.category === 'procesas'
+                              ? '⚙️ Procesas'
+                              : '📋 Kita'}
+                        : {mem.createdAt?.split('T')[0] || 'N/A'}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         </section>
       )}
@@ -421,7 +522,9 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
       <section>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-slate-900">Apžvalga</h2>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Paskutinės 30 d.</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Paskutinės 30 d.
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-4">
           {stats.map((stat, i) => (
@@ -432,10 +535,14 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
               aria-label={`${stat.label}: ${stat.value}. Atidaryti ${stat.tab === 'calendar' ? 'kalendorių' : stat.tab === 'orders' ? 'užsakymus' : stat.tab === 'analytics' ? 'analitiką' : 'nustatymus'}`}
               className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all text-left w-full cursor-pointer active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
             >
-              <div className={`${stat.bg} w-10 h-10 rounded-2xl flex items-center justify-center mb-3`}>
+              <div
+                className={`${stat.bg} w-10 h-10 rounded-2xl flex items-center justify-center mb-3`}
+              >
                 <stat.icon size={20} className={stat.color} />
               </div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                {stat.label}
+              </p>
               <p className="text-xl font-black text-slate-900 mt-1">{stat.value}</p>
             </button>
           ))}
@@ -445,11 +552,14 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
       <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-slate-900">Dienos prioritetai</h2>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Veiksmai dabar</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Veiksmai dabar
+          </span>
         </div>
         {dayPriorityItems.length === 0 ? (
           <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-            Šiuo metu kritinių veiksmų nėra. Galite skirti laiką naujiems užsakymams arba klientų aptarnavimui.
+            Šiuo metu kritinių veiksmų nėra. Galite skirti laiką naujiems užsakymams arba klientų
+            aptarnavimui.
           </div>
         ) : (
           <div className="space-y-3">
@@ -462,7 +572,9 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">{item.label}</p>
+                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">
+                      {item.label}
+                    </p>
                     <p className="text-2xl font-black mt-1">{item.value}</p>
                   </div>
                   <span className="text-xs font-bold uppercase tracking-wider">{item.cta}</span>
@@ -480,11 +592,16 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
             <h2 className="text-lg font-bold text-slate-900">Priminti apie save</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {reEngagementClients.map(client => (
-              <div key={client.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            {reEngagementClients.map((client) => (
+              <div
+                key={client.id}
+                className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between"
+              >
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm truncate">{client.name}</h3>
-                  <p className="text-[10px] text-slate-400 font-medium mb-3">Nevalyta seniau nei 3 mėn.</p>
+                  <p className="text-[10px] text-slate-400 font-medium mb-3">
+                    Nevalyta seniau nei 3 mėn.
+                  </p>
                 </div>
                 <button
                   onClick={() => window.open(`tel:${client.phone}`)}
@@ -559,7 +676,8 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
             <div>
               <h2 className="text-lg font-bold text-slate-900">AI įžvalgos</h2>
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                Trys blokai: atmintis ir komanda · rinka bei įranga · klientai ir operacijos. Kiekvieną galite perklausyti atskirai.
+                Trys blokai: atmintis ir komanda · rinka bei įranga · klientai ir operacijos.
+                Kiekvieną galite perklausyti atskirai.
               </p>
               {isInsightsFallback && (
                 <span className="inline-flex mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-100 text-amber-800">
@@ -572,7 +690,11 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
             onClick={handleVoiceQuote}
             className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-amber-200 transition-colors"
           >
-            {isSpeaking === -1 ? <VolumeX size={12} className="animate-pulse" /> : <Quote size={12} />}
+            {isSpeaking === -1 ? (
+              <VolumeX size={12} className="animate-pulse" />
+            ) : (
+              <Quote size={12} />
+            )}
             Dienos citata
           </button>
         </div>
@@ -593,9 +715,13 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
                       {DASHBOARD_INSIGHT_LABELS[insight.id].badge}
                     </span>
-                    <h3 className="text-sm font-bold text-amber-950 leading-snug">{insight.title}</h3>
+                    <h3 className="text-sm font-bold text-amber-950 leading-snug">
+                      {insight.title}
+                    </h3>
                   </div>
-                  <p className="text-sm text-amber-900/85 font-medium leading-relaxed">{insight.text}</p>
+                  <p className="text-sm text-amber-900/85 font-medium leading-relaxed">
+                    {insight.text}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -603,7 +729,11 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                   className="shrink-0 self-end sm:self-start p-2.5 bg-white hover:bg-amber-50 text-amber-700 rounded-xl border border-amber-100 shadow-sm transition-all"
                   title={isSpeaking === i ? 'Sustabdyti perklausą' : 'Perklausyti šią įžvalgą'}
                 >
-                  {isSpeaking === i ? <VolumeX size={16} className="animate-pulse" /> : <Volume2 size={16} />}
+                  {isSpeaking === i ? (
+                    <VolumeX size={16} className="animate-pulse" />
+                  ) : (
+                    <Volume2 size={16} />
+                  )}
                 </button>
               </div>
             ))
@@ -627,49 +757,69 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
           {smsService.getTodaysReminders().length > 0 ? (
             <div className="space-y-2">
-              {smsService.getTodaysReminders().slice(0, 3).map(reminder => {
-                const order = orders.find(o => o.id === reminder.orderId);
-                const client = clients.find(c => c.id === reminder.clientId);
-                
-                if (!order || !client) return null;
-                
-                const getReminderLabel = (type: string) => {
-                  switch (type) {
-                    case '24h': return 'Priminimas prieš 24h';
-                    case '1h': return 'Priminimas prieš 1h';
-                    case 'thank_you': return 'Ačiū žinutė';
-                    case 'payment': return 'Mokėjimas';
-                    default: return type;
-                  }
-                };
-                
-                return (
-                  <div key={reminder.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-purple-600">
-                          {getReminderLabel(reminder.type)}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {reminder.scheduledFor.toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <div className="text-sm font-medium text-slate-900">{client.name}</div>
-                      <div className="text-xs text-slate-600">{order.address}</div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        smsService.sendManualReminder(reminder.orderId, reminder.type, orders, clients, settings || {});
-                        setSmsStats(smsService.getReminderStats());
-                      }}
-                      className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                      title="Siųsti dabar"
+              {smsService
+                .getTodaysReminders()
+                .slice(0, 3)
+                .map((reminder) => {
+                  const order = orders.find((o) => o.id === reminder.orderId);
+                  const client = clients.find((c) => c.id === reminder.clientId);
+
+                  if (!order || !client) return null;
+
+                  const getReminderLabel = (type: string) => {
+                    switch (type) {
+                      case '24h':
+                        return 'Priminimas prieš 24h';
+                      case '1h':
+                        return 'Priminimas prieš 1h';
+                      case 'thank_you':
+                        return 'Ačiū žinutė';
+                      case 'payment':
+                        return 'Mokėjimas';
+                      default:
+                        return type;
+                    }
+                  };
+
+                  return (
+                    <div
+                      key={reminder.id}
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-xl"
                     >
-                      <Send size={14} />
-                    </button>
-                  </div>
-                );
-              })}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-medium text-purple-600">
+                            {getReminderLabel(reminder.type)}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {reminder.scheduledFor.toLocaleTimeString('lt-LT', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        <div className="text-sm font-medium text-slate-900">{client.name}</div>
+                        <div className="text-xs text-slate-600">{order.address}</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          smsService.sendManualReminder(
+                            reminder.orderId,
+                            reminder.type,
+                            orders,
+                            clients,
+                            settings || {}
+                          );
+                          setSmsStats(smsService.getReminderStats());
+                        }}
+                        className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        title="Siųsti dabar"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
             </div>
           ) : (
             <div className="text-center py-8 text-slate-500">
@@ -683,9 +833,14 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
       <section>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-slate-900">Finansų dinamika</h2>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Paskutiniai 6 mėn.</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Paskutiniai 6 mėn.
+          </span>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm" style={{ height: '300px', width: '100%' }}>
+        <div
+          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
+          style={{ height: '300px', width: '100%' }}
+        >
           <ResponsiveContainer width={400} height={250}>
             <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -696,7 +851,11 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
                 dy={10}
               />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -710,8 +869,20 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 formatter={(value: number) => [formatCurrency(value), '']}
               />
               <Bar dataKey="Pajamos" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={12} />
-              <Bar dataKey="Išlaidos" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={12} stackId="expenses" />
-              <Bar dataKey="Mokesčiai" fill="#f97316" radius={[4, 4, 0, 0]} barSize={12} stackId="expenses" />
+              <Bar
+                dataKey="Išlaidos"
+                fill="#ef4444"
+                radius={[4, 4, 0, 0]}
+                barSize={12}
+                stackId="expenses"
+              />
+              <Bar
+                dataKey="Mokesčiai"
+                fill="#f97316"
+                radius={[4, 4, 0, 0]}
+                barSize={12}
+                stackId="expenses"
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -739,10 +910,18 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
         {todayOrders.length > 0 ? (
           <div className="space-y-3">
             {todayOrders.map((order) => (
-              <div key={order.id} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 hover:border-blue-100 transition-colors cursor-pointer" onClick={() => setActiveTab('orders')}>
+              <div
+                key={order.id}
+                className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4 hover:border-blue-100 transition-colors cursor-pointer"
+                onClick={() => setActiveTab('orders')}
+              >
                 <div className="w-12 h-12 bg-slate-50 rounded-2xl flex flex-col items-center justify-center text-slate-600 border border-slate-100">
-                  <span className="text-xs font-black leading-none">{order.time.split(':')[0]}</span>
-                  <span className="text-[10px] font-bold opacity-60">{order.time.split(':')[1]}</span>
+                  <span className="text-xs font-black leading-none">
+                    {order.time.split(':')[0]}
+                  </span>
+                  <span className="text-[10px] font-bold opacity-60">
+                    {order.time.split(':')[1]}
+                  </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-slate-900 truncate">{order.clientName}</h3>
@@ -750,8 +929,11 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
                 </div>
                 <div className="text-right">
                   <p className="font-black text-slate-900">{formatCurrency(order.totalPrice)}</p>
-                  <span className={`text-[10px] font-black uppercase tracking-tighter ${order.status === 'atlikta' ? 'text-emerald-600' : 'text-blue-600'
-                    }`}>
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-tighter ${
+                      order.status === 'atlikta' ? 'text-emerald-600' : 'text-blue-600'
+                    }`}
+                  >
                     {order.status}
                   </span>
                 </div>
@@ -765,7 +947,6 @@ export default function Dashboard({ orders, clients, expenses, memories, setActi
           </div>
         )}
       </section>
-
     </div>
   );
 }

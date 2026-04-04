@@ -39,7 +39,10 @@ export default function InventoryView({ userId }: InventoryViewProps) {
       if (editingItem) {
         await updateData(TABLES.INVENTORY, editingItem.id, {
           ...formData,
-          lastRestocked: formData.quantity > editingItem.quantity ? new Date().toISOString() : editingItem.lastRestocked,
+          lastRestocked:
+            formData.quantity > editingItem.quantity
+              ? new Date().toISOString()
+              : editingItem.lastRestocked,
         });
       } else {
         await addData(TABLES.INVENTORY, userId, {
@@ -91,13 +94,13 @@ export default function InventoryView({ userId }: InventoryViewProps) {
     }
   };
 
-  const filteredItems = items.filter(item => {
-    const matchesSearch = (item.name || "").toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredItems = items.filter((item) => {
+    const matchesSearch = (item.name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || item.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const lowStockItems = items.filter(item => item.quantity <= item.minQuantity);
+  const lowStockItems = items.filter((item) => item.quantity <= item.minQuantity);
 
   return (
     <div className="space-y-6 pb-20">
@@ -112,7 +115,13 @@ export default function InventoryView({ userId }: InventoryViewProps) {
           aria-label="Pridėti prekę"
           onClick={() => {
             setEditingItem(null);
-            setFormData({ name: '', quantity: 0, unit: 'vnt', minQuantity: 5, category: 'valikliai' });
+            setFormData({
+              name: '',
+              quantity: 0,
+              unit: 'vnt',
+              minQuantity: 5,
+              category: 'valikliai',
+            });
             setIsAddingItem(true);
           }}
           className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
@@ -127,7 +136,7 @@ export default function InventoryView({ userId }: InventoryViewProps) {
           <div>
             <h3 className="font-bold text-amber-800 text-sm">Trūksta atsargų</h3>
             <p className="text-xs text-amber-700 mt-1">
-              {lowStockItems.map(i => i.name).join(', ')} kiekis yra kritinis.
+              {lowStockItems.map((i) => i.name).join(', ')} kiekis yra kritinis.
             </p>
           </div>
         </div>
@@ -149,10 +158,11 @@ export default function InventoryView({ userId }: InventoryViewProps) {
             <button
               key={cat}
               onClick={() => setFilterCategory(cat)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold capitalize whitespace-nowrap transition-colors ${filterCategory === cat
-                ? 'bg-slate-900 text-white'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                }`}
+              className={`px-4 py-2 rounded-xl text-sm font-bold capitalize whitespace-nowrap transition-colors ${
+                filterCategory === cat
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
             >
               {cat === 'all' ? 'Visi' : cat}
             </button>
@@ -169,8 +179,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               key={item.id}
-              className={`bg-white p-5 rounded-3xl border shadow-sm relative group overflow-hidden ${isLowStock ? 'border-amber-200' : 'border-slate-100'
-                }`}
+              className={`bg-white p-5 rounded-3xl border shadow-sm relative group overflow-hidden ${
+                isLowStock ? 'border-amber-200' : 'border-slate-100'
+              }`}
             >
               {isLowStock && (
                 <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
@@ -182,10 +193,15 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-2xl ${item.category === 'valikliai' ? 'bg-blue-50 text-blue-600' :
-                    item.category === 'įrankiai' ? 'bg-purple-50 text-purple-600' :
-                      'bg-slate-50 text-slate-600'
-                    }`}>
+                  <div
+                    className={`p-3 rounded-2xl ${
+                      item.category === 'valikliai'
+                        ? 'bg-blue-50 text-blue-600'
+                        : item.category === 'įrankiai'
+                          ? 'bg-purple-50 text-purple-600'
+                          : 'bg-slate-50 text-slate-600'
+                    }`}
+                  >
                     <Package size={20} />
                   </div>
                   <div>
@@ -201,7 +217,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                 <div>
                   <p className="text-xs text-slate-500 mb-1">Likutis</p>
                   <div className="flex items-baseline gap-1">
-                    <span className={`text-3xl font-black ${isLowStock ? 'text-amber-600' : 'text-slate-900'}`}>
+                    <span
+                      className={`text-3xl font-black ${isLowStock ? 'text-amber-600' : 'text-slate-900'}`}
+                    >
                       {item.quantity}
                     </span>
                     <span className="text-sm font-bold text-slate-400">{item.unit}</span>
@@ -284,7 +302,10 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
               <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div>
-                  <label htmlFor="inventory-name" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  <label
+                    htmlFor="inventory-name"
+                    className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                  >
                     Pavadinimas
                   </label>
                   <input
@@ -300,7 +321,10 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="inventory-quantity" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label
+                      htmlFor="inventory-quantity"
+                      className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                    >
                       Kiekis
                     </label>
                     <input
@@ -310,12 +334,17 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                       min="0"
                       step="0.1"
                       value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })
+                      }
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
                   <div>
-                    <label htmlFor="inventory-unit" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label
+                      htmlFor="inventory-unit"
+                      className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                    >
                       Matavimo vnt.
                     </label>
                     <input
@@ -332,13 +361,18 @@ export default function InventoryView({ userId }: InventoryViewProps) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="inventory-category" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label
+                      htmlFor="inventory-category"
+                      className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                    >
                       Kategorija
                     </label>
                     <select
                       id="inventory-category"
                       value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, category: e.target.value as any })
+                      }
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     >
                       <option value="valikliai">Valikliai</option>
@@ -347,7 +381,10 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="inventory-min-quantity" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    <label
+                      htmlFor="inventory-min-quantity"
+                      className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2"
+                    >
                       Kritinis likutis
                     </label>
                     <input
@@ -357,7 +394,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                       min="0"
                       step="0.1"
                       value={formData.minQuantity}
-                      onChange={(e) => setFormData({ ...formData, minQuantity: parseFloat(e.target.value) || 0 })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, minQuantity: parseFloat(e.target.value) || 0 })
+                      }
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>

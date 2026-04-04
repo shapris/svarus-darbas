@@ -34,16 +34,13 @@ function printSection(title) {
 }
 
 const envFile = parseEnvFile(envPath);
-const useFirebase = val('VITE_USE_FIREBASE', envFile).toLowerCase() === 'true';
 
 console.log('Cloud readiness check');
 console.log(`Project: ${root}`);
-console.log(`Using backend mode: ${useFirebase ? 'firebase' : 'supabase'}`);
+console.log('Using backend mode: supabase');
 
 printSection('Frontend (Vercel) env');
-const frontendRequired = useFirebase
-  ? ['VITE_USE_FIREBASE', 'VITE_FIREBASE_API_KEY', 'VITE_FIREBASE_PROJECT_ID']
-  : ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
+const frontendRequired = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'];
 
 const frontendOptional = [
   'VITE_OPENROUTER_API_KEY',
@@ -79,6 +76,9 @@ for (const k of backendSupabase) {
   if (!ok) missingHard += 1;
   console.log(`${ok ? 'OK  ' : 'MISS'} ${k} (or VITE_${k})`);
 }
+const serviceRoleOk = has('SUPABASE_SERVICE_ROLE_KEY', envFile);
+if (!serviceRoleOk) missingHard += 1;
+console.log(`${serviceRoleOk ? 'OK  ' : 'MISS'} SUPABASE_SERVICE_ROLE_KEY`);
 const corsOk = backendCors.some((k) => has(k, envFile));
 if (!corsOk) {
   missingHard += 1;
@@ -95,6 +95,27 @@ if (from.includes('onboarding@resend.dev')) {
 if (has('VITE_STRIPE_SECRET_KEY', envFile)) {
   console.log('WARN VITE_STRIPE_SECRET_KEY is public to client build. Remove it from Vercel env.');
 }
+
+printSection('Supabase schema track');
+console.log('INFO Canonical production track: owner_id + snake_case.');
+console.log('INFO   Run: supabase/production_owner_id_schema.sql');
+console.log('INFO   Then: supabase/public_booking_rpcs.sql');
+console.log(
+  'INFO Track B: uid + quoted camelCase from supabase/migrations/20250322120000_crm_schema.sql.'
+);
+console.log('INFO   This is legacy compatibility only; do not mix both tracks in one project.');
+console.log('INFO Quick SQL check in Supabase SQL Editor:');
+console.log(
+  "INFO   SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='settings' AND column_name IN ('owner_id','uid') ORDER BY column_name;"
+);
+printSection('Payments persistence');
+console.log(
+  'INFO Payment/invoice API now expects DB-backed persistence via server.cjs + Supabase service role.'
+);
+console.log('INFO Required for production: SUPABASE_SERVICE_ROLE_KEY on the API host.');
+console.log(
+  'INFO Without it, server.cjs falls back to temporary in-memory storage and payment history is not durable.'
+);
 
 printSection('Result');
 if (missingHard === 0) {

@@ -5,7 +5,7 @@
 ### Kas Veikia
 - AI Asistentas su atmintimi
 - Vidinė CRM sistema (11 puslapių)
-- Duomenų bazė (Firebase/Supabase)
+- Duomenų bazė (Supabase)
 - PWA galimybės
 - Testai (7/7)
 

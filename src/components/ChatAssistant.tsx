@@ -4,9 +4,27 @@
  */
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { MessageSquare, Send, X, Bot, User as UserIcon, Trash2, Mic, MicOff, Volume2, VolumeX, Brain, AlertTriangle, Settings2, RefreshCw } from 'lucide-react';
+import {
+  Send,
+  X,
+  Bot,
+  User as UserIcon,
+  Trash2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Brain,
+  Settings2,
+  RefreshCw,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { chatWithAssistant, getAiInstance, getGeminiApiKeyForSdk, isOpenRouterKey } from '../services/aiService';
+import {
+  chatWithAssistant,
+  getAiInstance,
+  getGeminiApiKeyForSdk,
+  isOpenRouterKey,
+} from '../services/aiService';
 import { generateSpeech, stopAllAudio } from '../services/ttsService';
 import { shouldSuggestMemory } from '../services/memoryPriority';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
@@ -22,6 +40,56 @@ interface LocalUser {
   uid: string;
   email: string | null;
   displayName: string | null;
+}
+
+/** Išsaugota Gemini / OpenRouter istorija (localStorage). */
+type ChatHistoryMessage = {
+  role?: string;
+  parts?: Array<{
+    text?: string;
+    functionCall?: { name?: string; args?: unknown; id?: string };
+    functionResponse?: unknown;
+  }>;
+};
+
+type AssistantToolCall = {
+  name: string;
+  args?: unknown;
+  id?: string;
+};
+
+type AiStudioGlobal = {
+  hasSelectedApiKey?: () => Promise<boolean>;
+  getApiKey?: () => string;
+  openSelectKey?: () => Promise<void>;
+};
+
+function getAiStudio(): AiStudioGlobal | undefined {
+  return (window as Window & { aistudio?: AiStudioGlobal }).aistudio;
+}
+
+/** Naršyklių Web Speech API (globalūs tipai ne visada įtraukti į TS lib). */
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((ev: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+};
+type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
+
+function getSpeechRecognitionCtor(): BrowserSpeechRecognitionCtor | undefined {
+  const w = window as Window &
+    typeof globalThis & {
+      SpeechRecognition?: BrowserSpeechRecognitionCtor;
+      webkitSpeechRecognition?: BrowserSpeechRecognitionCtor;
+    };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
 const CRM_TAB_LABEL_LT: Record<string, string> = {
@@ -62,7 +130,14 @@ function chatPanelMessagesKey(uid: string) {
   return `chat_assistant_messages_${uid}`;
 }
 
-export default function ChatAssistant({ user, clients, orders, expenses, settings, activeTab }: ChatAssistantProps) {
+export default function ChatAssistant({
+  user,
+  clients,
+  orders,
+  expenses,
+  settings,
+  activeTab,
+}: ChatAssistantProps) {
   const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const activeViewLabel = CRM_TAB_LABEL_LT[activeTab] ?? activeTab;
@@ -93,23 +168,38 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       return [];
     }
   });
-  const [history, setHistory] = useState<any[]>(() => {
+  const [history, setHistory] = useState<ChatHistoryMessage[]>(() => {
     const saved = localStorage.getItem('chat_history_' + user.uid);
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved) as unknown;
+      return Array.isArray(parsed) ? (parsed as ChatHistoryMessage[]) : [];
+    } catch {
+      return [];
+    }
   });
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAiOffline, setIsAiOffline] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   const [showApiSettings, setShowApiSettings] = useState(false);
-  const [customApiKey, setCustomApiKey] = useState<string>(localStorage.getItem('custom_api_key') || '');
-  const [apiKeyProvider, setApiKeyProvider] = useState<'google' | 'openrouter' | 'default'>('default');
+  const [customApiKey, setCustomApiKey] = useState<string>(
+    localStorage.getItem('custom_api_key') || ''
+  );
+  const [apiKeyProvider, setApiKeyProvider] = useState<'google' | 'openrouter' | 'default'>(
+    'default'
+  );
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
-  const [selectedVoice, setSelectedVoice] = useState<string>(localStorage.getItem('selected_voice') || 'Zephyr');
-  const [voiceRate, setVoiceRate] = useState<number>(parseFloat(localStorage.getItem('voice_rate') || '1.0'));
-  const [selectedLang, setSelectedLang] = useState<string>(localStorage.getItem('tts_language') || 'lt-LT');
+  const [selectedVoice, setSelectedVoice] = useState<string>(
+    localStorage.getItem('selected_voice') || 'Zephyr'
+  );
+  const [voiceRate, setVoiceRate] = useState<number>(
+    parseFloat(localStorage.getItem('voice_rate') || '1.0')
+  );
+  const [selectedLang, setSelectedLang] = useState<string>(
+    localStorage.getItem('tts_language') || 'lt-LT'
+  );
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [showPreviewMicHint, setShowPreviewMicHint] = useState(false);
@@ -125,8 +215,8 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     [clients, orders, expenses, memories, activeViewLabel]
   );
 
-  const sanitizeHistoryForGemini = (history: any[]) => {
-    return (history || [])
+  const sanitizeHistoryForGemini = (hist: ChatHistoryMessage[]) => {
+    return (hist || [])
       .map((h) => {
         const role = h?.role === 'user' ? 'user' : 'model';
         const text = String(h?.parts?.[0]?.text ?? '').trim();
@@ -138,39 +228,76 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   const lastUserMessageRef = useRef<string>('');
   const lastSpeechErrorAlertAtRef = useRef<number>(0);
 
-  // Available voices based on provider
-  const availableVoices = {
-    google: ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede'],
-    elevenlabs: ['rachel', 'domi', 'adam', 'sam', 'bella', 'josh'],
-    openai: ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'],
-  };
-
-  const handleVoiceChange = (voice: string) => {
-    setSelectedVoice(voice);
-    localStorage.setItem('selected_voice', voice);
-    setShowVoiceSelector(false);
-  };
-
-  const detectMemoryCategory = (query: string, response: string): 'klientas' | 'verslas' | 'procesas' | 'kita' => {
+  const detectMemoryCategory = (
+    query: string,
+    response: string
+  ): 'klientas' | 'verslas' | 'procesas' | 'kita' => {
     const combined = (query + ' ' + response).toLowerCase();
-    if (combined.includes('klient') || combined.includes('adres') || combined.includes('telefon') || combined.includes('kontakt')) {
+    if (
+      combined.includes('klient') ||
+      combined.includes('adres') ||
+      combined.includes('telefon') ||
+      combined.includes('kontakt')
+    ) {
       return 'klientas';
     }
-    if (combined.includes('kain') || combined.includes('pajam') || combined.includes('išlaid') || combined.includes('peln') || combined.includes('versl')) {
+    if (
+      combined.includes('kain') ||
+      combined.includes('pajam') ||
+      combined.includes('išlaid') ||
+      combined.includes('peln') ||
+      combined.includes('versl')
+    ) {
       return 'verslas';
     }
-    if (combined.includes('proces') || combined.includes('taisykl') || combined.includes('veiksm') || combined.includes(' žingsnis')) {
+    if (
+      combined.includes('proces') ||
+      combined.includes('taisykl') ||
+      combined.includes('veiksm') ||
+      combined.includes(' žingsnis')
+    ) {
       return 'procesas';
     }
     return 'kita';
   };
 
-  const detectOrderInConversation = (query: string, response: string, clients: Client[]): { shouldCreate: boolean; clientId?: string; date?: string; time?: string; windowCount?: number } => {
+  const detectOrderInConversation = (
+    query: string,
+    response: string,
+    clients: Client[]
+  ): {
+    shouldCreate: boolean;
+    clientId?: string;
+    date?: string;
+    time?: string;
+    windowCount?: number;
+  } => {
     const combined = (query + ' ' + response).toLowerCase();
-    const orderKeywords = ['užsakymas', 'langai', 'valymas', 'atlikti', 'darbas', 'tvarkyti', 'grafikas', 'suplanuoti', 'prie', 'ryt', 'poryt', 'sekmadien', 'šeštadien', 'penktadien'];
-    const hasOrderKeyword = orderKeywords.some(kw => combined.includes(kw));
-    const hasDate = combined.includes('ryt') || combined.includes('poryt') || combined.includes('sekmadien') || combined.includes('šeštadien') || combined.includes('penktadien') || /\d{4}-\d{2}-\d{2}/.test(combined);
-    
+    const orderKeywords = [
+      'užsakymas',
+      'langai',
+      'valymas',
+      'atlikti',
+      'darbas',
+      'tvarkyti',
+      'grafikas',
+      'suplanuoti',
+      'prie',
+      'ryt',
+      'poryt',
+      'sekmadien',
+      'šeštadien',
+      'penktadien',
+    ];
+    const hasOrderKeyword = orderKeywords.some((kw) => combined.includes(kw));
+    const hasDate =
+      combined.includes('ryt') ||
+      combined.includes('poryt') ||
+      combined.includes('sekmadien') ||
+      combined.includes('šeštadien') ||
+      combined.includes('penktadien') ||
+      /\d{4}-\d{2}-\d{2}/.test(combined);
+
     if (!hasOrderKeyword || !clients.length) {
       return { shouldCreate: false };
     }
@@ -178,7 +305,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     // Try to find client in conversation
     let clientId: string | undefined;
     for (const client of clients) {
-      if (combined.includes(client.name.toLowerCase()) || combined.includes(client.address.toLowerCase())) {
+      if (
+        combined.includes(client.name.toLowerCase()) ||
+        combined.includes(client.address.toLowerCase())
+      ) {
         clientId = client.id;
         break;
       }
@@ -215,38 +345,34 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       windowCount = parseInt(windowMatch[1]);
     }
 
-    return { 
-      shouldCreate: hasOrderKeyword && hasDate && !!clientId, 
-      clientId, 
-      date, 
-      time, 
-      windowCount 
+    return {
+      shouldCreate: hasOrderKeyword && hasDate && !!clientId,
+      clientId,
+      date,
+      time,
+      windowCount,
     };
   };
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const tempTranscriptRef = useRef('');
-  const synthRef = useRef<SpeechSynthesis | null>(window.speechSynthesis);
 
   const checkApiKey = async () => {
     const envGem = getGeminiKeyFromEnv();
     if (envGem) {
-      setHasApiKey(true);
       setApiKeyProvider('google');
       return;
     }
     const storedKey = localStorage.getItem('custom_api_key');
     if (storedKey) {
-      setHasApiKey(true);
       setApiKeyProvider(storedKey.startsWith('sk-or-v1-') ? 'openrouter' : 'google');
       return;
     }
 
-    const aiStudio = (window as any).aistudio;
-    if (aiStudio && aiStudio.hasSelectedApiKey) {
+    const aiStudio = getAiStudio();
+    if (aiStudio?.hasSelectedApiKey) {
       const hasKey = await aiStudio.hasSelectedApiKey();
-      setHasApiKey(hasKey);
 
       if (hasKey && aiStudio.getApiKey) {
         const key = aiStudio.getApiKey();
@@ -318,10 +444,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
   }, [messages, user.uid]);
 
   const toggleRecording = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = getSpeechRecognitionCtor();
 
     if (!SpeechRecognition) {
-      showToast.error('Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.');
+      showToast.error(
+        'Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.'
+      );
       return;
     }
 
@@ -352,32 +480,38 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           tempTranscriptRef.current = '';
         };
 
-        recognition.onresult = (event: any) => {
+        recognition.onresult = (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => {
           const transcript = Array.from(event.results)
-            .map((result: any) => result[0].transcript)
+            .map((result) => result[0]?.transcript ?? '')
             .join('');
           tempTranscriptRef.current = transcript;
         };
 
-        recognition.onerror = (event: any) => {
+        recognition.onerror = (event: { error: string }) => {
           setIsRecording(false);
           recognitionRef.current = null;
 
           // User-friendly error messages
           const errorMessages: Record<string, string> = {
-            'not-allowed': 'Mikrofono prieiga neleista. Spauskite akutės ikoną URL juostoje ir leiskite prieigą.',
+            'not-allowed':
+              'Mikrofono prieiga neleista. Spauskite akutės ikoną URL juostoje ir leiskite prieigą.',
             'no-speech': 'Nebuvo girdimas joks balsas. Bandykite dar kartą.',
-            'network': 'Tinklo klaida. Patikrinkite interneto ryšį.',
-            'aborted': 'Įrašymas buvo nutrauktas.',
+            network: 'Tinklo klaida. Patikrinkite interneto ryšį.',
+            aborted: 'Įrašymas buvo nutrauktas.',
             'audio-capture': 'Mikrofonas nerastas. Prijunkite mikrofoną.',
-            'service-not-allowed': 'Balso atpažinimo paslauga neleidžiama.'
+            'service-not-allowed': 'Balso atpažinimo paslauga neleidžiama.',
           };
 
           const userMessage = errorMessages[event.error] || `Klaida: ${event.error}`;
           const isCursorLikePreview =
             window.location.hostname === 'localhost' &&
             (window.self !== window.top || /electron|cursor/i.test(navigator.userAgent));
-          if (isCursorLikePreview && (event.error === 'network' || event.error === 'not-allowed' || event.error === 'service-not-allowed')) {
+          if (
+            isCursorLikePreview &&
+            (event.error === 'network' ||
+              event.error === 'not-allowed' ||
+              event.error === 'service-not-allowed')
+          ) {
             setShowPreviewMicHint(true);
           }
           // Avoid disruptive alert/console spam for transient or permission-blocked speech errors.
@@ -402,7 +536,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           if (tempTranscriptRef.current) {
             const finalResult = tempTranscriptRef.current.trim();
             if (finalResult) {
-              setInput(prev => prev + (prev ? ' ' : '') + finalResult);
+              setInput((prev) => prev + (prev ? ' ' : '') + finalResult);
             }
             tempTranscriptRef.current = '';
           }
@@ -414,7 +548,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       } catch (error) {
         console.error('Failed to start recognition', error);
         setIsRecording(false);
-        showToast.error('Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.');
+        showToast.error(
+          'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
+        );
         recognitionRef.current = null;
       }
     }
@@ -426,10 +562,20 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     }
   }, [messages, isLoading]);
 
-  const handleToolCall = async (call: any) => {
-    const { name, args } = call;
+  const handleToolCall = async (call: unknown) => {
+    if (!call || typeof call !== 'object' || !('name' in call)) {
+      return 'Neteisingas įrankio kvietimas.';
+    }
+    const { name, args: rawArgs } = call as AssistantToolCall;
+    if (typeof name !== 'string') {
+      return 'Neteisingas įrankio kvietimas.';
+    }
+    // Įrankių laukai skiriasi pagal vardą — bendras dinamiškas maišas.
+    const args = (
+      rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs) ? rawArgs : {}
+    ) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    if (isRestrictedStaff && typeof name === 'string' && name.startsWith('delete_')) {
+    if (isRestrictedStaff && name.startsWith('delete_')) {
       return 'Šį veiksmą gali atlikti tik administratorius.';
     }
 
@@ -456,25 +602,25 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`
           );
           const data = await response.json();
-          
+
           if (data && data.length > 0) {
             const result = data[0];
             return JSON.stringify({
               success: true,
               address: result.display_name,
               lat: parseFloat(result.lat),
-              lng: parseFloat(result.lon)
+              lng: parseFloat(result.lon),
             });
           }
           return JSON.stringify({ success: false, error: 'Adresas nerastas' });
-        } catch (e) {
+        } catch {
           return JSON.stringify({ success: false, error: 'Klaida ieškant adreso' });
         }
       }
 
       if (name === 'update_client') {
         const { clientId, ...updates } = args;
-        await updateData(TABLES.CLIENTS, clientId, updates as any);
+        await updateData(TABLES.CLIENTS, clientId, updates as Partial<Client>);
         return `Kliento duomenys atnaujinti.`;
       }
 
@@ -484,21 +630,24 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       }
 
       if (name === 'add_order') {
-        const clientName = args.clientName || "";
-        const client = clients.find(c => (c.name || "").toLowerCase().includes(clientName.toLowerCase()));
-        if (!client) return `Klaida: Klientas "${clientName}" nerastas. Pirmiausia pridėkite klientą.`;
+        const clientName = args.clientName || '';
+        const client = clients.find((c) =>
+          (c.name || '').toLowerCase().includes(clientName.toLowerCase())
+        );
+        if (!client)
+          return `Klaida: Klientas "${clientName}" nerastas. Pirmiausia pridėkite klientą.`;
 
         const additionalServices = {
           balkonai: args.additionalServices?.balkonai || false,
           vitrinos: args.additionalServices?.vitrinos || false,
           terasa: args.additionalServices?.terasa || false,
-          kiti: args.additionalServices?.kiti || false
+          kiti: args.additionalServices?.kiti || false,
         };
 
         const totalPrice = calculateOrderPrice(
-          args.windowCount || 0, 
-          args.floor || 0, 
-          additionalServices, 
+          args.windowCount || 0,
+          args.floor || 0,
+          additionalServices,
           settings
         );
 
@@ -522,23 +671,33 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
       if (name === 'update_order') {
         const { orderId, ...updates } = args;
-        const existingOrder = orders.find(o => o.id === orderId);
+        const existingOrder = orders.find((o) => o.id === orderId);
 
-        if (existingOrder && (updates.windowCount !== undefined || updates.floor !== undefined || updates.additionalServices !== undefined)) {
+        if (
+          existingOrder &&
+          (updates.windowCount !== undefined ||
+            updates.floor !== undefined ||
+            updates.additionalServices !== undefined)
+        ) {
           const newWindowCount = updates.windowCount ?? existingOrder.windowCount;
           const newFloor = updates.floor ?? existingOrder.floor;
           const newServices = {
             ...existingOrder.additionalServices,
-            ...(updates.additionalServices || {})
+            ...(updates.additionalServices || {}),
           };
 
           if (updates.totalPrice === undefined) {
-            updates.totalPrice = calculateOrderPrice(newWindowCount, newFloor, newServices, settings);
+            updates.totalPrice = calculateOrderPrice(
+              newWindowCount,
+              newFloor,
+              newServices,
+              settings
+            );
           }
           updates.additionalServices = newServices;
         }
 
-        await updateData(TABLES.ORDERS, orderId, updates as any);
+        await updateData(TABLES.ORDERS, orderId, updates as Partial<Order>);
         return `Užsakymas atnaujintas.`;
       }
 
@@ -607,13 +766,15 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         const cutoffStr = cutoffDate.toISOString().split('T')[0];
 
         // Find clients with no orders after cutoff date
-        const neglected = clients.filter(client => {
-          const clientOrders = orders.filter(o => o.clientId === client.id);
-          const lastOrder = clientOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        const neglected = clients.filter((client) => {
+          const clientOrders = orders.filter((o) => o.clientId === client.id);
+          const lastOrder = clientOrders.sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          )[0];
           return !lastOrder || lastOrder.date < cutoffStr;
         });
 
-        return `Rasta ${neglected.length} klientų, neaplankytų per ${days} dienų: ${neglected.map(c => c.name).join(', ') || 'nėra'}`;
+        return `Rasta ${neglected.length} klientų, neaplankytų per ${days} dienų: ${neglected.map((c) => c.name).join(', ') || 'nėra'}`;
       }
 
       if (name === 'get_low_inventory') {
@@ -622,7 +783,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       }
 
       if (name === 'get_unpaid_orders') {
-        const unpaid = orders.filter(o => o.status === 'atlikta');
+        const unpaid = orders.filter((o) => o.status === 'atlikta');
         const total = unpaid.reduce((sum, o) => sum + o.totalPrice, 0);
         return `Rasta ${unpaid.length} atliktų užsakymų. Bendra neapmokėta suma: ${total}€`;
       }
@@ -632,17 +793,19 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       if (name === 'get_business_summary') {
         const period = args.period || 'month';
         const now = new Date();
-        let startDate = new Date();
+        const startDate = new Date();
 
         if (period === 'week') startDate.setDate(now.getDate() - 7);
         else if (period === 'month') startDate.setMonth(now.getMonth() - 1);
         else startDate.setFullYear(now.getFullYear() - 1);
 
         const startStr = startDate.toISOString().split('T')[0];
-        const periodOrders = orders.filter(o => o.date >= startStr);
-        const periodExpenses = expenses.filter(e => e.date >= startStr);
+        const periodOrders = orders.filter((o) => o.date >= startStr);
+        const periodExpenses = expenses.filter((e) => e.date >= startStr);
 
-        const revenue = periodOrders.filter(o => o.status === 'atlikta').reduce((sum, o) => sum + o.totalPrice, 0);
+        const revenue = periodOrders
+          .filter((o) => o.status === 'atlikta')
+          .reduce((sum, o) => sum + o.totalPrice, 0);
         const totalExp = periodExpenses.reduce((sum, e) => sum + e.amount, 0);
 
         return `📊 **Verslo suvestinė (${period}):**\n- Užsakymų: ${periodOrders.length}\n- Pajamos: ${revenue}€\n- Išlaidos: ${totalExp}€\n- Pelnas: ${revenue - totalExp}€`;
@@ -654,20 +817,24 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
         const clientStats: Record<string, { name: string; orders: number; revenue: number }> = {};
 
-        orders.filter(o => o.status === 'atlikta').forEach(o => {
-          if (!clientStats[o.clientId]) {
-            clientStats[o.clientId] = { name: o.clientName, orders: 0, revenue: 0 };
-          }
-          clientStats[o.clientId].orders++;
-          clientStats[o.clientId].revenue += o.totalPrice;
-        });
+        orders
+          .filter((o) => o.status === 'atlikta')
+          .forEach((o) => {
+            if (!clientStats[o.clientId]) {
+              clientStats[o.clientId] = { name: o.clientName, orders: 0, revenue: 0 };
+            }
+            clientStats[o.clientId].orders++;
+            clientStats[o.clientId].revenue += o.totalPrice;
+          });
 
-        const sorted = Object.values(clientStats).sort((a, b) =>
-          by === 'revenue' ? b.revenue - a.revenue : b.orders - a.orders
-        ).slice(0, limit);
+        const sorted = Object.values(clientStats)
+          .sort((a, b) => (by === 'revenue' ? b.revenue - a.revenue : b.orders - a.orders))
+          .slice(0, limit);
 
-        return `🏆 **Top ${limit} klientai (pagal ${by}):**\n` +
-          sorted.map((c, i) => `${i + 1}. ${c.name}: ${c.orders} užs., ${c.revenue}€`).join('\n');
+        return (
+          `🏆 **Top ${limit} klientai (pagal ${by}):**\n` +
+          sorted.map((c, i) => `${i + 1}. ${c.name}: ${c.orders} užs., ${c.revenue}€`).join('\n')
+        );
       }
 
       if (name === 'get_revenue_trends') {
@@ -678,7 +845,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         for (let i = months - 1; i >= 0; i--) {
           const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
           const monthStr = d.toISOString().slice(0, 7);
-          const monthOrders = orders.filter(o => o.date.startsWith(monthStr) && o.status === 'atlikta');
+          const monthOrders = orders.filter(
+            (o) => o.date.startsWith(monthStr) && o.status === 'atlikta'
+          );
           const revenue = monthOrders.reduce((sum, o) => sum + o.totalPrice, 0);
           const monthName = d.toLocaleString('lt-LT', { month: 'short' });
           trends.push(`${monthName}: ${revenue}€`);
@@ -690,18 +859,25 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       // ====== WORKFLOW AUTOMATION ======
 
       if (name === 'create_recurring_order') {
-        const clientName = args.clientName || "";
-        const client = clients.find(c => (c.name || "").toLowerCase().includes(clientName.toLowerCase()));
+        const clientName = args.clientName || '';
+        const client = clients.find((c) =>
+          (c.name || '').toLowerCase().includes(clientName.toLowerCase())
+        );
         if (!client) return `Klaida: Klientas "${clientName}" nerastas.`;
 
         const additionalServices = {
           balkonai: args.additionalServices?.balkonai || false,
           vitrinos: args.additionalServices?.vitrinos || false,
           terasa: args.additionalServices?.terasa || false,
-          kiti: args.additionalServices?.kiti || false
+          kiti: args.additionalServices?.kiti || false,
         };
 
-        const totalPrice = calculateOrderPrice(args.windowCount, args.floor, additionalServices, settings);
+        const totalPrice = calculateOrderPrice(
+          args.windowCount,
+          args.floor,
+          additionalServices,
+          settings
+        );
 
         await addData(TABLES.ORDERS, user.uid, {
           clientId: client.id,
@@ -725,10 +901,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       }
 
       if (name === 'generate_reminder_message') {
-        const order = orders.find(o => o.id === args.orderId);
+        const order = orders.find((o) => o.id === args.orderId);
         if (!order) return `Užsakymas nerastas.`;
 
-        const client = clients.find(c => c.id === order.clientId);
+        const client = clients.find((c) => c.id === order.clientId);
         const message = settings.smsTemplate
           .replace('{vardas}', client?.name || 'kliente')
           .replace('{data}', order.date)
@@ -745,28 +921,25 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         }
         return `✅ ${orderIds.length} užsakymų būsena pakeista į "${status}".`;
       }
-
     } catch (error) {
-      console.error("Tool execution error:", error);
+      console.error('Tool execution error:', error);
       return `Klaida vykdant veiksmą: ${error instanceof Error ? error.message : 'Nežinoma klaida'}`;
     }
-    return "Nežinomas veiksmas.";
+    return 'Nežinomas veiksmas.';
   };
 
   const handleOpenKeySelector = async () => {
-    const aiStudio = (window as any).aistudio;
-    if (aiStudio && aiStudio.openSelectKey) {
+    const aiStudio = getAiStudio();
+    if (aiStudio?.openSelectKey) {
       await aiStudio.openSelectKey();
       localStorage.removeItem('custom_api_key');
       setCustomApiKey('');
-      setHasApiKey(true);
     }
   };
 
   const handleSaveCustomKey = () => {
     if (customApiKey.trim()) {
       localStorage.setItem('custom_api_key', customApiKey.trim());
-      setHasApiKey(true);
       setApiKeyProvider(customApiKey.trim().startsWith('sk-or-v1-') ? 'openrouter' : 'google');
       setShowApiSettings(false);
     } else {
@@ -781,18 +954,21 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
     lastUserMessageRef.current = textToSend;
     if (!messageText) setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: textToSend, timestamp: Date.now() }]);
+    setMessages((prev) => [...prev, { role: 'user', text: textToSend, timestamp: Date.now() }]);
     setIsLoading(true);
 
     try {
       const apiKey =
         localStorage.getItem('custom_api_key') ||
-        (window as any).aistudio?.getApiKey?.() ||
+        getAiStudio()?.getApiKey?.() ||
         getGeminiKeyFromEnv();
       const result = await chatWithAssistant(textToSend, history, assistantDataContext);
 
       // Check if we hit fallback
-      if (result.text?.includes("AI smegenys ilsisi") || result.text?.includes("modeliai yra perkrauti")) {
+      if (
+        result.text?.includes('AI smegenys ilsisi') ||
+        result.text?.includes('modeliai yra perkrauti')
+      ) {
         setIsAiOffline(true);
       } else {
         setIsAiOffline(false);
@@ -802,7 +978,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
       let finalResponse = result.text;
 
       const rawFunctionCalls =
-        'functionCalls' in result ? (result as { functionCalls?: unknown }).functionCalls : undefined;
+        'functionCalls' in result
+          ? (result as { functionCalls?: unknown }).functionCalls
+          : undefined;
       const toolCalls = Array.isArray(rawFunctionCalls) ? rawFunctionCalls : undefined;
       if (toolCalls?.length) {
         const functionResponses = [];
@@ -810,27 +988,34 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           const toolResult = await handleToolCall(call);
           functionResponses.push({
             role: 'function',
-            parts: [{
-              functionResponse: {
-                name: call.name,
-                response: { result: toolResult },
-                id: call.id
-              }
-            }]
+            parts: [
+              {
+                functionResponse: {
+                  name: call.name,
+                  response: { result: toolResult },
+                  id: call.id,
+                },
+              },
+            ],
           });
         }
 
         // Add tool calls to history if not already there
-        const toolCallHistory = toolCalls.map((call: any) => ({
-          role: 'model',
-          parts: [{
-            functionCall: {
-              name: call.name,
-              args: call.args,
-              id: call.id
-            }
-          }]
-        }));
+        const toolCallHistory = toolCalls.map((tc) => {
+          const c = tc as AssistantToolCall;
+          return {
+            role: 'model',
+            parts: [
+              {
+                functionCall: {
+                  name: c.name,
+                  args: c.args,
+                  id: c.id,
+                },
+              },
+            ],
+          };
+        });
 
         const updatedHistory = [...currentHistory, ...toolCallHistory, ...functionResponses];
 
@@ -839,61 +1024,69 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
           if (isOpenRouterKey(apiKey)) {
             // For OpenRouter, we just call chatWithAssistant again with the updated history
             // We use an empty message because the history now contains the tool responses
-            const secondResult = await chatWithAssistant("", updatedHistory, assistantDataContext);
+            const secondResult = await chatWithAssistant('', updatedHistory, assistantDataContext);
             finalResponse = secondResult.text;
             currentHistory = secondResult.history;
           } else {
             const geminiKey = getGeminiApiKeyForSdk();
             if (!geminiKey) {
-              finalResponse = finalResponse || 'Trūksta Google Gemini rakto antram užklausos žingsniui.';
+              finalResponse =
+                finalResponse || 'Trūksta Google Gemini rakto antram užklausos žingsniui.';
             } else {
-            const ai = getAiInstance(geminiKey);
-            const modelsToTry = [
-              'gemini-2.0-flash',
-              'gemini-2.5-flash',
-              'gemini-flash-latest',
-              'gemini-1.5-flash',
-              'gemini-1.5-flash-8b',
-            ];
-            let secondResponseText = "";
-            let secondHistory: any[] = [];
-            let lastError: any = null;
+              const ai = getAiInstance(geminiKey);
+              const modelsToTry = [
+                'gemini-2.0-flash',
+                'gemini-2.5-flash',
+                'gemini-flash-latest',
+                'gemini-1.5-flash',
+                'gemini-1.5-flash-8b',
+              ];
+              let secondResponseText = '';
+              let secondHistory: ChatHistoryMessage[] = [];
 
-            for (const modelName of modelsToTry) {
-              try {
-                const secondChat = ai.chats.create({
-                  model: modelName,
-                  history: sanitizeHistoryForGemini(updatedHistory) as any,
-                });
-                const secondResponse = await secondChat.sendMessage({ message: "Apdorok veiksmų rezultatus ir patvirtink vartotojui." });
-                secondResponseText = secondResponse.text;
-                secondHistory = await secondChat.getHistory();
-                break;
-              } catch (e) {
-                lastError = e;
-                console.warn(`Second chat with ${modelName} failed:`, e);
+              for (const modelName of modelsToTry) {
+                try {
+                  const secondChat = ai.chats.create({
+                    model: modelName,
+                    history: sanitizeHistoryForGemini(updatedHistory) as ReturnType<
+                      typeof sanitizeHistoryForGemini
+                    >,
+                  });
+                  const secondResponse = await secondChat.sendMessage({
+                    message: 'Apdorok veiksmų rezultatus ir patvirtink vartotojui.',
+                  });
+                  secondResponseText = secondResponse.text;
+                  secondHistory = await secondChat.getHistory();
+                  break;
+                } catch (err) {
+                  console.warn(`Second chat with ${modelName} failed:`, err);
+                }
               }
-            }
 
-            if (secondResponseText) {
-              finalResponse = secondResponseText;
-              currentHistory = secondHistory;
-            } else {
-              // Fallback if second call fails
-              finalResponse = "Veiksmai atlikti sėkmingai, bet nepavyko sugeneruoti patvirtinimo teksto. Ar galiu dar kuo nors padėti?";
-              currentHistory = updatedHistory;
-            }
+              if (secondResponseText) {
+                finalResponse = secondResponseText;
+                currentHistory = secondHistory;
+              } else {
+                // Fallback if second call fails
+                finalResponse =
+                  'Veiksmai atlikti sėkmingai, bet nepavyko sugeneruoti patvirtinimo teksto. Ar galiu dar kuo nors padėti?';
+                currentHistory = updatedHistory;
+              }
             }
           }
         } catch (e) {
-          console.error("Second chat error:", e);
-          finalResponse = "Veiksmai atlikti, bet įvyko klaida generuojant atsakymą. Patikrinkite duomenis sąrašuose.";
+          console.error('Second chat error:', e);
+          finalResponse =
+            'Veiksmai atlikti, bet įvyko klaida generuojant atsakymą. Patikrinkite duomenis sąrašuose.';
           currentHistory = updatedHistory;
         }
       }
 
       if (finalResponse) {
-        setMessages(prev => [...prev, { role: 'model', text: finalResponse!, timestamp: Date.now() }]);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'model', text: finalResponse!, timestamp: Date.now() },
+        ]);
       }
 
       setHistory(currentHistory);
@@ -924,7 +1117,7 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         const orderDetection = detectOrderInConversation(textToSend, finalResponse, clients);
         if (orderDetection.shouldCreate && orderDetection.clientId) {
           try {
-            const client = clients.find(c => c.id === orderDetection.clientId);
+            const client = clients.find((c) => c.id === orderDetection.clientId);
             if (client) {
               const newOrder = {
                 clientId: orderDetection.clientId,
@@ -934,7 +1127,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                 time: orderDetection.time || '10:00',
                 windowCount: orderDetection.windowCount || 5,
                 floor: 1,
-                additionalServices: { balkonai: false, vitrinos: false, terasa: false, kiti: false },
+                additionalServices: {
+                  balkonai: false,
+                  vitrinos: false,
+                  terasa: false,
+                  kiti: false,
+                },
                 totalPrice: (orderDetection.windowCount || 5) * 5,
                 status: 'suplanuota' as const,
                 notes: `Sukurta iš pokalbio: ${textToSend.slice(0, 100)}`,
@@ -949,9 +1147,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
         }
       }
     } catch (error) {
-      console.error("Chat Error:", error);
+      console.error('Chat Error:', error);
       const errorMsg = `Atsiprašau, įvyko klaida: ${error instanceof Error ? error.message : 'Nežinoma klaida'}.`;
-      setMessages(prev => [...prev, { role: 'model', text: errorMsg, timestamp: Date.now(), failed: true }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'model', text: errorMsg, timestamp: Date.now(), failed: true },
+      ]);
       setLastFailedMessage(textToSend);
     } finally {
       setIsLoading(false);
@@ -963,9 +1164,16 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
     if (isLoading) {
       const timeout = setTimeout(() => {
         if (isLoading) {
-          console.warn("AI request timeout - resetting loading state");
+          console.warn('AI request timeout - resetting loading state');
           setIsLoading(false);
-          setMessages(prev => [...prev, { role: 'model', text: "Atsiprašau, atsakymas užtruko per ilgai. Bandykite trumpesnę užklausą, palaukite ir bandykite vėl, arba patikrinkite API raktą / tinklą.", timestamp: Date.now() }]);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'model',
+              text: 'Atsiprašau, atsakymas užtruko per ilgai. Bandykite trumpesnę užklausą, palaukite ir bandykite vėl, arba patikrinkite API raktą / tinklą.',
+              timestamp: Date.now(),
+            },
+          ]);
           setLastFailedMessage(lastUserMessageRef.current);
         }
       }, 90000);
@@ -1005,7 +1213,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                   <Bot size={22} />
                 </div>
                 <div>
-                  <h3 id="chat-assistant-title" className="font-semibold text-sm">Asistentas</h3>
+                  <h3 id="chat-assistant-title" className="font-semibold text-sm">
+                    Asistentas
+                  </h3>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="text-[10px] opacity-80">Klausimai apie užsakymus ir duomenis</p>
                     <span
@@ -1014,17 +1224,29 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     >
                       {activeViewLabel}
                     </span>
-                    <span className={`text-[9px] px-2 py-0.5 rounded-md font-medium ${isAiOffline ? 'bg-amber-500/25 text-amber-100' :
-                      apiKeyProvider === 'openrouter' ? 'bg-white/15 text-white' :
-                        apiKeyProvider === 'google' ? 'bg-white/15 text-white' :
-                          'bg-white/10 text-white/70'
-                      }`}>
-                      {isAiOffline ? 'Neprijungta' : apiKeyProvider === 'openrouter' ? 'OpenRouter' : apiKeyProvider === 'google' ? 'Google API' : 'Numatytasis'}
+                    <span
+                      className={`text-[9px] px-2 py-0.5 rounded-md font-medium ${
+                        isAiOffline
+                          ? 'bg-amber-500/25 text-amber-100'
+                          : apiKeyProvider === 'openrouter'
+                            ? 'bg-white/15 text-white'
+                            : apiKeyProvider === 'google'
+                              ? 'bg-white/15 text-white'
+                              : 'bg-white/10 text-white/70'
+                      }`}
+                    >
+                      {isAiOffline
+                        ? 'Neprijungta'
+                        : apiKeyProvider === 'openrouter'
+                          ? 'OpenRouter'
+                          : apiKeyProvider === 'google'
+                            ? 'Google API'
+                            : 'Numatytasis'}
                     </span>
                   </div>
                   <p className="text-[9px] opacity-85 mt-1.5 leading-snug pr-2">
-                    Naršykite kitas skiltis — langas ir pokalbis lieka. Apie „čia matomą“ galite klausti pagal
-                    viršuje rodomą skiltį.
+                    Naršykite kitas skiltis — langas ir pokalbis lieka. Apie „čia matomą“ galite
+                    klausti pagal viršuje rodomą skiltį.
                   </p>
                 </div>
               </div>
@@ -1086,14 +1308,21 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     <RefreshCw size={16} />
                   </button>
                 )}
-                <button onClick={() => setIsOpen(false)} title="Uždaryti asistentą" className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <button
+                  onClick={() => setIsOpen(false)}
+                  title="Uždaryti asistentą"
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
                   <X size={20} />
                 </button>
               </div>
             </div>
 
             {/* Messages */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 relative">
+            <div
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 relative"
+            >
               <AnimatePresence>
                 {showApiSettings && (
                   <motion.div
@@ -1107,7 +1336,11 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                         <Settings2 size={14} className="text-blue-600" />
                         API nustatymai (Gemini arba OpenRouter)
                       </h4>
-                      <button onClick={() => setShowApiSettings(false)} title="Uždaryti API nustatymus" className="text-slate-400 hover:text-slate-600">
+                      <button
+                        onClick={() => setShowApiSettings(false)}
+                        title="Uždaryti API nustatymus"
+                        className="text-slate-400 hover:text-slate-600"
+                      >
                         <X size={16} />
                       </button>
                     </div>
@@ -1116,7 +1349,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                       <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
                         <p className="text-[10px] text-blue-800 leading-relaxed mb-3">
                           <strong>Google Gemini:</strong> raktas iš{' '}
-                          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="underline">
+                          <a
+                            href="https://aistudio.google.com/apikey"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
                             AI Studio
                           </a>
                           , paprastai prasideda <code>AIza</code>. <strong>OpenRouter:</strong>{' '}
@@ -1138,8 +1376,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                           </button>
                         </div>
                         <div className="relative py-2">
-                          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-blue-200/50"></div></div>
-                          <div className="relative flex justify-center text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">arba numatytasis raktas</div>
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-blue-200/50"></div>
+                          </div>
+                          <div className="relative flex justify-center text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
+                            arba numatytasis raktas
+                          </div>
                         </div>
                         <button
                           onClick={() => {
@@ -1163,16 +1405,26 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
 
                       <div className="flex items-center justify-between text-[10px] px-2">
                         <span className="text-slate-400">Dabartinis tiekėjas:</span>
-                        <span className={`font-bold uppercase tracking-widest ${apiKeyProvider === 'openrouter' ? 'text-purple-600' :
-                          apiKeyProvider === 'google' ? 'text-emerald-600' :
-                            'text-slate-400'
-                          }`}>
-                          {apiKeyProvider === 'openrouter' ? 'OpenRouter' : apiKeyProvider === 'google' ? 'Gemini (Mano API)' : 'Standartinis / .env'}
+                        <span
+                          className={`font-bold uppercase tracking-widest ${
+                            apiKeyProvider === 'openrouter'
+                              ? 'text-purple-600'
+                              : apiKeyProvider === 'google'
+                                ? 'text-emerald-600'
+                                : 'text-slate-400'
+                          }`}
+                        >
+                          {apiKeyProvider === 'openrouter'
+                            ? 'OpenRouter'
+                            : apiKeyProvider === 'google'
+                              ? 'Gemini (Mano API)'
+                              : 'Standartinis / .env'}
                         </span>
                       </div>
                       {getGeminiKeyFromEnv() && !localStorage.getItem('custom_api_key') && (
                         <p className="text-[10px] text-slate-500 px-2">
-                          Raktas įkeltas iš <code className="bg-slate-100 px-1 rounded">.env</code> — įveskite ir išsaugokite čia tik jei norite pakeisti.
+                          Raktas įkeltas iš <code className="bg-slate-100 px-1 rounded">.env</code>{' '}
+                          — įveskite ir išsaugokite čia tik jei norite pakeisti.
                         </p>
                       )}
                     </div>
@@ -1191,34 +1443,50 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                         <Brain size={18} className="text-blue-600" />
                         Asistento atmintis
                       </h4>
-                      <button onClick={() => setShowMemories(false)} title="Uždaryti atmintį" className="p-2 bg-slate-50 rounded-full text-slate-400">
+                      <button
+                        onClick={() => setShowMemories(false)}
+                        title="Uždaryti atmintį"
+                        className="p-2 bg-slate-50 rounded-full text-slate-400"
+                      >
                         <X size={16} />
                       </button>
                     </div>
 
                     {memories.length === 0 ? (
                       <div className="text-center py-10">
-                        <p className="text-xs text-slate-400">Atmintis tuščia. Pasakykite man kažką svarbaus ir aš tai įsiminsiu.</p>
+                        <p className="text-xs text-slate-400">
+                          Atmintis tuščia. Pasakykite man kažką svarbaus ir aš tai įsiminsiu.
+                        </p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {memories.map(memory => (
-                          <div key={memory.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group">
+                        {memories.map((memory) => (
+                          <div
+                            key={memory.id}
+                            className="bg-slate-50 p-4 rounded-2xl border border-slate-100 group"
+                          >
                             <div className="flex justify-between items-start gap-3">
                               <div className="flex-1">
                                 <span className="text-[8px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full mb-2 inline-block">
                                   {memory.category}
                                 </span>
-                                <p className="text-xs text-slate-700 leading-relaxed">{memory.content}</p>
+                                <p className="text-xs text-slate-700 leading-relaxed">
+                                  {memory.content}
+                                </p>
                               </div>
                               {!isRestrictedStaff && (
-                              <button
-                                onClick={() => handleToolCall({ name: 'delete_memory', args: { memoryId: memory.id } })}
-                                title="Ištrinti atminties įrašą"
-                                className="p-2 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                                <button
+                                  onClick={() =>
+                                    handleToolCall({
+                                      name: 'delete_memory',
+                                      args: { memoryId: memory.id },
+                                    })
+                                  }
+                                  title="Ištrinti atminties įrašą"
+                                  className="p-2 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1236,24 +1504,28 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                   </div>
                   <div className="space-y-1">
                     <p className="font-bold text-slate-900">Sveiki, vadove!</p>
-                    <p className="text-xs text-slate-400 px-10">Galiu padėti pridėti klientus, užsakymus ar išlaidas. Tiesiog parašykite man.</p>
+                    <p className="text-xs text-slate-400 px-10">
+                      Galiu padėti pridėti klientus, užsakymus ar išlaidas. Tiesiog parašykite man.
+                    </p>
                   </div>
                   <div className="flex flex-wrap justify-center gap-2 pt-4">
-                    {['Pridėk klientą', 'Sukurk užsakymą', 'Įrašyk išlaidas', 'Mano atmintis'].map(hint => (
-                      <button
-                        key={hint}
-                        onClick={() => {
-                          if (hint === 'Mano atmintis') {
-                            setShowMemories(true);
-                          } else {
-                            setInput(hint);
-                          }
-                        }}
-                        className="text-[10px] font-bold bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all"
-                      >
-                        {hint}
-                      </button>
-                    ))}
+                    {['Pridėk klientą', 'Sukurk užsakymą', 'Įrašyk išlaidas', 'Mano atmintis'].map(
+                      (hint) => (
+                        <button
+                          key={hint}
+                          onClick={() => {
+                            if (hint === 'Mano atmintis') {
+                              setShowMemories(true);
+                            } else {
+                              setInput(hint);
+                            }
+                          }}
+                          className="text-[10px] font-bold bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all"
+                        >
+                          {hint}
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -1265,40 +1537,58 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                   key={i}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white'}`}>
+                  <div
+                    className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
+                  >
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white'}`}
+                    >
                       {msg.role === 'user' ? <UserIcon size={14} /> : <Bot size={14} />}
                     </div>
-                    <div className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${msg.role === 'user'
-                      ? 'bg-slate-900 text-white rounded-tr-none'
-                      : 'bg-white text-slate-900 shadow-sm border border-slate-100 rounded-tl-none'
-                      }`}>
+                    <div
+                      className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
+                        msg.role === 'user'
+                          ? 'bg-slate-900 text-white rounded-tr-none'
+                          : 'bg-white text-slate-900 shadow-sm border border-slate-100 rounded-tl-none'
+                      }`}
+                    >
                       {msg.role === 'model' ? (
                         <>
                           <div className="markdown-body prose prose-sm max-w-none">
                             <ReactMarkdown>{msg.text}</ReactMarkdown>
                           </div>
-                          <p className="text-[9px] text-slate-300 mt-2">{new Date(msg.timestamp).toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-[9px] text-slate-300 mt-2">
+                            {new Date(msg.timestamp).toLocaleTimeString('lt-LT', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
                           <div className="absolute -right-10 top-0 flex gap-1">
                             <button
                               onClick={() => setShowVoiceSelector(!showVoiceSelector)}
-                              className={`p-2 rounded-full transition-all ${showVoiceSelector
-                                ? 'bg-blue-100 text-blue-600'
-                                : 'bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100'
-                                }`}
+                              className={`p-2 rounded-full transition-all ${
+                                showVoiceSelector
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100'
+                              }`}
                               title="Balso nustatymai"
                             >
                               <Bot size={14} />
                             </button>
                             <button
                               onClick={() => speak(msg.text, i)}
-                              className={`p-2 rounded-full transition-all ${speakingMessageIndex === i
-                                ? 'bg-blue-100 text-blue-600'
-                                : 'bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100'
-                                }`}
-                              title={speakingMessageIndex === i ? "Sustabdyti" : "Skaityti garsiai"}
+                              className={`p-2 rounded-full transition-all ${
+                                speakingMessageIndex === i
+                                  ? 'bg-blue-100 text-blue-600'
+                                  : 'bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100'
+                              }`}
+                              title={speakingMessageIndex === i ? 'Sustabdyti' : 'Skaityti garsiai'}
                             >
-                              {speakingMessageIndex === i ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                              {speakingMessageIndex === i ? (
+                                <VolumeX size={14} />
+                              ) : (
+                                <Volume2 size={14} />
+                              )}
                             </button>
                           </div>
                           {showVoiceSelector && (
@@ -1308,21 +1598,34 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                               className="absolute right-0 top-10 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50"
                             >
                               <div className="flex justify-between items-center mb-3">
-                                <h4 className="text-xs font-bold text-slate-900">Balso nustatymai</h4>
-                                <button onClick={() => setShowVoiceSelector(false)} title="Uždaryti balso nustatymus" className="text-slate-400 hover:text-slate-600">
+                                <h4 className="text-xs font-bold text-slate-900">
+                                  Balso nustatymai
+                                </h4>
+                                <button
+                                  onClick={() => setShowVoiceSelector(false)}
+                                  title="Uždaryti balso nustatymus"
+                                  className="text-slate-400 hover:text-slate-600"
+                                >
                                   <X size={14} />
                                 </button>
                               </div>
                               <div className="space-y-3">
                                 <div>
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Tiekėjas</label>
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                    Tiekėjas
+                                  </label>
                                   <p className="text-xs font-medium text-slate-900 mt-1">
-                                    {apiKeyProvider === 'openrouter' ? 'OpenRouter (nemokamas)' :
-                                      apiKeyProvider === 'google' ? 'Google Gemini' : 'Numatytasis (Google)'}
+                                    {apiKeyProvider === 'openrouter'
+                                      ? 'OpenRouter (nemokamas)'
+                                      : apiKeyProvider === 'google'
+                                        ? 'Google Gemini'
+                                        : 'Numatytasis (Google)'}
                                   </p>
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Balsas</label>
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                    Balsas
+                                  </label>
                                   <select
                                     value={selectedVoice}
                                     onChange={(e) => {
@@ -1341,7 +1644,9 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">Kalba</label>
+                                  <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                    Kalba
+                                  </label>
                                   <select
                                     value={selectedLang}
                                     onChange={(e) => {
@@ -1362,8 +1667,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                                 </div>
                                 <div className="space-y-2">
                                   <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Greitis</label>
-                                    <span className="text-[10px] text-blue-600 font-bold">{voiceRate}</span>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                      Greitis
+                                    </label>
+                                    <span className="text-[10px] text-blue-600 font-bold">
+                                      {voiceRate}
+                                    </span>
                                   </div>
                                   <input
                                     type="range"
@@ -1392,7 +1701,12 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                       ) : (
                         <>
                           {msg.text}
-                          <p className="text-[9px] text-slate-400 mt-2 text-right">{new Date(msg.timestamp).toLocaleTimeString('lt-LT', { hour: '2-digit', minute: '2-digit' })}</p>
+                          <p className="text-[9px] text-slate-400 mt-2 text-right">
+                            {new Date(msg.timestamp).toLocaleTimeString('lt-LT', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
                           <button
                             onClick={() => handleSend(msg.text)}
                             className="absolute -right-10 top-2 p-2 rounded-full bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100 transition-all"
@@ -1427,7 +1741,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
             <div className="p-6 bg-white border-t border-slate-100">
               {showPreviewMicHint && (
                 <div className="mb-3 text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 flex items-start justify-between gap-2">
-                  <span>Balso įvedimą naudokite atskiroje naršyklėje (Chrome/Edge), nes preview lange jis gali neveikti.</span>
+                  <span>
+                    Balso įvedimą naudokite atskiroje naršyklėje (Chrome/Edge), nes preview lange
+                    jis gali neveikti.
+                  </span>
                   <button
                     type="button"
                     onClick={() => setShowPreviewMicHint(false)}
@@ -1444,17 +1761,18 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={isRecording ? "Klausausi..." : "Rašykite čia..."}
+                  placeholder={isRecording ? 'Klausausi...' : 'Rašykite čia...'}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
                 <div className="absolute right-2 top-2 bottom-2 flex gap-1">
                   <button
                     onClick={toggleRecording}
-                    className={`w-10 rounded-xl flex items-center justify-center transition-all ${isRecording
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'bg-slate-100 text-slate-400 hover:text-blue-600'
-                      }`}
-                    title={isRecording ? "Sustabdyti įrašymą" : "Įrašyti balsu"}
+                    className={`w-10 rounded-xl flex items-center justify-center transition-all ${
+                      isRecording
+                        ? 'bg-red-500 text-white animate-pulse'
+                        : 'bg-slate-100 text-slate-400 hover:text-blue-600'
+                    }`}
+                    title={isRecording ? 'Sustabdyti įrašymą' : 'Įrašyti balsu'}
                   >
                     {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
                   </button>
@@ -1462,7 +1780,10 @@ export default function ChatAssistant({ user, clients, orders, expenses, setting
                     <button
                       onClick={() => {
                         setIsLoading(false);
-                        setMessages(prev => [...prev, { role: 'model', text: 'Užklausa sustabdyta.', timestamp: Date.now() }]);
+                        setMessages((prev) => [
+                          ...prev,
+                          { role: 'model', text: 'Užklausa sustabdyta.', timestamp: Date.now() },
+                        ]);
                       }}
                       className="w-10 bg-red-500 text-white rounded-xl flex items-center justify-center hover:bg-red-600 transition-all"
                       title="Sustabdyti"

@@ -16,10 +16,27 @@ import {
   looksLikeValidEmail,
   compressImageToJpegDataUrl,
 } from '../utils';
-import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
-import { Plus, Search, Calendar, Clock, MapPin, User as UserIcon, CheckCircle2, MoreVertical, X, FileText, Camera, MessageSquare, Star, Users, Download, Mail, Image as ImageIcon, Loader2, HelpCircle } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Calendar,
+  Clock,
+  MapPin,
+  CheckCircle2,
+  MoreVertical,
+  X,
+  Camera,
+  MessageSquare,
+  Star,
+  Users,
+  Download,
+  Mail,
+  Image as ImageIcon,
+  Loader2,
+  HelpCircle,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface LocalUser {
@@ -42,7 +59,13 @@ interface OrdersViewProps {
   employees: Employee[];
 }
 
-export default function OrdersView({ orders, clients, settings, user, employees }: OrdersViewProps) {
+export default function OrdersView({
+  orders,
+  clients,
+  settings,
+  user,
+  employees,
+}: OrdersViewProps) {
   const { isRestrictedStaff } = useOrgAccess();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
@@ -102,26 +125,29 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const todayCount = orders.filter((o) => o.date === today && o.status !== 'atlikta').length;
   const unassignedCount = orders.filter((o) => o.status !== 'atlikta' && !o.employeeId).length;
 
-  const filteredOrders = orders.filter((o) => {
-    const statusMatch = statusFilter === 'all' || o.status === statusFilter;
-    const textMatch =
-      (o.clientName || "").toLowerCase().includes(search.toLowerCase()) ||
-      (o.address || "").toLowerCase().includes(search.toLowerCase());
-    const focusMatch =
-      focusFilter === 'all'
-        ? true
-        : focusFilter === 'today'
-          ? o.status !== 'atlikta' && o.date === today
-          : focusFilter === 'overdue'
-            ? o.status !== 'atlikta' && o.date < today
-            : o.status !== 'atlikta' && !o.employeeId;
+  const filteredOrders = orders
+    .filter((o) => {
+      const statusMatch = statusFilter === 'all' || o.status === statusFilter;
+      const textMatch =
+        (o.clientName || '').toLowerCase().includes(search.toLowerCase()) ||
+        (o.address || '').toLowerCase().includes(search.toLowerCase());
+      const focusMatch =
+        focusFilter === 'all'
+          ? true
+          : focusFilter === 'today'
+            ? o.status !== 'atlikta' && o.date === today
+            : focusFilter === 'overdue'
+              ? o.status !== 'atlikta' && o.date < today
+              : o.status !== 'atlikta' && !o.employeeId;
 
-    return statusMatch && textMatch && focusMatch;
-  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return statusMatch && textMatch && focusMatch;
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const visibleOrderIds = filteredOrders.map((o) => o.id);
   const selectedVisibleCount = selectedOrderIds.filter((id) => visibleOrderIds.includes(id)).length;
-  const allVisibleSelected = visibleOrderIds.length > 0 && selectedVisibleCount === visibleOrderIds.length;
+  const allVisibleSelected =
+    visibleOrderIds.length > 0 && selectedVisibleCount === visibleOrderIds.length;
 
   const totalPrice = calculateOrderPrice(
     formData.windowCount,
@@ -210,7 +236,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     try {
       let orderClient: Client | null = null;
       if (clientMode === 'existing') {
-        orderClient = clients.find(c => c.id === formData.clientId) || null;
+        orderClient = clients.find((c) => c.id === formData.clientId) || null;
         if (!orderClient) {
           showToast.error('Pasirinkite klientą');
           return;
@@ -300,14 +326,18 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         };
 
         await addData(TABLES.ORDERS, user.uid, newOrderData as any);
-        showToast.success(`Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`);
+        showToast.success(
+          `Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`
+        );
       }
       if (status === 'atlikta' && !order.isRecurring) {
         showToast.success('Užsakymas pažymėtas kaip atliktas');
       }
-    } catch (error: any) {
-      console.error('Status update failed:', error);
-      const details = typeof error?.message === 'string' ? ` (${error.message})` : '';
+    } catch (err: unknown) {
+      const details =
+        err && typeof err === 'object' && 'message' in err
+          ? ` (${String((err as { message: unknown }).message)})`
+          : '';
       showToast.error(`Nepavyko išsaugoti būsenos${details}`);
     } finally {
       setStatusUpdatingOrderId(null);
@@ -323,14 +353,19 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     try {
       const dataUrl = await compressImageToJpegDataUrl(file);
       if (dataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
-        showToast.error('Nuotrauka per didelė po suspaudimo. Bandykite mažesnę raišką arba kitą kadrą.');
+        showToast.error(
+          'Nuotrauka per didelė po suspaudimo. Bandykite mažesnę raišką arba kitą kadrą.'
+        );
         return;
       }
       const patch = type === 'before' ? { photoBefore: dataUrl } : { photoAfter: dataUrl };
       await updateData(TABLES.ORDERS, order.id, patch as Record<string, unknown>);
       showToast.success(type === 'before' ? '„Prieš“ nuotrauka įrašyta' : '„Po“ nuotrauka įrašyta');
     } catch (e: unknown) {
-      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : '';
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message: string }).message)
+          : '';
       showToast.error(msg ? `Nepavyko įkelti: ${msg}` : 'Nepavyko įkelti nuotraukos');
     } finally {
       setIsUploading(null);
@@ -356,7 +391,6 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         showToast.success(result.detail);
       }
     } catch (e: unknown) {
-      console.error(e);
       const msg = e instanceof Error ? e.message.trim() : '';
       if (msg) {
         showToast.error(
@@ -382,7 +416,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     }
     const em = client.email?.trim() ?? '';
     if (!em || !looksLikeValidEmail(em)) {
-      showToast.error('Kliento kortelėje nėra el. pašto. Skiltyje „Klientai“ redaguokite klientą ir įrašykite adresą.');
+      showToast.error(
+        'Kliento kortelėje nėra el. pašto. Skiltyje „Klientai“ redaguokite klientą ir įrašykite adresą.'
+      );
       return;
     }
     await handleGenerateInvoice(order, { fromEmailButton: true });
@@ -391,14 +427,13 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   const handleDelete = async (id: string) => {
     if (isRestrictedStaff) return;
     if (!window.confirm('Ar tikrai norite ištrinti šį užsakymą?')) return;
-    
+
     setIsDeleting(id);
     try {
       await deleteData(TABLES.ORDERS, id);
       showToast.success('Užsakymas sėkmingai ištrintas');
-    } catch (error) {
+    } catch {
       showToast.error('Nepavyko ištrinti užsakymo');
-      console.error('Error deleting order:', error);
     } finally {
       setIsDeleting(null);
     }
@@ -430,15 +465,18 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   };
 
   const sendSMS = (order: Order) => {
-    const client = clients.find(c => c.id === order.clientId);
+    const client = clients.find((c) => c.id === order.clientId);
     if (!client || !client.phone) {
       showToast.error('Klientas neturi telefono numerio.');
       return;
     }
 
-    let text = settings.smsTemplate || "Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!";
+    let text =
+      settings.smsTemplate ||
+      'Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!';
     const vardas = resolveOrderClientName(order) || client.name || 'kliente';
-    text = text.replace('{vardas}', vardas)
+    text = text
+      .replace('{vardas}', vardas)
       .replace('{data}', formatDate(order.date))
       .replace('{laikas}', order.time)
       .replace('{kaina}', formatCurrency(order.totalPrice));
@@ -447,7 +485,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
   };
 
   const requestFeedback = (order: Order) => {
-    const client = clients.find(c => c.id === order.clientId);
+    const client = clients.find((c) => c.id === order.clientId);
     if (!client || !client.phone) {
       showToast.error('Klientas neturi telefono numerio.');
       return;
@@ -476,7 +514,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
     if (selectedOrderIds.length === 0) return;
     setIsBulkUpdating(true);
     try {
-      await Promise.all(selectedOrderIds.map((id) => updateData(TABLES.ORDERS, id, { status } as any)));
+      await Promise.all(
+        selectedOrderIds.map((id) => updateData(TABLES.ORDERS, id, { status } as any))
+      );
       showToast.success(`Atnaujinta užsakymų: ${selectedOrderIds.length}`);
       setSelectedOrderIds([]);
     } catch {
@@ -523,23 +563,30 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-sm text-slate-900 [&::-webkit-details-marker]:hidden">
           <HelpCircle className="h-4 w-4 shrink-0 text-blue-600" aria-hidden />
           Kaip naudotis užsakymais
-          <span className="ml-auto text-xs font-normal text-slate-500 group-open:hidden">(bakstelėkite)</span>
+          <span className="ml-auto text-xs font-normal text-slate-500 group-open:hidden">
+            (bakstelėkite)
+          </span>
         </summary>
         <ul className="mt-3 space-y-2 text-xs text-slate-600 leading-relaxed border-t border-slate-200/80 pt-3">
           <li>
-            <strong className="text-slate-800">Pradėti</strong> — pažymi, kad vykstate į objektą (būsena „Vykdoma“).
+            <strong className="text-slate-800">Pradėti</strong> — pažymi, kad vykstate į objektą
+            (būsena „Vykdoma“).
           </li>
           <li>
-            <strong className="text-slate-800">Baigti</strong> — darbas atliktas (būsena „Atlikta“; tada galite „Sąskaita“ ir SMS).
+            <strong className="text-slate-800">Baigti</strong> — darbas atliktas (būsena „Atlikta“;
+            tada galite „Sąskaita“ ir SMS).
           </li>
           <li>
-            <strong className="text-slate-800">Nepriskirtas</strong> — pasirinkite darbuotoją iš sąrašo šalia.
+            <strong className="text-slate-800">Nepriskirtas</strong> — pasirinkite darbuotoją iš
+            sąrašo šalia.
           </li>
           <li>
-            <strong className="text-slate-800">Įkelti</strong> prie „Prieš / Po“ — nuotrauka suspaudžiama ir išsaugoma prie užsakymo.
+            <strong className="text-slate-800">Įkelti</strong> prie „Prieš / Po“ — nuotrauka
+            suspaudžiama ir išsaugoma prie užsakymo.
           </li>
           <li>
-            <strong className="text-slate-800">Trys taškai (⋮)</strong> — redaguoti arba ištrinti užsakymą (bakstelėkite piktogramą).
+            <strong className="text-slate-800">Trys taškai (⋮)</strong> — redaguoti arba ištrinti
+            užsakymą (bakstelėkite piktogramą).
           </li>
         </ul>
       </details>
@@ -596,10 +643,11 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               key={status}
               type="button"
               onClick={() => setStatusFilter(status)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${statusFilter === status
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
-                : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
-                }`}
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                statusFilter === status
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
+                  : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
+              }`}
             >
               {status === 'all' ? 'Visi' : ORDER_STATUS_LABEL_LT[status]}
             </button>
@@ -611,40 +659,44 @@ export default function OrdersView({ orders, clients, settings, user, employees 
         <button
           type="button"
           onClick={() => setFocusFilter('all')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'all'
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            focusFilter === 'all'
               ? 'bg-slate-900 text-white'
               : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
-            }`}
+          }`}
         >
           Visi darbai
         </button>
         <button
           type="button"
           onClick={() => setFocusFilter('today')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'today'
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            focusFilter === 'today'
               ? 'bg-blue-600 text-white'
               : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
-            }`}
+          }`}
         >
           Šiandien ({todayCount})
         </button>
         <button
           type="button"
           onClick={() => setFocusFilter('overdue')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'overdue'
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            focusFilter === 'overdue'
               ? 'bg-red-600 text-white'
               : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
-            }`}
+          }`}
         >
           Pavėluoti ({overdueCount})
         </button>
         <button
           type="button"
           onClick={() => setFocusFilter('unassigned')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${focusFilter === 'unassigned'
+          className={`px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+            focusFilter === 'unassigned'
               ? 'bg-amber-600 text-white'
               : 'bg-white text-slate-600 border border-slate-100 hover:bg-slate-50'
-            }`}
+          }`}
         >
           Nepriskirti ({unassignedCount})
         </button>
@@ -689,11 +741,13 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               className="px-2 py-2 rounded-xl text-xs border border-slate-200 bg-white"
             >
               <option value="">Nepriskirti</option>
-              {employees.filter((e) => e.isActive).map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name}
-                </option>
-              ))}
+              {employees
+                .filter((e) => e.isActive)
+                .map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.name}
+                  </option>
+                ))}
             </select>
             <button
               type="button"
@@ -730,7 +784,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 {order.estimatedDuration && (
                   <>
                     <span className="text-slate-300 mx-2">•</span>
-                    <span className="text-xs font-bold text-slate-500">~{formatDuration(order.estimatedDuration)}</span>
+                    <span className="text-xs font-bold text-slate-500">
+                      ~{formatDuration(order.estimatedDuration)}
+                    </span>
                   </>
                 )}
                 {order.employeeId && (
@@ -738,7 +794,7 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     <span className="text-slate-300 mx-2">•</span>
                     <div className="flex items-center gap-1 text-xs font-bold text-slate-600">
                       <Users size={12} className="text-blue-500" />
-                      {employees.find(e => e.id === order.employeeId)?.name || 'Nežinomas'}
+                      {employees.find((e) => e.id === order.employeeId)?.name || 'Nežinomas'}
                     </div>
                   </>
                 )}
@@ -753,8 +809,12 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               </div>
               <div className="flex items-center gap-2">
                 <div
-                  className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider ${order.status === 'atlikta' ? 'bg-emerald-50 text-emerald-600' :
-                  order.status === 'vykdoma' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'
+                  className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider ${
+                    order.status === 'atlikta'
+                      ? 'bg-emerald-50 text-emerald-600'
+                      : order.status === 'vykdoma'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'bg-amber-50 text-amber-600'
                   }`}
                 >
                   {ORDER_STATUS_LABEL_LT[order.status]}
@@ -790,17 +850,18 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         Redaguoti užsakymą
                       </button>
                       {!isRestrictedStaff && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          handleDelete(order.id);
-                          setActionsMenuOrderId(null);
-                        }}
-                        className="w-full text-left px-4 py-3 text-xs font-bold text-red-600 hover:bg-red-50"
-                      >
-                        Ištrinti
-                      </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={isDeleting === order.id}
+                          onClick={() => {
+                            handleDelete(order.id);
+                            setActionsMenuOrderId(null);
+                          }}
+                          className="w-full text-left px-4 py-3 text-xs font-bold text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:pointer-events-none"
+                        >
+                          {isDeleting === order.id ? 'Trinama…' : 'Ištrinti'}
+                        </button>
                       )}
                     </div>
                   )}
@@ -818,7 +879,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     <MapPin size={12} className="shrink-0 mt-0.5" aria-hidden />
                     <span className="break-words">
                       {orderDisplayAddress(order) || (
-                        <span className="text-amber-700 font-medium">Adresas neįvestas — atidarykite ⋮ → Redaguoti</span>
+                        <span className="text-amber-700 font-medium">
+                          Adresas neįvestas — atidarykite ⋮ → Redaguoti
+                        </span>
                       )}
                     </span>
                   </div>
@@ -827,7 +890,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                   <p className="text-xl font-black text-slate-900">
                     {isRestrictedStaff ? '—' : formatCurrency(order.totalPrice)}
                   </p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">{order.windowCount} langai</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">
+                    {order.windowCount} langai
+                  </p>
                 </div>
               </div>
 
@@ -843,20 +908,33 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl py-2.5 px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60 min-h-[44px]"
                     >
                       <option value="">Nepriskirtas</option>
-                      {employees.filter((e) => e.isActive).map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name}
-                        </option>
-                      ))}
+                      {employees
+                        .filter((e) => e.isActive)
+                        .map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name}
+                          </option>
+                        ))}
                     </select>
                   </div>
                   {order.status !== 'atlikta' && (
                     <button
                       type="button"
                       disabled={statusUpdatingOrderId === order.id}
-                      onClick={() => handleStatusUpdate(order, order.status === 'suplanuota' ? 'vykdoma' : 'atlikta')}
-                      title={order.status === 'suplanuota' ? 'Pažymėti užsakymą kaip vykdomą' : 'Pažymėti užsakymą kaip atliktą'}
-                      aria-label={order.status === 'suplanuota' ? 'Pradėti užsakymą' : 'Užbaigti užsakymą'}
+                      onClick={() =>
+                        handleStatusUpdate(
+                          order,
+                          order.status === 'suplanuota' ? 'vykdoma' : 'atlikta'
+                        )
+                      }
+                      title={
+                        order.status === 'suplanuota'
+                          ? 'Pažymėti užsakymą kaip vykdomą'
+                          : 'Pažymėti užsakymą kaip atliktą'
+                      }
+                      aria-label={
+                        order.status === 'suplanuota' ? 'Pradėti užsakymą' : 'Užbaigti užsakymą'
+                      }
                       className="min-w-[6.5rem] shrink-0 bg-blue-600 text-white py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed min-h-[44px]"
                     >
                       {statusUpdatingOrderId === order.id ? (
@@ -940,7 +1018,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
               <div className="mt-6 pt-6 border-t border-slate-50">
                 <div className="flex items-center gap-2 mb-4">
                   <Camera size={16} className="text-slate-400" />
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nuotraukų dokumentacija</h4>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Nuotraukų dokumentacija
+                  </h4>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   {/* Prieš */}
@@ -948,14 +1028,21 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     <p className="text-[10px] font-bold text-slate-500 uppercase">Prieš</p>
                     {order.photoBefore ? (
                       <div className="relative group aspect-video rounded-2xl overflow-hidden border border-slate-100">
-                        <img src={order.photoBefore} alt="Prieš" className="w-full h-full object-cover" />
+                        <img
+                          src={order.photoBefore}
+                          alt="Prieš"
+                          className="w-full h-full object-cover"
+                        />
                         <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                           <input
                             type="file"
                             className="hidden"
                             accept="image/*"
                             title="Įkelti prieš nuotrauką"
-                            onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'before', e.target.files[0])}
+                            onChange={(e) =>
+                              e.target.files?.[0] &&
+                              handlePhotoUpload(order, 'before', e.target.files[0])
+                            }
                           />
                           <ImageIcon className="text-white" size={24} />
                         </label>
@@ -967,14 +1054,19 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                           className="hidden"
                           accept="image/*"
                           title="Įkelti prieš nuotrauką"
-                          onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'before', e.target.files[0])}
+                          onChange={(e) =>
+                            e.target.files?.[0] &&
+                            handlePhotoUpload(order, 'before', e.target.files[0])
+                          }
                         />
                         {isUploading === `${order.id}-before` ? (
                           <Loader2 className="text-blue-500 animate-spin" size={24} />
                         ) : (
                           <>
                             <Plus className="text-slate-300" size={24} />
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Įkelti</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">
+                              Įkelti
+                            </span>
                           </>
                         )}
                       </label>
@@ -986,14 +1078,21 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     <p className="text-[10px] font-bold text-slate-500 uppercase">Po</p>
                     {order.photoAfter ? (
                       <div className="relative group aspect-video rounded-2xl overflow-hidden border border-slate-100">
-                        <img src={order.photoAfter} alt="Po" className="w-full h-full object-cover" />
+                        <img
+                          src={order.photoAfter}
+                          alt="Po"
+                          className="w-full h-full object-cover"
+                        />
                         <label className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                           <input
                             type="file"
                             className="hidden"
                             accept="image/*"
                             title="Įkelti po nuotrauką"
-                            onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'after', e.target.files[0])}
+                            onChange={(e) =>
+                              e.target.files?.[0] &&
+                              handlePhotoUpload(order, 'after', e.target.files[0])
+                            }
                           />
                           <ImageIcon className="text-white" size={24} />
                         </label>
@@ -1005,14 +1104,19 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                           className="hidden"
                           accept="image/*"
                           title="Įkelti po nuotrauką"
-                          onChange={(e) => e.target.files?.[0] && handlePhotoUpload(order, 'after', e.target.files[0])}
+                          onChange={(e) =>
+                            e.target.files?.[0] &&
+                            handlePhotoUpload(order, 'after', e.target.files[0])
+                          }
                         />
                         {isUploading === `${order.id}-after` ? (
                           <Loader2 className="text-blue-500 animate-spin" size={24} />
                         ) : (
                           <>
                             <Plus className="text-slate-300" size={24} />
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">Įkelti</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">
+                              Įkelti
+                            </span>
                           </>
                         )}
                       </label>
@@ -1080,63 +1184,83 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 )}
 
                 {clientMode === 'existing' || editingOrder ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Klientas</label>
-                  <select
-                    required
-                    value={formData.clientId}
-                    onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-                    title="Klientas"
-                    className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="">Pasirinkite klientą</option>
-                    {clients.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} - {c.address}</option>
-                    ))}
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Klientas
+                    </label>
+                    <select
+                      required
+                      value={formData.clientId}
+                      onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+                      title="Klientas"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      <option value="">Pasirinkite klientą</option>
+                      {clients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} - {c.address}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Kliento vardas</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        Kliento vardas
+                      </label>
                       <input
                         required
                         type="text"
                         value={newClientData.name}
-                        onChange={(e) => setNewClientData((prev) => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setNewClientData((prev) => ({ ...prev, name: e.target.value }))
+                        }
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         placeholder="Pvz. Jonas Jonaitis"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Telefonas</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        Telefonas
+                      </label>
                       <input
                         type="text"
                         value={newClientData.phone}
-                        onChange={(e) => setNewClientData((prev) => ({ ...prev, phone: e.target.value }))}
+                        onChange={(e) =>
+                          setNewClientData((prev) => ({ ...prev, phone: e.target.value }))
+                        }
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         placeholder="+370..."
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">El. paštas (neprivaloma)</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        El. paštas (neprivaloma)
+                      </label>
                       <input
                         type="email"
                         inputMode="email"
                         autoComplete="email"
                         value={newClientData.email}
-                        onChange={(e) => setNewClientData((prev) => ({ ...prev, email: e.target.value }))}
+                        onChange={(e) =>
+                          setNewClientData((prev) => ({ ...prev, email: e.target.value }))
+                        }
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         placeholder="vardas@pastas.lt"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Adresas</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        Adresas
+                      </label>
                       <input
                         required
                         type="text"
                         value={newClientData.address}
-                        onChange={(e) => setNewClientData((prev) => ({ ...prev, address: e.target.value }))}
+                        onChange={(e) =>
+                          setNewClientData((prev) => ({ ...prev, address: e.target.value }))
+                        }
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         placeholder="Gatvė, miestas"
                       />
@@ -1145,7 +1269,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 )}
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Priskirtas darbuotojas</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Priskirtas darbuotojas
+                  </label>
                   <select
                     value={formData.employeeId}
                     onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
@@ -1153,15 +1279,21 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   >
                     <option value="">Nepriskirtas</option>
-                    {employees.filter(e => e.isActive).map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.name}</option>
-                    ))}
+                    {employees
+                      .filter((e) => e.isActive)
+                      .map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Data</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Data
+                    </label>
                     <input
                       required
                       type="date"
@@ -1172,7 +1304,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Laikas</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Laikas
+                    </label>
                     <input
                       required
                       type="time"
@@ -1186,23 +1320,31 @@ export default function OrdersView({ orders, clients, settings, user, employees 
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Langų skaičius</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Langų skaičius
+                    </label>
                     <input
                       required
                       type="number"
                       value={formData.windowCount}
-                      onChange={(e) => setFormData({ ...formData, windowCount: parseInt(e.target.value) })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, windowCount: parseInt(e.target.value) })
+                      }
                       title="Langų skaičius"
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Aukštas</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                      Aukštas
+                    </label>
                     <input
                       required
                       type="number"
                       value={formData.floor}
-                      onChange={(e) => setFormData({ ...formData, floor: parseInt(e.target.value) })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, floor: parseInt(e.target.value) })
+                      }
                       title="Aukštas"
                       className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
@@ -1210,7 +1352,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Trukmė</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Trukmė
+                  </label>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                       <input
@@ -1226,7 +1370,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         }}
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block text-center">d.</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block text-center">
+                        d.
+                      </span>
                     </div>
                     <div className="space-y-1">
                       <input
@@ -1243,7 +1389,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         }}
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block text-center">val.</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block text-center">
+                        val.
+                      </span>
                     </div>
                     <div className="space-y-1">
                       <input
@@ -1260,24 +1408,33 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                         }}
                         className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
-                      <span className="text-[10px] text-slate-400 font-bold uppercase block text-center">min.</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block text-center">
+                        min.
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Papildomos paslaugos</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Papildomos paslaugos
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(formData.additionalServices).map(([key, val]) => (
                       <button
                         key={key}
                         type="button"
-                        onClick={() => setFormData({
-                          ...formData,
-                          additionalServices: { ...formData.additionalServices, [key]: !val }
-                        })}
-                        className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${val ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-white text-slate-400 border-slate-100'
-                          }`}
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            additionalServices: { ...formData.additionalServices, [key]: !val },
+                          })
+                        }
+                        className={`py-2 rounded-xl text-xs font-bold capitalize border transition-all ${
+                          val
+                            ? 'bg-blue-50 text-blue-600 border-blue-200'
+                            : 'bg-white text-slate-400 border-slate-100'
+                        }`}
                       >
                         {key}
                       </button>
@@ -1292,25 +1449,38 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                       type="button"
                       title="Perjungti periodinį užsakymą"
                       aria-label="Perjungti periodinį užsakymą"
-                      onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring })}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${formData.isRecurring ? 'bg-blue-500' : 'bg-slate-300'
-                        }`}
+                      onClick={() =>
+                        setFormData({ ...formData, isRecurring: !formData.isRecurring })
+                      }
+                      className={`w-12 h-6 rounded-full transition-colors relative ${
+                        formData.isRecurring ? 'bg-blue-500' : 'bg-slate-300'
+                      }`}
                     >
-                      <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${formData.isRecurring ? 'left-7' : 'left-1'
-                        }`} />
+                      <div
+                        className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${
+                          formData.isRecurring ? 'left-7' : 'left-1'
+                        }`}
+                      />
                     </button>
                   </div>
 
                   {formData.isRecurring && (
                     <div className="pt-2 border-t border-slate-200">
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Intervalas (mėnesiais)</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        Intervalas (mėnesiais)
+                      </label>
                       <input
                         type="number"
                         min="1"
                         max="12"
                         title="Periodiškumo intervalas mėnesiais"
                         value={formData.recurringInterval}
-                        onChange={(e) => setFormData({ ...formData, recurringInterval: parseInt(e.target.value) || 3 })}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            recurringInterval: parseInt(e.target.value) || 3,
+                          })
+                        }
                         className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       />
                     </div>
@@ -1320,7 +1490,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
                   <div className="flex justify-between items-center gap-2">
                     <span className="text-sm font-bold text-blue-900">Kaina pagal įkainius</span>
-                    <span className="text-lg font-black text-blue-600 tabular-nums">{formatCurrency(totalPrice)}</span>
+                    <span className="text-lg font-black text-blue-600 tabular-nums">
+                      {formatCurrency(totalPrice)}
+                    </span>
                   </div>
                   <label className="flex items-start gap-3 cursor-pointer rounded-xl p-2 -m-2 hover:bg-blue-100/50">
                     <input
@@ -1359,7 +1531,9 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                     </div>
                   )}
                   {!orderPriceManual && (
-                    <p className="text-xs text-blue-900/75">Į užsakymą bus įrašyta kaina pagal nustatymų įkainius.</p>
+                    <p className="text-xs text-blue-900/75">
+                      Į užsakymą bus įrašyta kaina pagal nustatymų įkainius.
+                    </p>
                   )}
                   {orderPriceManual && parsedOrderPriceOverride !== null && (
                     <p className="text-xs font-semibold text-blue-900">
@@ -1375,8 +1549,10 @@ export default function OrdersView({ orders, clients, settings, user, employees 
                 >
                   {isSaving ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : editingOrder ? (
+                    'Išsaugoti pakeitimus'
                   ) : (
-                    editingOrder ? 'Išsaugoti pakeitimus' : 'Sukurti užsakymą'
+                    'Sukurti užsakymą'
                   )}
                 </button>
               </form>

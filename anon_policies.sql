@@ -1,4 +1,7 @@
--- TEMPORARY FIX: Allow anonymous access for development
+-- @deprecated Nenaudokite — atveria visą CRM anon. Naudokite migraciją:
+--   supabase/migrations/20260404140000_crm_core_rls.sql
+--
+-- TEMPORARY FIX (legacy): Allow anonymous access for development
 -- WARNING: Remove this in production!
 
 -- Allow anon access to all tables (TEMPORARY - FOR DEVELOPMENT ONLY)

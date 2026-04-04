@@ -173,7 +173,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   priceVitrinos: 20,
   priceTerasa: 25,
   priceKiti: 10,
-  smsTemplate: "Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!",
+  smsTemplate:
+    'Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!',
   publicBookingEnabled: true,
   invoiceApiBaseUrl: '',
 };

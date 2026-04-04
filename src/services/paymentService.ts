@@ -5,12 +5,38 @@
 
 import { loadStripe, Stripe } from '@stripe/stripe-js';
 import { Order } from '../types';
+import { usesLocalStorageBackend, supabase } from '../supabase';
 
 // Stripe configuration
 const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
-const STRIPE_SECRET_KEY = import.meta.env.VITE_STRIPE_SECRET_KEY;
 
 let stripePromise: Promise<Stripe | null>;
+
+async function getRequiredAuthHeaders(includeJson = true): Promise<Record<string, string>> {
+  const headers: Record<string, string> = includeJson ? { 'Content-Type': 'application/json' } : {};
+  if (usesLocalStorageBackend || !supabase) {
+    return headers;
+  }
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const token = session?.access_token?.trim();
+  if (!token) {
+    throw new Error('Sesija baigėsi. Prisijunkite iš naujo.');
+  }
+  headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+async function parseApiResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const data = (await response.json().catch(() => ({}))) as { error?: string };
+  if (!response.ok) {
+    throw new Error(
+      typeof data.error === 'string' && data.error.trim() ? data.error : fallbackMessage
+    );
+  }
+  return data as T;
+}
 
 export const getStripe = () => {
   const publishableKey = (STRIPE_PUBLISHABLE_KEY || '').trim();
@@ -59,151 +85,113 @@ export interface Invoice {
 
 // Client-side payment functions
 export async function createPaymentIntent(order: Order): Promise<PaymentIntent> {
-  try {
-    const response = await fetch('/api/create-payment-intent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+  const headers = await getRequiredAuthHeaders();
+  const response = await fetch('/api/create-payment-intent', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      order_id: order.id,
+      client_id: order.clientId,
+      amount: order.totalPrice * 100, // Convert to cents
+      currency: 'eur',
+      metadata: {
         order_id: order.id,
-        amount: order.totalPrice * 100, // Convert to cents
-        currency: 'eur',
-        metadata: {
-          order_id: order.id,
-          client_name: order.clientName,
-          service_type: 'window_cleaning'
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Nepavyko sukurti mokėjimo');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Payment intent creation failed:', error);
-    throw error;
-  }
+        client_id: order.clientId,
+        client_name: order.clientName,
+        service_type: 'window_cleaning',
+      },
+    }),
+  });
+  return await parseApiResponse<PaymentIntent>(response, 'Nepavyko sukurti mokėjimo');
 }
 
 export async function confirmPayment(clientSecret: string): Promise<PaymentIntent> {
-  try {
-    const stripe = await getStripe();
-    if (!stripe) {
-      throw new Error('Stripe nepasiekiamas');
-    }
+  const stripe = await getStripe();
+  if (!stripe) {
+    throw new Error('Stripe nepasiekiamas');
+  }
 
-    const result = await stripe.confirmPayment({
-      clientSecret,
-      confirmParams: {
-        return_url: `${window.location.origin}/payment/success`,
-        payment_method_data: {
-          billing_details: {
-            name: 'Klientas',
-            email: 'client@example.com',
-          },
+  const result = await stripe.confirmPayment({
+    clientSecret,
+    confirmParams: {
+      return_url: `${window.location.origin}/payment/success`,
+      payment_method_data: {
+        billing_details: {
+          name: 'Klientas',
+          email: 'client@example.com',
         },
       },
-    });
+    },
+  });
 
-    if (result.error) {
-      throw new Error(result.error.message || 'Mokėjimas patvirtinti nepavyko');
-    }
-
-    // Type assertion since we've checked for error
-    const paymentIntent = (result as any).paymentIntent;
-    if (!paymentIntent) {
-      throw new Error('Mokėjimo intent nerastas');
-    }
-
-    return paymentIntent as PaymentIntent;
-  } catch (error) {
-    console.error('Payment confirmation failed:', error);
-    throw error;
+  if (result.error) {
+    throw new Error(result.error.message || 'Mokėjimas patvirtinti nepavyko');
   }
+
+  const paymentIntent = (result as { paymentIntent?: PaymentIntent }).paymentIntent;
+  if (!paymentIntent) {
+    throw new Error('Mokėjimo intent nerastas');
+  }
+
+  return paymentIntent;
 }
 
 // Invoice functions
 export async function generateInvoice(order: Order): Promise<Invoice> {
-  try {
-    const response = await fetch('/api/generate-invoice', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        order_id: order.id,
-        client_id: order.clientId,
-        amount: order.totalPrice,
-        due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Nepavyko sugeneruoti sąskaitos');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Invoice generation failed:', error);
-    throw error;
-  }
+  const headers = await getRequiredAuthHeaders();
+  const response = await fetch('/api/generate-invoice', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      order_id: order.id,
+      client_id: order.clientId,
+      amount: order.totalPrice,
+      due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days from now
+    }),
+  });
+  return await parseApiResponse<Invoice>(response, 'Nepavyko sugeneruoti sąskaitos');
 }
 
 export async function getInvoices(clientId?: string): Promise<Invoice[]> {
-  try {
-    const url = clientId ? `/api/invoices?client_id=${clientId}` : '/api/invoices';
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      throw new Error('Nepavyko gauti sąskaitų');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to get invoices:', error);
-    throw error;
-  }
+  const url = clientId ? `/api/invoices?client_id=${clientId}` : '/api/invoices';
+  const headers = await getRequiredAuthHeaders(false);
+  const response = await fetch(url, { headers });
+  return await parseApiResponse<Invoice[]>(response, 'Nepavyko gauti sąskaitų');
 }
 
-export async function updateInvoiceStatus(invoiceId: string, status: Invoice['status']): Promise<Invoice> {
-  try {
-    const response = await fetch(`/api/invoices/${invoiceId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ status }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Nepavyko atnaujinti sąskaitos būsenos');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Invoice status update failed:', error);
-    throw error;
-  }
+export async function updateInvoiceStatus(
+  invoiceId: string,
+  status: Invoice['status']
+): Promise<Invoice> {
+  const headers = await getRequiredAuthHeaders();
+  const response = await fetch(`/api/invoices/${invoiceId}`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ status }),
+  });
+  return await parseApiResponse<Invoice>(response, 'Nepavyko atnaujinti sąskaitos būsenos');
 }
 
 // Payment history
 export async function getPaymentHistory(clientId?: string): Promise<PaymentIntent[]> {
-  try {
-    const url = clientId ? `/api/payments?client_id=${clientId}` : '/api/payments';
-    const response = await fetch(url);
+  const url = clientId ? `/api/payments?client_id=${clientId}` : '/api/payments';
+  const headers = await getRequiredAuthHeaders(false);
+  const response = await fetch(url, { headers });
+  return await parseApiResponse<PaymentIntent[]>(response, 'Nepavyko gauti mokėjimų istorijos');
+}
 
-    if (!response.ok) {
-      throw new Error('Nepavyko gauti mokėjimų istorijos');
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Payment history fetch failed:', error);
-    throw error;
+export async function getInvoicePdfBlob(invoiceId: string): Promise<Blob> {
+  const headers = await getRequiredAuthHeaders(false);
+  const response = await fetch(`/api/invoices/${invoiceId}/pdf`, { headers });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(
+      typeof data.error === 'string' && data.error.trim()
+        ? data.error
+        : 'Nepavyko atsisiųsti sąskaitos'
+    );
   }
+  return await response.blob();
 }
 
 // Utility functions
@@ -281,7 +269,10 @@ export interface PaymentFormData {
   email: string;
 }
 
-export function validatePaymentForm(data: PaymentFormData): { isValid: boolean; errors: Record<string, string> } {
+export function validatePaymentForm(data: PaymentFormData): {
+  isValid: boolean;
+  errors: Record<string, string>;
+} {
   const errors: Record<string, string> = {};
 
   // Card number validation
@@ -321,7 +312,7 @@ export function validatePaymentForm(data: PaymentFormData): { isValid: boolean; 
 
   return {
     isValid: Object.keys(errors).length === 0,
-    errors
+    errors,
   };
 }
 
@@ -333,6 +324,7 @@ export default {
   getInvoices,
   updateInvoiceStatus,
   getPaymentHistory,
+  getInvoicePdfBlob,
   formatAmount,
   formatAmountFromEur,
   getPaymentStatusText,

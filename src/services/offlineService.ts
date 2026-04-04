@@ -41,7 +41,7 @@ export class OfflineService {
       await this.initDB();
       this.loadSyncQueue();
       this.setupEventListeners();
-      
+
       // Try to sync if online
       if (this.isOnline) {
         this.syncAll();
@@ -54,16 +54,16 @@ export class OfflineService {
   private async initDB(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open('LangiuValymasOffline', 1);
-      
+
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         this.db = request.result;
         resolve();
       };
-      
+
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
-        
+
         // Create object stores
         if (!db.objectStoreNames.contains('clients')) {
           db.createObjectStore('clients', { keyPath: 'id' });
@@ -92,7 +92,7 @@ export class OfflineService {
       this.isOnline = true;
       this.syncAll();
     });
-    
+
     window.addEventListener('offline', () => {
       this.isOnline = false;
     });
@@ -101,30 +101,30 @@ export class OfflineService {
   // Data storage methods
   async saveData<T>(storeName: string, data: T[]): Promise<void> {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     const transaction = this.db.transaction(storeName, 'readwrite');
     const store = transaction.objectStore(storeName);
-    
+
     // Clear existing data
     await store.clear();
-    
+
     // Add new data
     for (const item of data) {
       await store.add(item);
     }
-    
+
     // Save to offline data snapshot
     await this.saveOfflineSnapshot();
   }
 
   async getData<T>(storeName: string): Promise<T[]> {
     if (!this.db) throw new Error('Database not initialized');
-    
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(storeName, 'readonly');
       const store = transaction.objectStore(storeName);
       const request = store.getAll();
-      
+
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result as T[]);
     });
@@ -132,23 +132,23 @@ export class OfflineService {
 
   async saveOfflineSnapshot(): Promise<void> {
     if (!this.db) return;
-    
+
     try {
       const [clients, orders, expenses, settings] = await Promise.all([
         this.getData<Client>('clients'),
         this.getData<Order>('orders'),
         this.getData<Expense>('expenses'),
-        this.getData<AppSettings>('settings')
+        this.getData<AppSettings>('settings'),
       ]);
-      
+
       const snapshot: OfflineData = {
         clients,
         orders,
         expenses,
-        settings: settings[0] || {} as AppSettings,
-        lastSync: new Date()
+        settings: settings[0] || ({} as AppSettings),
+        lastSync: new Date(),
       };
-      
+
       const transaction = this.db.transaction('offlineData', 'readwrite');
       const store = transaction.objectStore('offlineData');
       await store.put({ id: 'snapshot', ...snapshot });
@@ -159,12 +159,12 @@ export class OfflineService {
 
   async getOfflineSnapshot(): Promise<OfflineData | null> {
     if (!this.db) return null;
-    
+
     return new Promise((resolve) => {
       const transaction = this.db!.transaction('offlineData', 'readonly');
       const store = transaction.objectStore('offlineData');
       const request = store.get('snapshot');
-      
+
       request.onerror = () => resolve(null);
       request.onsuccess = () => resolve(request.result || null);
     });
@@ -173,7 +173,7 @@ export class OfflineService {
   // Sync queue management
   private async loadSyncQueue(): Promise<void> {
     if (!this.db) return;
-    
+
     try {
       this.syncQueue = await this.getData<SyncOperation>('syncQueue');
     } catch (error) {
@@ -184,7 +184,7 @@ export class OfflineService {
 
   private async saveSyncQueue(): Promise<void> {
     if (!this.db) return;
-    
+
     try {
       await this.saveData('syncQueue', this.syncQueue);
     } catch (error) {
@@ -197,12 +197,12 @@ export class OfflineService {
       ...operation,
       id: `${Date.now()}-${Math.random()}`,
       timestamp: new Date(),
-      status: 'pending'
+      status: 'pending',
     };
-    
+
     this.syncQueue.push(syncOp);
     this.saveSyncQueue();
-    
+
     if (this.isOnline && !this.syncInProgress) {
       this.syncAll();
     }
@@ -212,18 +212,18 @@ export class OfflineService {
     if (!this.isOnline || this.syncInProgress || this.syncQueue.length === 0) {
       return;
     }
-    
+
     this.syncInProgress = true;
-    
+
     try {
-      const pendingOps = this.syncQueue.filter(op => op.status === 'pending');
-      
+      const pendingOps = this.syncQueue.filter((op) => op.status === 'pending');
+
       for (const operation of pendingOps) {
         await this.syncOperation(operation);
       }
-      
+
       // Clean up completed operations
-      this.syncQueue = this.syncQueue.filter(op => op.status !== 'completed');
+      this.syncQueue = this.syncQueue.filter((op) => op.status !== 'completed');
       await this.saveSyncQueue();
     } catch (error) {
       console.error('Sync failed:', error);
@@ -236,11 +236,11 @@ export class OfflineService {
     try {
       operation.status = 'syncing';
       await this.saveSyncQueue();
-      
+
       // Here you would implement actual sync logic with your backend
       // For now, we'll simulate successful sync
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       operation.status = 'completed';
       await this.saveSyncQueue();
     } catch (error) {
@@ -266,27 +266,27 @@ export class OfflineService {
       const estimate = await navigator.storage.estimate();
       const used = estimate.usage || 0;
       const quota = estimate.quota || 0;
-      
+
       return {
         used,
         quota,
-        percentage: quota > 0 ? (used / quota) * 100 : 0
+        percentage: quota > 0 ? (used / quota) * 100 : 0,
       };
     }
-    
+
     return { used: 0, quota: 0, percentage: 0 };
   }
 
   async clearOldData(): Promise<void> {
     if (!this.db) return;
-    
+
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
+
     // Clear old completed sync operations
-    this.syncQueue = this.syncQueue.filter(op => 
-      op.status !== 'completed' || new Date(op.timestamp) > thirtyDaysAgo
+    this.syncQueue = this.syncQueue.filter(
+      (op) => op.status !== 'completed' || new Date(op.timestamp) > thirtyDaysAgo
     );
-    
+
     await this.saveSyncQueue();
   }
 
@@ -301,19 +301,19 @@ export class OfflineService {
     failed: number;
     lastSync: Date | null;
   } {
-    const pending = this.syncQueue.filter(op => op.status === 'pending').length;
-    const syncing = this.syncQueue.filter(op => op.status === 'syncing').length;
-    const failed = this.syncQueue.filter(op => op.status === 'failed').length;
-    
+    const pending = this.syncQueue.filter((op) => op.status === 'pending').length;
+    const syncing = this.syncQueue.filter((op) => op.status === 'syncing').length;
+    const failed = this.syncQueue.filter((op) => op.status === 'failed').length;
+
     const lastSyncOp = this.syncQueue
-      .filter(op => op.status === 'completed')
+      .filter((op) => op.status === 'completed')
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-    
+
     return {
       pending,
       syncing,
       failed,
-      lastSync: lastSyncOp ? new Date(lastSyncOp.timestamp) : null
+      lastSync: lastSyncOp ? new Date(lastSyncOp.timestamp) : null,
     };
   }
 
@@ -343,7 +343,7 @@ export class OfflineService {
   async getCachedResources(): Promise<string[]> {
     if ('caches' in window) {
       const cache = await caches.open('langiu-valymas-v1');
-      return await cache.keys().then(requests => requests.map(req => req.url));
+      return await cache.keys().then((requests) => requests.map((req) => req.url));
     }
     return [];
   }
@@ -351,7 +351,7 @@ export class OfflineService {
   // Cleanup
   async cleanup(): Promise<void> {
     await this.clearOldData();
-    
+
     if (this.db) {
       this.db.close();
       this.db = null;

@@ -20,7 +20,16 @@ interface TeamViewProps {
   user: LocalUser;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'];
+const COLORS = [
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#8b5cf6',
+  '#ec4899',
+  '#6366f1',
+  '#14b8a6',
+];
 
 export default function TeamView({ employees, user }: TeamViewProps) {
   const { isRestrictedStaff } = useOrgAccess();
@@ -83,19 +92,24 @@ export default function TeamView({ employees, user }: TeamViewProps) {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold text-slate-900">Komanda</h2>
         {!isRestrictedStaff && (
-        <button
-          type="button"
-          title="Pridėti darbuotoją"
-          aria-label="Pridėti darbuotoją"
-          onClick={() => {
-            setEditingId(null);
-            setFormData({ name: '', phone: '', color: COLORS[Math.floor(Math.random() * COLORS.length)], isActive: true });
-            setIsAdding(true);
-          }}
-          className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={20} />
-        </button>
+          <button
+            type="button"
+            title="Pridėti darbuotoją"
+            aria-label="Pridėti darbuotoją"
+            onClick={() => {
+              setEditingId(null);
+              setFormData({
+                name: '',
+                phone: '',
+                color: COLORS[Math.floor(Math.random() * COLORS.length)],
+                isActive: true,
+              });
+              setIsAdding(true);
+            }}
+            className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={20} />
+          </button>
         )}
       </div>
 
@@ -117,7 +131,11 @@ export default function TeamView({ employees, user }: TeamViewProps) {
               <div>
                 <h3 className="font-bold text-slate-900 flex items-center gap-2">
                   {emp.name}
-                  {!emp.isActive && <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md uppercase tracking-wider">Neaktyvus</span>}
+                  {!emp.isActive && (
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                      Neaktyvus
+                    </span>
+                  )}
                 </h3>
                 <div className="flex items-center gap-1 text-slate-500 text-xs mt-1">
                   <Phone size={12} />
@@ -137,15 +155,18 @@ export default function TeamView({ employees, user }: TeamViewProps) {
                 <Edit2 size={16} />
               </button>
               {!isRestrictedStaff && (
-              <button
-                type="button"
-                title="Ištrinti"
-                aria-label="Ištrinti darbuotoją"
-                onClick={(e) => { e.stopPropagation(); handleDelete(emp.id); }}
-                className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-xl"
-              >
-                <Trash2 size={16} />
-              </button>
+                <button
+                  type="button"
+                  title="Ištrinti"
+                  aria-label="Ištrinti darbuotoją"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(emp.id);
+                  }}
+                  className="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 rounded-xl"
+                >
+                  <Trash2 size={16} />
+                </button>
               )}
             </div>
           </motion.div>
@@ -157,7 +178,9 @@ export default function TeamView({ employees, user }: TeamViewProps) {
               <Users size={32} className="text-slate-300" />
             </div>
             <p className="text-slate-500 font-medium">Jūsų komandoje dar nėra darbuotojų.</p>
-            <p className="text-sm text-slate-400 mt-1">Pridėkite darbuotojus, kad galėtumėte jiems priskirti užsakymus.</p>
+            <p className="text-sm text-slate-400 mt-1">
+              Pridėkite darbuotojus, kad galėtumėte jiems priskirti užsakymus.
+            </p>
           </div>
         )}
       </div>
@@ -193,7 +216,9 @@ export default function TeamView({ employees, user }: TeamViewProps) {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Vardas</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Vardas
+                  </label>
                   <input
                     required
                     type="text"
@@ -205,7 +230,9 @@ export default function TeamView({ employees, user }: TeamViewProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Telefonas</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Telefonas
+                  </label>
                   <input
                     required
                     type="tel"
@@ -217,9 +244,11 @@ export default function TeamView({ employees, user }: TeamViewProps) {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Spalva kalendoriuje</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Spalva kalendoriuje
+                  </label>
                   <div className="flex gap-2 flex-wrap">
-                    {COLORS.map(color => (
+                    {COLORS.map((color) => (
                       <button
                         key={color}
                         type="button"
@@ -241,7 +270,9 @@ export default function TeamView({ employees, user }: TeamViewProps) {
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                   />
-                  <label htmlFor="isActive" className="text-sm font-medium text-slate-700">Aktyvus darbuotojas</label>
+                  <label htmlFor="isActive" className="text-sm font-medium text-slate-700">
+                    Aktyvus darbuotojas
+                  </label>
                 </div>
 
                 <button
