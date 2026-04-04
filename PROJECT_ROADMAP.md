@@ -2,12 +2,12 @@
 
 ## 📋 Esama Būklė
 
-| Dalis | Statusas | Pastabos |
-|-------|----------|----------|
-| AI Asistentas | ✅ Veikia | Hybrid Classifier, Memory, Planning Engine |
-| Vidinė CRM sistema | ✅ Veikia | 11 puslapių, duomenų bazė |
-| PWA | ✅ Veikia | Galima diegti |
-| Testai | ✅ Veikia | 7/7 testai |
+| Dalis              | Statusas  | Pastabos                                   |
+| ------------------ | --------- | ------------------------------------------ |
+| AI Asistentas      | ✅ Veikia | Hybrid Classifier, Memory, Planning Engine |
+| Vidinė CRM sistema | ✅ Veikia | 11 puslapių, duomenų bazė                  |
+| PWA                | ✅ Veikia | Galima diegti                              |
+| Testai             | ✅ Veikia | 7/7 testai                                 |
 
 ## 🎯 Reikalingi Pagerinimai
 
@@ -16,6 +16,7 @@
 **Problema:** Klientai negali prisijungti, matyti savo duomenų
 
 **Sprendimas:**
+
 ```
 1.1. Sukurti atskirą Klientų registraciją
 1.2. Klientų prisijungimo sistema
@@ -33,6 +34,7 @@
 **Problema:** Nėra online apmokėjimo
 
 **Sprendimas:**
+
 ```
 2.1. Stripe/Lietuvos bankų integravimas
 2.2. Automatinis sąskaitų faktūrų generatorius
@@ -48,6 +50,7 @@
 **Problema:** Klientai negauna priminimų
 
 **Sprendimas:**
+
 ```
 3.1. Email pranešimai (nodemailer/SendGrid)
 3.2. SMS priminimai (Twilio/bet kas LT)
@@ -63,6 +66,7 @@
 **Problema:** Neišbaigta, neprofesionalu
 
 **Sprendimas:**
+
 ```
 4.1. Modernizuoti spalvų paletę
 4.2. Animacijos ir perėjimai
@@ -79,6 +83,7 @@
 **Problema:** Jei nėra interneto - sistema neveikia
 
 **Sprendimas:**
+
 ```
 5.1. Service Worker pagerinimas
 5.2. Local-first duomenų sinchronizacija
@@ -94,6 +99,7 @@
 **Problema:** AI atsako lėtai (2-10s)
 
 **Sprendimas:**
+
 ```
 6.1. Caching dažnų užklausų
 6.2. Debounce input
@@ -126,24 +132,28 @@ FAZĖ 4 (1-2 sav.)      FAZĖ 5 (1 sav.)
 ## 🔧 Techniniai Reikalavimai
 
 ### Klientų Portalas
+
 - Nauja rolė: `client` (atributas duomenų bazėje)
 - Apsaugoti maršrutai: `/client/*`
 - API: GET/POST /client/orders, GET /client/profile
 - UI: NavBar dinamiškai pagal rolę
 
 ### Mokėjimai
+
 - Stripe API key
 - Webhook endpoints
 - Saugumo: stripe signature verification
 - DB lentelės: payments, invoices
 
 ### Pranešimai
+
 - SendGrid/Twilio API
 - Email templates
 - Cron job'ai (užduotys)
 - Notification preferences (DB)
 
 ### Offline
+
 - IndexedDB papildomai
 - Background sync API
 - Optimistic updates
@@ -152,13 +162,13 @@ FAZĖ 4 (1-2 sav.)      FAZĖ 5 (1 sav.)
 
 ## 📊 Ištekliai
 
-| Dalis | Kas reikalinga | Kaina |
-|-------|---------------|-------|
-| Serveris | Vercel/Netlify | 0-20€/mėn |
-| Duomenų bazė | Jau turim | 0€ |
-| Email/SMS | SendGrid/Twilio | 0-50€/mėn |
-| Mokėjimai | Stripe | 1.4% + 0.25€ |
-| Domain | .lt | ~15€/m |
+| Dalis        | Kas reikalinga  | Kaina        |
+| ------------ | --------------- | ------------ |
+| Serveris     | Vercel/Netlify  | 0-20€/mėn    |
+| Duomenų bazė | Jau turim       | 0€           |
+| Email/SMS    | SendGrid/Twilio | 0-50€/mėn    |
+| Mokėjimai    | Stripe          | 1.4% + 0.25€ |
+| Domain       | .lt             | ~15€/m       |
 
 ---
 
@@ -174,6 +184,7 @@ FAZĖ 4 (1-2 sav.)      FAZĖ 5 (1 sav.)
 ## 🏁 Tikslas
 
 Po visų fazių sistema turės:
+
 - **Klientai** - prisijungti, matyti užsakymus, mokėti, gauti priminimus
 - **Darbuotojai** - matyti visus klientus, valdyti užsakymus, gauti priminimus
 - **Vadovas** - analitika, ataskaitos, pajamas
@@ -182,4 +193,4 @@ Po visų fazių sistema turės:
 
 ---
 
-*Atnaujinta: 2026-03-27*
+_Atnaujinta: 2026-03-27_

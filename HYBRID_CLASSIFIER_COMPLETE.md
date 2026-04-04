@@ -39,6 +39,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 ## 📁 Files Created
 
 ### Core System
+
 1. **`src/services/hybridClassifier.ts`** (739 lines)
    - Main classification logic
    - 45+ intention types covering CRM operations
@@ -56,6 +57,7 @@ User Input → Classification Pipeline → Tool Execution → Response
    - Relevance scoring algorithm
 
 ### Testing
+
 4. **`src/services/test-hybrid-classifier.ts`**
    - Comprehensive test suite
    - 20+ test cases covering:
@@ -67,6 +69,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 ## 🎯 Covered Intention Categories
 
 ### 📊 Business Analytics (7 intentions)
+
 - `business_summary` - Monthly/weekly/yearly summaries
 - `business_forecast` - Future predictions
 - `revenue_analysis` - Income analysis
@@ -76,6 +79,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 - `growth_trends` - Growth tracking
 
 ### 👥 Client Management (7 intentions)
+
 - `neglected_clients` - Inactive clients (>90 days)
 - `client_history` - Client interaction history
 - `client_preferences` - Client preferences
@@ -85,6 +89,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 - `inactive_clients` - Lost clients
 
 ### 📋 Order Management (7 intentions)
+
 - `unpaid_orders` - Pending payments
 - `pending_orders` - Scheduled orders
 - `completed_orders` - Finished work
@@ -94,6 +99,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 - `batch_operations` - Bulk updates
 
 ### 💰 Financial (5 intentions)
+
 - `payment_status` - Payment tracking
 - `debt_analysis` - Outstanding debts
 - `invoice_management` - Billing
@@ -101,6 +107,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 - `cost_breakdown` - Expense breakdown
 
 ### 🧹 Cleaning Operations (6 intentions)
+
 - `cleaning_schedule` - Work schedules
 - `service_pricing` - Pricing information
 - `equipment_inventory` - Equipment tracking
@@ -109,12 +116,14 @@ User Input → Classification Pipeline → Tool Execution → Response
 - `seasonal_services` - Seasonal offerings
 
 ### 📱 Communication (4 intentions)
+
 - `send_reminder` - Client reminders
 - `generate_sms` - SMS generation
 - `client_followup` - Follow-up tasks
 - `review_requests` - Review solicitation
 
 ### 🤖 AI Meta Commands (5 intentions)
+
 - `ai_explain` - Explanations
 - `ai_suggest` - Suggestions
 - `ai_review` - Reviews
@@ -122,6 +131,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 - `ai_plan` - Planning assistance
 
 ### 💬 General (5 intentions)
+
 - `greeting` - Greetings
 - `farewell` - Goodbyes
 - `help_request` - Help requests
@@ -131,6 +141,7 @@ User Input → Classification Pipeline → Tool Execution → Response
 ## 🔧 How It Works
 
 ### 1. Deterministic Classification (Stage 1)
+
 ```typescript
 // Example: "Rask neapmokėtus užsakymus"
 // → Keyword match: "neapmokėt.*užsakym"
@@ -141,11 +152,13 @@ User Input → Classification Pipeline → Tool Execution → Response
 ```
 
 **Performance:**
+
 - Response time: 1-5ms
 - Accuracy: 95%+ for clear queries
 - No API calls needed
 
 ### 2. LLM Fallback (Stage 2)
+
 ```typescript
 // Example: "Ką daryti su tais, kurie neatsako?"
 // → Keyword match: low confidence (0.4)
@@ -156,11 +169,13 @@ User Input → Classification Pipeline → Tool Execution → Response
 ```
 
 **Performance:**
+
 - Response time: 200-500ms
 - Handles ambiguous queries
 - Uses Gemini Flash for speed
 
 ### 3. Hybrid Result
+
 ```typescript
 {
   intention: "neglected_clients",
@@ -177,15 +192,18 @@ User Input → Classification Pipeline → Tool Execution → Response
 ## 📈 Expected Improvements
 
 ### Accuracy
+
 - **Before**: 60-70% correct tool selection
 - **After**: 95%+ correct tool selection
 
 ### Speed
+
 - **Keyword cases**: 1-5ms (instant)
 - **LLM cases**: 200-500ms (acceptable)
 - **Average**: ~50ms (mostly keyword hits)
 
 ### Reliability
+
 - **Hallucination reduction**: 90%+
 - **Consistent responses**: Deterministic for clear queries
 - **Graceful fallback**: Handles edge cases well
@@ -193,12 +211,14 @@ User Input → Classification Pipeline → Tool Execution → Response
 ## 🧪 Testing
 
 ### Test Coverage
+
 - 20+ keyword classification tests
 - 10+ LLM fallback tests
 - Edge case handling tests
 - Performance benchmarks
 
 ### How to Test
+
 ```bash
 # Run comprehensive tests
 npm run test:hybrid
@@ -209,6 +229,7 @@ npm run dev
 ```
 
 ### Example Test Queries
+
 ```
 ✓ "Koks mūsų verslo pelnas?" → business_summary
 ✓ "Rask neapmokėtus užsakymus" → unpaid_orders
@@ -221,16 +242,19 @@ npm run dev
 ## 🔄 Integration with Existing Systems
 
 ### Memory Priority Layer
+
 - Hybrid classifier uses prioritized memories
 - Better context understanding
 - More relevant tool execution
 
 ### Tool Router
+
 - Seamless integration
 - Maintains existing API
 - Adds hybrid classification capability
 
 ### AI Service
+
 - Enhanced system prompt with priority memories
 - Natural language response generation
 - Proactive suggestions
@@ -238,21 +262,23 @@ npm run dev
 ## 📊 Monitoring & Metrics
 
 ### Available Metrics
+
 ```typescript
 interface ClassificationMetrics {
   totalClassifications: number;
-  keywordSuccessRate: number;      // Target: >85%
-  llmFallbackRate: number;        // Target: <20%
-  averageConfidence: number;      // Target: >0.8
+  keywordSuccessRate: number; // Target: >85%
+  llmFallbackRate: number; // Target: <20%
+  averageConfidence: number; // Target: >0.8
   averageLatency: {
-    keyword: number;              // Target: <10ms
-    llm: number;                  // Target: <500ms
+    keyword: number; // Target: <10ms
+    llm: number; // Target: <500ms
   };
-  cacheHitRate: number;           // Target: >60%
+  cacheHitRate: number; // Target: >60%
 }
 ```
 
 ### Performance Monitoring
+
 - Track classification method distribution
 - Monitor confidence scores
 - Alert on high LLM fallback rates
@@ -261,17 +287,20 @@ interface ClassificationMetrics {
 ## 🚀 Next Steps
 
 ### Immediate Testing
+
 1. Run the application: `npm install && npm run dev`
 2. Test various queries in the chat interface
 3. Monitor classification logs in console
 4. Verify tool execution accuracy
 
 ### Phase 3: Modular System Prompt
+
 1. Split prompt into identity/behavior/tools modules
 2. Dynamic assembly based on context
 3. Reduced token usage
 
 ### Phase 4: Planning Engine
+
 1. Multi-step workflow execution
 2. Step-by-step reasoning
 3. Rollback capabilities

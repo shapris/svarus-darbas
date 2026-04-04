@@ -35,7 +35,8 @@ function apiProxyOnError(proxy: { on: (ev: string, fn: (...args: unknown[]) => v
     if (!res || typeof res !== 'object' || !('writeHead' in res)) return;
     const r = res as ServerResponse;
     if (r.writableEnded) return;
-    const code = err?.code === 'ECONNREFUSED' ? 'connection_refused' : err?.message || 'proxy_error';
+    const code =
+      err?.code === 'ECONNREFUSED' ? 'connection_refused' : err?.message || 'proxy_error';
     r.writeHead(503, { 'Content-Type': 'application/json' });
     r.end(
       JSON.stringify({

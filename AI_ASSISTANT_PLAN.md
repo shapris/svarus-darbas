@@ -3,6 +3,7 @@
 ## Current State Analysis
 
 ### Already Implemented (✅)
+
 - **Basic CRUD Operations**: add_client, add_order, add_expense, update/delete variants
 - **Memory System**: add_memory, update_memory, delete_memory
 - **Voice Input**: Microphone for speech-to-text
@@ -11,6 +12,7 @@
 - **Function Calling**: AI can execute app functions
 
 ### Missing / To Improve (🔲)
+
 1. **Proactive Alerts**: No automatic reminders
 2. **Business Analytics**: No advanced reporting tools
 3. **Workflow Automation**: Limited automation
@@ -23,24 +25,30 @@
 ### Phase 1: Proactive Alerts (Priority: HIGH)
 
 #### 1.1 Get Clients Needing Attention
+
 ```typescript
 // Returns clients not visited in X days
 get_neglected_clients(days: number = 90)
 ```
+
 **Logic**: Query orders, find clients with lastCleaningDate > X days ago
 
 #### 1.2 Low Inventory Alerts
+
 ```typescript
 // Returns items below minimum threshold
-get_low_inventory()
+get_low_inventory();
 ```
+
 **Logic**: Filter inventory where quantity < minQuantity
 
 #### 1.3 Overdue Payments Check
+
 ```typescript
 // Returns orders awaiting payment
-get_unpaid_orders()
+get_unpaid_orders();
 ```
+
 **Logic**: Find orders marked as "atlikta" but not paid
 
 ---
@@ -48,10 +56,13 @@ get_unpaid_orders()
 ### Phase 2: Business Analytics (Priority: HIGH)
 
 #### 2.1 Business Summary
+
 ```typescript
 get_business_summary(period: 'week' | 'month' | 'year')
 ```
+
 **Returns**:
+
 - Total revenue
 - Total expenses
 - Net profit
@@ -59,15 +70,19 @@ get_business_summary(period: 'week' | 'month' | 'year')
 - Number of new clients
 
 #### 2.2 Top Clients Analysis
+
 ```typescript
 get_top_clients(limit: number = 5, by: 'orders' | 'revenue')
 ```
+
 **Returns**: Clients with most orders or highest revenue
 
 #### 2.3 Revenue Trends
+
 ```typescript
 get_revenue_trends(months: number = 6)
 ```
+
 **Returns**: Monthly revenue data for charting
 
 ---
@@ -75,21 +90,27 @@ get_revenue_trends(months: number = 6)
 ### Phase 3: Workflow Automation (Priority: MEDIUM)
 
 #### 3.1 Create Recurring Order
+
 ```typescript
-create_recurring_order(clientId, date, intervalMonths, services)
+create_recurring_order(clientId, date, intervalMonths, services);
 ```
+
 **Logic**: Creates order with isRecurring=true
 
 #### 3.2 Generate Reminder Message
+
 ```typescript
-generate_reminder_message(orderId)
+generate_reminder_message(orderId);
 ```
+
 **Logic**: Uses settings.smsTemplate to generate SMS text
 
 #### 3.3 Batch Update Orders
+
 ```typescript
 batch_update_order_status(orderIds[], newStatus)
 ```
+
 **Logic**: Bulk status update
 
 ---
@@ -97,19 +118,23 @@ batch_update_order_status(orderIds[], newStatus)
 ### Phase 4: Enhanced Context (Priority: MEDIUM)
 
 #### 4.1 Pass Current App State to AI
+
 ```typescript
 // In ChatAssistant component
 const context = {
   currentView: activeTab,
   selectedOrder: currentOrder,
   recentActions: last5Actions,
-  todaySchedule: todaysOrders
+  todaySchedule: todaysOrders,
 };
 ```
+
 **Purpose**: AI understands what user is doing
 
 #### 4.2 Smart Suggestions
+
 Based on context:
+
 - If viewing Analytics → suggest "Rodyk pelningiausius klientus"
 - If viewing Orders → suggest "Rodyk šiandienos darbus"
 - After adding order → suggest "Pridėti dar vieną užsakymą"
@@ -119,6 +144,7 @@ Based on context:
 ## Technical Implementation
 
 ### File Changes Required
+
 1. **`src/services/aiService.ts`**
    - Add new FunctionDeclarations
    - Implement handler functions
@@ -128,19 +154,20 @@ Based on context:
    - Add proactive suggestion UI
 
 ### Example: New Tool Definition
+
 ```typescript
 const getNeglectedClientsTool: FunctionDeclaration = {
-  name: "get_neglected_clients",
-  description: "Randa klientų, kurie nebuvo aptarnauti per nurodytą dienų skaičių",
+  name: 'get_neglected_clients',
+  description: 'Randa klientų, kurie nebuvo aptarnauti per nurodytą dienų skaičių',
   parameters: {
     type: Type.OBJECT,
     properties: {
       days: {
         type: Type.NUMBER,
-        description: "Dienų skaičius (numatyta: 90)"
-      }
-    }
-  }
+        description: 'Dienų skaičius (numatyta: 90)',
+      },
+    },
+  },
 };
 ```
 
@@ -149,6 +176,7 @@ const getNeglectedClientsTool: FunctionDeclaration = {
 ## User Experience Improvements
 
 ### Proactive Suggestions UI
+
 ```
 ┌─────────────────────────────────────┐
 │ 🔔 Priminimai                       │
@@ -160,6 +188,7 @@ const getNeglectedClientsTool: FunctionDeclaration = {
 ```
 
 ### Quick Action Buttons
+
 ```
 [📊 Analitika] [📅 Šiandien] [👥 Naujas klientas]
 ```
@@ -167,8 +196,9 @@ const getNeglectedClientsTool: FunctionDeclaration = {
 ---
 
 ## Priority Order
+
 1. get_neglected_clients - Immediate value
-2. get_low_inventory - Immediate value  
+2. get_low_inventory - Immediate value
 3. get_business_summary - Most requested
 4. get_top_clients - Business insight
 5. create_recurring_order - Automation
@@ -177,9 +207,10 @@ const getNeglectedClientsTool: FunctionDeclaration = {
 ---
 
 ## Estimated Effort
+
 - Phase 1: 2-3 hours
 - Phase 2: 3-4 hours
 - Phase 3: 2-3 hours
 - Phase 4: 1-2 hours
 
-**Total: ~8-12 hours development time
+\*\*Total: ~8-12 hours development time

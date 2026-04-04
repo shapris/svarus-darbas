@@ -480,7 +480,9 @@ export default function ChatAssistant({
           tempTranscriptRef.current = '';
         };
 
-        recognition.onresult = (event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => {
+        recognition.onresult = (event: {
+          results: ArrayLike<ArrayLike<{ transcript: string }>>;
+        }) => {
           const transcript = Array.from(event.results)
             .map((result) => result[0]?.transcript ?? '')
             .join('');

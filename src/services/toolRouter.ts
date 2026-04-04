@@ -18,11 +18,7 @@ import {
   shouldUseDeterministicRouting,
   ExtendedIntention,
 } from './hybridClassifier';
-import {
-  prioritizeMemories,
-  formatMemoriesForContext,
-  MemoryContext,
-} from './memoryPriority';
+import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority';
 import type { Client, Order, Expense, Memory } from '../types';
 
 // Types for context and execution
@@ -239,7 +235,10 @@ async function executeToolByName(
 // executeGetNeglectedClients, executeGetUnpaidOrders, etc.
 // (These remain the same as in the original toolRouter.ts)
 
-async function executeGetNeglectedClients(params: Record<string, unknown>, context: RoutingContext) {
+async function executeGetNeglectedClients(
+  params: Record<string, unknown>,
+  context: RoutingContext
+) {
   const days = Number(params.days) || 90;
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -322,10 +321,7 @@ async function executeGetLowInventory(_params: Record<string, unknown>, _context
   };
 }
 
-async function executeGetBusinessSummary(
-  params: Record<string, unknown>,
-  context: RoutingContext
-) {
+async function executeGetBusinessSummary(params: Record<string, unknown>, context: RoutingContext) {
   const period = String(params.period ?? 'month');
 
   if (!context.orders || !context.expenses) {

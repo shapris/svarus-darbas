@@ -1,6 +1,7 @@
 # Mokėjimų Sistemos Testavimo Rezultatai
 
 ## 🎯 Testavimo Data
+
 **Data:** 2026-03-28  
 **Laikas:** 12:47  
 **Status:** ✅ SĖKMINGA
@@ -8,28 +9,37 @@
 ## ✅ Sėkmingai Testuoti
 
 ### 1. Serverio Health Check
+
 ```bash
 curl http://localhost:3001/health
 ```
+
 **Rezultatas:** ✅ 200 OK
+
 ```json
-{"status":"ok","timestamp":"2026-03-28T12:42:52.319Z"}
+{ "status": "ok", "timestamp": "2026-03-28T12:42:52.319Z" }
 ```
 
 ### 2. Sąskaitų API
+
 ```bash
 curl http://localhost:3001/api/invoices
 ```
+
 **Rezultatas:** ✅ 200 OK
+
 ```json
 []
 ```
 
 ### 3. Sąskaitos Kūrimas
+
 ```bash
 node test-invoice.cjs
 ```
+
 **Rezultatas:** ✅ 201 Created
+
 ```json
 {
   "id": "inv_1774702011518_c7ffe757g",
@@ -43,34 +53,45 @@ node test-invoice.cjs
 ```
 
 ### 4. PDF Sąskaitos Atsisiuntimas
+
 ```bash
 curl http://localhost:3001/api/invoices/inv_1774702011518_c7ffe757g/pdf -o test-invoice.pdf
 ```
+
 **Rezultatas:** ✅ PDF failas sukurtas (3984 bytes)
 
 ### 5. Webhook Endpoint
+
 ```bash
 node test-webhook.cjs
 ```
+
 **Rezultatas:** ✅ 400 Bad Request (teisinga - neteisingas signature)
+
 - Webhook priima request'us
 - Validuoja signature (nors testinį)
 - Grąžina klaidą kai blogas
 
 ### 6. Payment Intent API
+
 ```bash
 node test-payments.cjs
 ```
+
 **Rezultatas:** ⚠️ 500 Internal Server Error
+
 ```json
-{"error":"Invalid API Key provided: sk_test_*******lder"}
+{ "error": "Invalid API Key provided: sk_test_*******lder" }
 ```
+
 **Priežastis:** Stripe raktas nenurodytas .env faile
 
 ## 🔧 Konfigūracijos Problemos
 
 ### Stripe Raktai
+
 Reikia nustatyti `.env` faile:
+
 ```bash
 # Test raktai (Stripe Dashboard → Developers → API keys)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key_here
@@ -79,6 +100,7 @@ STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 ```
 
 ### Serverio Paleidimas
+
 ```bash
 # Backend serveris
 npm run server
@@ -90,6 +112,7 @@ npm run dev:full
 ## 📊 Testavimo Scenarijai
 
 ### ✅ Veikiantys Funkcijos
+
 - [x] Serverio health check
 - [x] CORS palaikymas
 - [x] Sąskaitų kūrimas
@@ -99,6 +122,7 @@ npm run dev:full
 - [x] JSON response'ai
 
 ### ⚠️ Reikia Sutvarkyti
+
 - [ ] Stripe raktų konfigūracija
 - [ ] Payment intent kūrimas su teisu raktu
 - [ ] Webhook signature verification su realiu raktu

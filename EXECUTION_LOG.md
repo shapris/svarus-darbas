@@ -5,10 +5,12 @@
 ## Template (copy for each session)
 
 ### YYYY-MM-DD HH:MM — Session start
+
 - **Context**:
 - **Goal**:
 
 ### Actions
+
 - **Change**:
   - **Files**:
   - **Why**:
@@ -17,16 +19,19 @@
   - **Result**:
 
 ### Errors & Fixes
+
 - **Error**:
 - **Root cause**:
 - **Fix**:
 - **Re-verify**:
 
 ### Decisions
+
 - **Decision**:
 - **Alternatives considered**:
 - **Reason**:
 
 ### Session end
+
 - **Outcome**:
 - **Next steps**:

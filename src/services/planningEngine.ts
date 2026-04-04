@@ -667,8 +667,7 @@ export class PlanningEngine {
             executionTime: Date.now() - startTime,
           };
         } catch (fallbackError: unknown) {
-          const fb =
-            fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+          const fb = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
           return {
             stepId: step.id,
             status: 'failed',

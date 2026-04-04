@@ -3,6 +3,7 @@
 ## 🎯 Kas tai?
 
 Klientų portalas leidžia jūsų klientams:
+
 - **Registruotis** ir prisijungti prie savo paskyros
 - **Matyti savo užsakymus** ir jų būsenas
 - **Peržiūrėti istoriją** ir statistiką
@@ -13,6 +14,7 @@ Klientų portalas leidžia jūsų klientams:
 ### 1. Duomenų Bazės Nustatymai
 
 Importuokite SQL schema:
+
 ```sql
 -- Supabase: eikite į SQL Editor → įklijuokite client-portal-schema.sql
 ```
@@ -20,6 +22,7 @@ Importuokite SQL schema:
 ### 2. Aplinkos Kintamieji
 
 `.env` faile įsitikinkite kad turite:
+
 ```bash
 VITE_SUPABASE_URL=jūsų-supabase-url
 VITE_SUPABASE_ANON_KEY=jūsų-supabase-anon-key
@@ -51,34 +54,40 @@ npm run dev
 ## 🔐 Vartotojų Rolės
 
 ### Client (Klientas)
+
 - Gali matyti tik savo užsakymus
 - Gali redaguoti savo profilį
 - Neturi prieigos prie CRM funkcijų
 
 ### Staff (Darbuotojas)
+
 - Turi pilną prieigą prie CRM
 - Gali valdyti visus klientus ir užsakymus
 - Gali naudoti AI asistentą
 
 ### Admin (Administratorius)
+
 - Turi visas Staff teises
 - Papildomos administratoriaus funkcijos
 
 ## 📊 Klientų Dashboard Funkcijos
 
 ### Mano Užsakymai
+
 - **Užsakymų sąrašas** su būsenomis
 - **Statusai**: Suplanuota, Vykdoma, Atlikta
 - **Filtravimas** pagal datas
 - **Kainų peržiūra**
 
 ### Statistika
+
 - **Viso užsakymų** skaičius
 - **Suplanuotų** užsakymų skaičius
 - **Atliktų** užsakymų skaičius
 - **Išlaidų** suma
 
 ### Mano Profilis
+
 - **Asmeninė informacija** (vardas, el. paštas, telefonas)
 - **Registracijos data**
 - **Paskyros tipas**
@@ -88,6 +97,7 @@ npm run dev
 ### API Endpoints
 
 #### Klientų Portalas
+
 ```
 GET /api/client/orders     - Gauti kliento užsakymus
 GET /api/client/profile    - Gauti kliento profilį
@@ -96,6 +106,7 @@ POST /api/client/register - Registruoti naują klientą
 ```
 
 #### Autentifikacija
+
 ```
 POST /auth/login          - Prisijungimas
 POST /auth/register       - Registracija
@@ -105,6 +116,7 @@ POST /auth/logout         - Atsijungimas
 ### Duomenų Bazės Struktūra
 
 #### Profiles lentelė
+
 ```sql
 id          UUID (Primary Key)
 uid         VARCHAR (Auth user ID)
@@ -118,6 +130,7 @@ updated_at  TIMESTAMP
 ```
 
 #### Orders lentelė (papildyta)
+
 ```sql
 client_id   VARCHAR (FK į profiles lentelę)
 -- ... kiti laukai
@@ -128,33 +141,38 @@ client_id   VARCHAR (FK į profiles lentelę)
 ### Dažnos Problem
 
 **Klientas nemato savo užsakymų**
+
 - Patikrinkite ar `client_id` teisingai nustatytas profiles lentelėje
 - Patikrinkite ar orders lentelėje teisingas `client_id`
 
 **Neleidžia prisijungti**
+
 - Patikrinkite ar vartotojas turi `role = 'client'`
 - Patikrinkite ar el. paštas ir slaptažodis teisingi
 
 **Rolė nustatymas neveikia**
+
 - Patikrinkite ar `getUserProfile()` funkcija veikia
 - Patikrinkite ar profiles lentelė egzistuoja
 
 ### Testavimas
 
 Testinia duomenys:
+
 ```javascript
 // Klientas
 Email: client@example.com
 Password: client123
 
 // Darbuotojas
-Email: staff@example.com  
+Email: staff@example.com
 Password: staff123
 ```
 
 ## 📱 Mobilusis Naudojimasis
 
 Klientų portalas yra **PWA** (Progressive Web App):
+
 - **Instaliuokite** iš naršyklės
 - **Naudokite** kaip mobilę aplikaciją
 - **Offline** režimas (ateityje)
@@ -162,16 +180,19 @@ Klientų portalas yra **PWA** (Progressive Web App):
 ## 🚀 Būsimi Pagerinimai
 
 ### Phase 2 (Mokėjimai)
+
 - Online mokėjimai (Stripe)
 - Sąskaitų generavimas
 - Mokėjimų istorija
 
 ### Phase 3 (Pranešimai)
+
 - Email priminimai
 - SMS pranešimai
 - Push notifications
 
 ### Phase 4 (Offline)
+
 - Offline palaikymas
 - Sinchronizacija
 - Local cache

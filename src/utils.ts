@@ -315,10 +315,7 @@ async function getInvoiceHealthSnapshot(base: string): Promise<InvoiceHealthSnap
 /**
  * Aiškus tekstas vartotojui, kodėl automatinis el. paštas nebuvo naudojamas (be konsolės triukšmo).
  */
-function invoiceAutomationHintFromHealth(
-  h: InvoiceHealthJson | null,
-  base: string
-): string | null {
+function invoiceAutomationHintFromHealth(h: InvoiceHealthJson | null, base: string): string | null {
   if (!h) {
     if (import.meta.env.PROD && base === '') return null;
     return (

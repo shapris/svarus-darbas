@@ -11,6 +11,11 @@ public
 .cursor
 .windsurf
 .always-on
+.agents
+.qoder
+.trae
+skills
+.vscode
 *.sql
 check-memories.js
 quick-test.js

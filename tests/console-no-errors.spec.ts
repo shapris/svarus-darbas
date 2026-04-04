@@ -9,7 +9,9 @@ test.describe('Konsolė be netikėtų klaidų (E2E build)', () => {
     attachStrictConsoleWatch(page, failures);
 
     await page.goto('/');
-    await expect(page.getByText('Švarus Darbas', { exact: false })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Švarus Darbas', { exact: false })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByRole('navigation', { name: 'Pagrindinis meniu' })).toBeVisible({
       timeout: 10_000,
     });

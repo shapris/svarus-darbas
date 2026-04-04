@@ -33,12 +33,16 @@ const offline =
 const lines = [];
 
 if (!fs.existsSync(pEnv) && !fs.existsSync(pLocal)) {
-  console.error('❌ Nerastas .env nei .env.local. Sukurkite: copy .env.example .env ir užpildykite.');
+  console.error(
+    '❌ Nerastas .env nei .env.local. Sukurkite: copy .env.example .env ir užpildykite.'
+  );
   process.exit(1);
 }
 
 if (offline) {
-  lines.push('ℹ️  VITE_ALLOW_OFFLINE_CRM arba VITE_DEMO_MODE = true → naudojamas vietinis CRM (debesies neprivaloma).');
+  lines.push(
+    'ℹ️  VITE_ALLOW_OFFLINE_CRM arba VITE_DEMO_MODE = true → naudojamas vietinis CRM (debesies neprivaloma).'
+  );
   for (const l of lines) console.log(l);
   console.log('\n✅ check:env — offline režimui konfigūracija OK. Paleiskite: npm run dev');
   process.exit(0);

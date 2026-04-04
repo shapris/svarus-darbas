@@ -35,13 +35,13 @@
 2. **Framework:** Vite (dažnai atpažįsta automatiškai). Build: `npm run build`, output: `dist`.
 3. **Environment Variables** (Production):
 
-   | Kintamasis | Kur paimti |
-   |------------|------------|
-   | `VITE_SUPABASE_URL` | Supabase → Project Settings → API |
-   | `VITE_SUPABASE_ANON_KEY` | Ten pat → anon public |
-   | `VITE_GEMINI_API_KEY` / `VITE_OPENROUTER_API_KEY` | Jei naudoji AI |
-   | `VITE_STRIPE_PUBLISHABLE_KEY` | Jei naudoji Stripe checkout iš naršyklės |
-   | `VITE_INVOICE_API_BASE_URL` | **Po 3 žingsnio** — pilnas Render API URL, pvz. `https://xxx.onrender.com` (be `/` pabaigoje) |
+   | Kintamasis                                        | Kur paimti                                                                                    |
+   | ------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+   | `VITE_SUPABASE_URL`                               | Supabase → Project Settings → API                                                             |
+   | `VITE_SUPABASE_ANON_KEY`                          | Ten pat → anon public                                                                         |
+   | `VITE_GEMINI_API_KEY` / `VITE_OPENROUTER_API_KEY` | Jei naudoji AI                                                                                |
+   | `VITE_STRIPE_PUBLISHABLE_KEY`                     | Jei naudoji Stripe checkout iš naršyklės                                                      |
+   | `VITE_INVOICE_API_BASE_URL`                       | **Po 3 žingsnio** — pilnas Render API URL, pvz. `https://xxx.onrender.com` (be `/` pabaigoje) |
 
 4. **Deploy.** Užsirašyk galutinį adresą, pvz. `https://tavo-crm.vercel.app`.
 
@@ -51,23 +51,23 @@
 
 1. **New** → **Web Service** → tas pats repo (arba **Blueprint** iš `render.yaml`).
 2. **Root directory:** repo šaknis (kur `server.cjs` ir `package.json`).
-3. **Build command:** `npm ci`  
-4. **Start command:** `npm start`  
-5. **Health check path:** `/health`  
+3. **Build command:** `npm ci`
+4. **Start command:** `npm start`
+5. **Health check path:** `/health`
 6. **Node:** 20.x (Environment arba `NODE_VERSION`).
 
 7. **Environment** (bent minimalus sąskaitų + auth keliui):
 
-   | Kintamasis | Paskirtis |
-   |------------|-----------|
-   | `SUPABASE_URL` | Tas pats URL kaip `VITE_SUPABASE_URL` |
-   | `SUPABASE_ANON_KEY` | Anon raktas (JWT tikrinimui) |
-   | `SUPABASE_SERVICE_ROLE_KEY` | **Būtina** ilgalaikiams invoices / mokėjimams DB (žr. DEPLOYMENT.md) |
-   | `RESEND_API_KEY` | Automatinis sąskaitos el. paštas |
-   | `RESEND_FROM_EMAIL` | Siuntėjas (Resend / patvirtintas domenas) |
-   | `FRONTEND_URL` | Tavo Vercel URL, pvz. `https://tavo-crm.vercel.app` |
-   | arba `CORS_ORIGINS` | Tas pats URL (galima keli per kablelį) |
-   | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Jei Stripe |
+   | Kintamasis                                   | Paskirtis                                                            |
+   | -------------------------------------------- | -------------------------------------------------------------------- |
+   | `SUPABASE_URL`                               | Tas pats URL kaip `VITE_SUPABASE_URL`                                |
+   | `SUPABASE_ANON_KEY`                          | Anon raktas (JWT tikrinimui)                                         |
+   | `SUPABASE_SERVICE_ROLE_KEY`                  | **Būtina** ilgalaikiams invoices / mokėjimams DB (žr. DEPLOYMENT.md) |
+   | `RESEND_API_KEY`                             | Automatinis sąskaitos el. paštas                                     |
+   | `RESEND_FROM_EMAIL`                          | Siuntėjas (Resend / patvirtintas domenas)                            |
+   | `FRONTEND_URL`                               | Tavo Vercel URL, pvz. `https://tavo-crm.vercel.app`                  |
+   | arba `CORS_ORIGINS`                          | Tas pats URL (galima keli per kablelį)                               |
+   | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Jei Stripe                                                           |
 
 8. **Deploy.** Nukopijuok viešą API adresą į Vercel kaip `VITE_INVOICE_API_BASE_URL` ir padaryk **Redeploy** frontendui.
 

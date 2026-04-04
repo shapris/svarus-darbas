@@ -79,7 +79,12 @@ function isLikelyValidAnonKey(key: string): boolean {
 
 const isSupabaseConfigured =
   !allowOfflineCrm &&
-  !!(supabaseUrl && supabaseAnonKey && isLikelyValidSupabaseUrl(supabaseUrl) && isLikelyValidAnonKey(supabaseAnonKey));
+  !!(
+    supabaseUrl &&
+    supabaseAnonKey &&
+    isLikelyValidSupabaseUrl(supabaseUrl) &&
+    isLikelyValidAnonKey(supabaseAnonKey)
+  );
 
 type GlobalWithSupabase = typeof globalThis & { __svarusSupabase?: SupabaseClient | null };
 const globalScope = globalThis as GlobalWithSupabase;
@@ -1013,7 +1018,6 @@ export async function signUp(email: string, password: string, displayName?: stri
 
 // Sign in with email and password
 export async function signIn(email: string, password: string) {
-
   if (usesLocalStorageBackend) {
     try {
       const user = localLogin(email, password);
@@ -1074,9 +1078,7 @@ export async function requestPasswordResetEmail(email: string): Promise<void> {
 // Sign in with Google
 export async function signInWithGoogle() {
   if (!supabase) {
-    throw new Error(
-      'Google prisijungimas galimas tik su debesies paskyra (Supabase).'
-    );
+    throw new Error('Google prisijungimas galimas tik su debesies paskyra (Supabase).');
   }
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -1126,7 +1128,6 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
 // Listen to auth changes
 export function onAuthStateChange(callback: (user: AuthUser | null) => void) {
-
   authListeners.push(callback);
 
   if (usesLocalStorageBackend) {
@@ -1509,7 +1510,8 @@ export async function updateData<T extends Record<string, unknown>>(
     const modernBase: Record<string, unknown> = {};
     if (u.clientId !== undefined) modernBase.client_id = normalizeNullableId(u.clientId);
     if (u.clientName !== undefined) modernBase.client_name = u.clientName;
-    if (u.employeeId !== undefined) modernBase.employee_id = normalizeEmployeeIdForOrderDb(u.employeeId);
+    if (u.employeeId !== undefined)
+      modernBase.employee_id = normalizeEmployeeIdForOrderDb(u.employeeId);
     if (u.address !== undefined) modernBase.address = u.address;
     if (u.lat !== undefined) modernBase.lat = u.lat;
     if (u.lng !== undefined) modernBase.lng = u.lng;

@@ -3,6 +3,7 @@
 ## 🎯 Kas tai?
 
 Pilna mokėjimų sistema integruota su **Stripe**, leidžianti:
+
 - **Online mokėjimus** su kreditinėmis kortelėmis
 - **Automatinį sąskaitų generavimą** PDF formatu
 - **Mokėjimų priminimus** ir būsenų sekimą
@@ -19,6 +20,7 @@ Pilna mokėjimų sistema integruota su **Stripe**, leidžianti:
 ### 2. Aplinkos Kintamieji
 
 `.env` faile pridėkite:
+
 ```bash
 # Stripe (test režimas)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
@@ -32,6 +34,7 @@ PORT=3001
 ### 3. Duomenų Bazė
 
 Importuokite mokėjimų schema:
+
 ```sql
 -- Supabase: SQL Editor -> įklijuokite payments-schema.sql
 -- Supabase: lentelės pagal schema (žr. SQL failus repo)
@@ -71,11 +74,13 @@ npm run dev:full
 ### 🔄 Stripe Integracija
 
 **Payment Intents**:
+
 - Sukuriamas payment intent kiekvienam mokėjimui
 - Client-side patvirtinimas su Stripe.js
 - Webhook integracija real-time būsenų atnaujinimui
 
 **Saugumas**:
+
 - PCI DSS atitiktis (Stripe tvarko saugumą)
 - Tokenizacija kortelės duomenų
 - 3D Secure palaikymas
@@ -83,11 +88,13 @@ npm run dev:full
 ### 📄 Sąskaitų Generatorius
 
 **Automatinis generavimas**:
+
 - Sukuriamas kiekvienam užsakymui
 - PDF formatu su profesionaliu dizainu
 - Unikalūs sąskaitų numeriai
 
 **PDF Sąskaitos turinys**:
+
 - Įmonės informacija
 - Kliento duomenys
 - Užsakymo detalės
@@ -97,30 +104,36 @@ npm run dev:full
 ### 💳 Mokėjimų Būsenos
 
 **Pending** - Laukiama apmokėjimo:
+
 - Klientas gali atšaukti
 - Darbuotojas gali keisti sumą
 
 **Paid** - Apmokėta:
+
 - Automatiškai atnaujinama užsakymo būsena
 - Sukuriamas transakcijos įrašas
 
 **Cancelled** - Atšaukta:
+
 - Galima keisti į pending
 - Išsaugoma atšaukimo priežastis
 
 **Refunded** - Grąžinta:
+
 - Dalinė ar pilna grąžinimo galimybė
 - Automatiškai atnaujinamos sąskaitos
 
 ### 📈 Statistika ir Ataskaitos
 
 **Real-time statistika**:
+
 - Bendros pajamos (per laikotarpį)
 - Laukiančių mokėjimų suma
 - Apmokėtų ir neapmokėtų sąskaitų skaičius
 - Vidutinis mokėjimo dydis
 
 **Ataskaitos**:
+
 - Dienos/mėnesio/metinės ataskaitos
 - Klientų mokėjimų istorija
 - Pajamų prognozės
@@ -155,7 +168,7 @@ GET /api/invoices/:id/pdf
 
 ```javascript
 // Stripe webhook
-POST /webhook
+POST / webhook;
 // Event types:
 // - payment_intent.succeeded
 // - payment_intent.payment_failed
@@ -186,6 +199,7 @@ POST /webhook
 ## 📱 Mobilusis Naudojimasis
 
 Mokėjimų sistema pilnai veikia mobiliuose įrenginiuose:
+
 - **Responsive dizainas**
 - **Touch-friendly** mokėjimo forma
 - **Apple Pay / Google Pay** (būsimas)
@@ -196,6 +210,7 @@ Mokėjimų sistema pilnai veikia mobiliuose įrenginiuose:
 ### Testavimas
 
 **Stripe test kortelės**:
+
 ```
 Kortelės numeris: 4242424242424242
 Data: bet kokia ateityje
@@ -203,6 +218,7 @@ CVC: bet kuris 3 skaitmenų
 ```
 
 **Testavimo scenarijai**:
+
 1. **Sėkmingas mokėjimas**
 2. **Nepakanka lėšų**
 3. **CVC klaida**
@@ -227,25 +243,30 @@ console.log('Payment succeeded:', paymentIntent);
 ### Dažnos Klaidos
 
 **"No such payment intent"**:
+
 - Patikrinkite ar payment intent teisingai sukurtas
 - Įsitikinkite kad client_secret teisingai perduodamas
 
 **"Webhook signature verification failed"**:
+
 - Patikrinkite STRIPE_WEBHOOK_SECRET
 - Įsitikinkite kad webhook endpoint'as viešai prieinamas
 
 **"Rate limit exceeded"**:
+
 - Sumažinkite API iškvietimų dažnumą
 - Naudokite caching
 
 ### Performance Optimizavimas
 
 **Frontend**:
+
 - Lazy loading mokėjimų komponentų
 - Payment intent caching
 - Optimizuotas PDF generavimas
 
 **Backend**:
+
 - Database indexing
 - Connection pooling
 - Async webhook procesavimas
@@ -253,11 +274,13 @@ console.log('Payment succeeded:', paymentIntent);
 ## 📈 Būsimi Pagerinimai
 
 ### Phase 3 (Pranešimai)
+
 - **Email priminimai**: automatiniai pranešimai apie artėjančius mokėjimus
 - **SMS priminimai**: SMS pranešimai apie vėlavimus
 - **Push notifications**: real-time pranešimai klientams
 
 ### Phase 4 (Advanced)
+
 - **Subscription plans**: pasikartojančių mokėjimų planai
 - **Multi-currency**: keletas valiutų palaikymas
 - **International payments**: tarptautinių mokėjimų galimybė
@@ -271,6 +294,7 @@ console.log('Payment succeeded:', paymentIntent);
 ## 📞 Techninis Palaikymas
 
 Jei kyla klausimų ar problemų:
+
 1. **Patikrinkite konsolės logus**
 2. **Validuokite Stripe konfigūraciją**
 3. **Testuokite su test kortelėmis**
@@ -279,6 +303,7 @@ Jei kyla klausimų ar problemų:
 ---
 
 **⚠️ Svarbu:** Prieš naudojant gamyboje, įsitikinkite kad:
+
 - Pakeitėte test raktus į live raktus
 - Konfigūravote teisingus webhook endpoint'us
 - Nustatėte proper SSL sertifikatą

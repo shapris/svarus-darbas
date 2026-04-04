@@ -338,7 +338,9 @@ export default function CalendarView({
     } catch (e) {
       console.error('Calendar update failed', e);
       const hint = formatSupabaseUserError(e);
-      showToast.error(hint ? `Nepavyko atnaujinti užsakymo: ${hint}` : 'Nepavyko atnaujinti užsakymo');
+      showToast.error(
+        hint ? `Nepavyko atnaujinti užsakymo: ${hint}` : 'Nepavyko atnaujinti užsakymo'
+      );
     } finally {
       setIsSaving(false);
     }
@@ -411,7 +413,9 @@ export default function CalendarView({
     } catch (e) {
       console.error('Calendar drag/drop swap failed', e);
       const hint = formatSupabaseUserError(e);
-      showToast.error(hint ? `Nepavyko sukeisti laikų: ${hint}` : 'Nepavyko sukeisti užsakymų laikų');
+      showToast.error(
+        hint ? `Nepavyko sukeisti laikų: ${hint}` : 'Nepavyko sukeisti užsakymų laikų'
+      );
     } finally {
       setIsSaving(false);
       setDraggedOrderId(null);
@@ -431,7 +435,9 @@ export default function CalendarView({
       console.error('Calendar drag/drop date move failed', e);
       const hint = formatSupabaseUserError(e);
       showToast.error(
-        hint ? `Nepavyko perkelti užsakymo: ${hint}` : 'Nepavyko perkelti užsakymo į pasirinktą datą'
+        hint
+          ? `Nepavyko perkelti užsakymo: ${hint}`
+          : 'Nepavyko perkelti užsakymo į pasirinktą datą'
       );
     } finally {
       setIsSaving(false);

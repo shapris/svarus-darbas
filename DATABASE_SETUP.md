@@ -50,7 +50,7 @@ ORDER BY column_name;
    - `20260404135000_inventory_owner_id.sql` — jei `inventory` dar turi seną `uid` (text), pirmiausia suvienodina į `owner_id`
    - `20260404140000_crm_core_rls.sql` — CRM lentelių RLS + kliento portalo skaitymas
    - `20260404180000_rls_auth_uid_initplan.sql` — workspace / quotes / mokėjimų RLS našumas (`(select auth.uid())`)
-6. **Auth (Dashboard):** įjunkite *Leaked password protection* (Have I Been Pwned), kad sumažintumėte silpnų slaptažodžių riziką.
+6. **Auth (Dashboard):** įjunkite _Leaked password protection_ (Have I Been Pwned), kad sumažintumėte silpnų slaptažodžių riziką.
 
 ## Svarbios pastabos
 
