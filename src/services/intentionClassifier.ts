@@ -52,7 +52,7 @@ export type Intention =
 export interface IntentionMatch {
   intention: Intention;
   confidence: number;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
 }
 
 /**
@@ -200,8 +200,8 @@ function calculateConfidence(input: string, pattern: RegExp, match: RegExpMatchA
 /**
  * Extract parameters from the input based on intention
  */
-function extractParams(input: string, intention: Intention): Record<string, any> {
-  const params: Record<string, any> = {};
+function extractParams(input: string, intention: Intention): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
 
   // Extract common parameters
   const numbers = input.match(/\d+/g)?.map(Number) || [];

@@ -119,9 +119,10 @@ export class AuthService {
 
       this.currentUser = user;
       return { user, error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Registration error:', error);
-      return { user: null, error: error.message || 'Registration failed' };
+      const msg = error instanceof Error ? error.message : 'Registration failed';
+      return { user: null, error: msg };
     }
   }
 
@@ -153,9 +154,10 @@ export class AuthService {
 
       this.currentUser = user;
       return { user, error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Login error:', error);
-      return { user: null, error: error.message || 'Login failed' };
+      const msg = error instanceof Error ? error.message : 'Login failed';
+      return { user: null, error: msg };
     }
   }
 
@@ -175,9 +177,10 @@ export class AuthService {
 
       if (error) throw error;
       return { success: true, error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password reset error:', error);
-      return { success: false, error: error.message || 'Password reset failed' };
+      const msg = error instanceof Error ? error.message : 'Password reset failed';
+      return { success: false, error: msg };
     }
   }
 
@@ -202,9 +205,10 @@ export class AuthService {
       // Update local cache
       this.currentUser = { ...user, ...updates };
       return { success: true, error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Profile update error:', error);
-      return { success: false, error: error.message || 'Update failed' };
+      const msg = error instanceof Error ? error.message : 'Update failed';
+      return { success: false, error: msg };
     }
   }
 
@@ -217,9 +221,10 @@ export class AuthService {
 
       if (error) throw error;
       return { success: true, error: null };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Password change error:', error);
-      return { success: false, error: error.message || 'Password change failed' };
+      const msg = error instanceof Error ? error.message : 'Password change failed';
+      return { success: false, error: msg };
     }
   }
 

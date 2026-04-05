@@ -30,7 +30,7 @@
 
 ## P2 — nuolatinė kokybė (kai P0/P1 tuščią ar uždaryta)
 
-- [ ] **Lint skola:** mažinti `no-explicit-any`, nenaudojamus importus / kintamuosius (toliau: `authService`, `security.ts`, `test-integration`, react-refresh); po pakeitimų `npm run lint`. *2026-04-04: masinis praeitis — ESLint įspėjimai **~239 → ~129**; + `supabase.ts` …* *2026-04-05: **~129 → ~101** …* *2026-04-04: **~82 → ~36** — views (`CalendarView`, `ClientsView`, `InventoryView`, ClientPortal), `analyticsService`, `hybridClassifier`, `memoryPriority`, `modularPrompt`, `smsService`, `ttsService`, test utilai.*
+- [x] **Lint skola:** ESLint projekte **0 įspėjimų** (`eslint .`); likęs vienas `any` tik `localDb` indekse su `eslint-disable` (suderinamumas su `Client`/`Order` ir `supabase` local šaka). *2026-04-04: uždaryta — `authService`, `security`, `performance`, `insightsService`, `intentionClassifier`, `offlineService`, testai, react-refresh komentarai, `exportAllData` `Record<string, unknown>`.*
 - [x] **Testai:** `npm run test` + `npm run test:smoke` prieš release; sutvarkyti flaky E2E jei atsiranda. *2026-04-05: rutina vykdoma su P2 pakeitimais — unit + smoke OK; flaky šiuo metu nefiksuota.*
 - [x] **Priklausomybės:** periodiškai `npm audit`; po `audit fix` — build + smoke. *2026-04-04: `npm audit fix` (lodash) → 0; `npm run build` + `npm test` OK.*
 
@@ -50,5 +50,6 @@
 | 2026-04-04 | Viso projekto lint banga | ESLint ~239→~155; `aiService`/`toolRouter`/`planningEngine` tipai; `useToast` stabilus `showToast`; atminties blokas system prompt'e. |
 | 2026-04-05 | P2 tęsinys | ESLint ~101 įspėjimų; `Dashboard`/`OrdersView`/`supabase.ts` lint pataisymai; `npm run test` + `test:smoke` OK. |
 | 2026-04-04 | P2 lint banga | ESLint **~82 → ~36**; `npm run verify` OK; likę: `authService`, `security`, test failai, react-refresh. |
+| 2026-04-04 | P2 lint uždaryta | ESLint **0 warnings**; `npm run verify` OK; P2 „Lint skola“ pažymėta atlikta. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

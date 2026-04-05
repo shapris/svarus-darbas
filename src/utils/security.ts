@@ -59,13 +59,13 @@ export const sanitizeInput = (input: string): string => {
 
 // Validate and sanitize form data
 export const validateFormData = (
-  data: Record<string, any>
+  data: Record<string, unknown>
 ): {
   isValid: boolean;
-  sanitized: Record<string, any>;
+  sanitized: Record<string, unknown>;
   errors: Record<string, string>;
 } => {
-  const sanitized: Record<string, any> = {};
+  const sanitized: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(data)) {
@@ -183,7 +183,7 @@ export const secureHeaders = () => ({
 
 // Input validation helpers
 export const validators = {
-  required: (value: any): boolean => {
+  required: (value: unknown): boolean => {
     if (typeof value === 'string') return value.trim().length > 0;
     return value !== null && value !== undefined;
   },
@@ -200,7 +200,7 @@ export const validators = {
 };
 
 // Audit logging
-export const auditLog = (action: string, details: Record<string, any>): void => {
+export const auditLog = (action: string, details: Record<string, unknown>): void => {
   const entry = {
     timestamp: new Date().toISOString(),
     action,
@@ -217,12 +217,13 @@ export const auditLog = (action: string, details: Record<string, any>): void => 
 };
 
 // Error sanitization for UI display
-export const sanitizeError = (error: any): string => {
+export const sanitizeError = (error: unknown): string => {
   if (typeof error === 'string') {
     return sanitizeInput(error).substring(0, 200);
   }
-  if (error?.message) {
-    return sanitizeInput(error.message).substring(0, 200);
+  if (error && typeof error === 'object' && 'message' in error) {
+    const m = (error as { message?: unknown }).message;
+    if (typeof m === 'string') return sanitizeInput(m).substring(0, 200);
   }
   return 'Įvyko klaida';
 };

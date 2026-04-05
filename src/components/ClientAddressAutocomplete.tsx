@@ -42,6 +42,8 @@ function loadMapsPlaces(): Promise<void> {
   return mapsScriptPromise;
 }
 
+/** Bendras helperis — negali būti atskiras failas be didelio refactor. */
+// eslint-disable-next-line react-refresh/only-export-components -- žr. ClientsView importas
 export function googleMapsSearchUrl(query: string): string {
   const q = query.trim();
   if (!q) return 'https://www.google.com/maps';

@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-04 — P2 lint: 0 ESLint įspėjimų
+
+- **Padaryta:** likusi partija (`authService`, `security`, `performance`, `insightsService`, `intentionClassifier`, `offlineService`, `test-integration`, `test-memory`, `localDb` export, react-refresh `eslint-disable`); `npm run verify` OK.
+
+---
+
 ## 2026-04-04 — P2 lint: ~82 → ~36 įspėjimų
 
 - **Padaryta:** nenaudojami importai / deps (`ClientsView`, `CalendarView`, `InventoryView`, ClientPortal); `updateData` be `any`; `ClientRegistration` → `AuthUser`/`Client`; `smsService`/`ttsService`/`hybridClassifier`/`modularPrompt`/`memoryPriority`/`analyticsService` smulkūs tipai; `npm run verify` OK.

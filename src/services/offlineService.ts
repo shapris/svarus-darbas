@@ -17,7 +17,7 @@ export interface SyncOperation {
   id: string;
   type: 'create' | 'update' | 'delete';
   table: string;
-  data: any;
+  data: Record<string, unknown>;
   timestamp: Date;
   status: 'pending' | 'syncing' | 'completed' | 'failed';
 }

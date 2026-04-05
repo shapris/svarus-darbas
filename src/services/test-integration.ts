@@ -8,11 +8,29 @@
  * 4. Planning Engine
  */
 
-import { classifyIntentHybrid, HYBRID_CLASSIFIER_CONFIG } from './hybridClassifier';
+import {
+  classifyIntentHybrid,
+  HYBRID_CLASSIFIER_CONFIG,
+  type ClassificationResult,
+} from './hybridClassifier';
 import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority';
-import { ModularPromptAssembler, enrichWithContext } from './modularPrompt';
-import { PlanningEngine, shouldUsePlanning } from './planningEngine';
+import { ModularPromptAssembler } from './modularPrompt';
+import { PlanningEngine } from './planningEngine';
 import { Memory, Client, Order, Expense } from '../types';
+
+function mockClassification(
+  partial: Partial<ClassificationResult> & Pick<ClassificationResult, 'intention'>
+): ClassificationResult {
+  return {
+    confidence: 0.5,
+    method: 'keyword',
+    shouldExecuteTool: false,
+    toolName: null,
+    parameters: {},
+    alternatives: [],
+    ...partial,
+  };
+}
 
 // ============================================================
 // TEST DATA
@@ -258,18 +276,10 @@ async function testHybridClassifier(
 
     let correct = 0;
 
-    for (const { query, expectedCategory } of testQueries) {
+    for (const { query } of testQueries) {
       const result = apiKey
         ? await classifyIntentHybrid(query, apiKey, HYBRID_CLASSIFIER_CONFIG)
-        : {
-            intention: 'general_chat' as any,
-            confidence: 0.5,
-            method: 'keyword' as const,
-            shouldExecuteTool: false,
-            toolName: null,
-            parameters: {},
-            alternatives: [],
-          };
+        : mockClassification({ intention: 'general_chat', confidence: 0.5 });
 
       console.log(
         `  📝 Query: "${query}" → ${result.intention} (${result.method}, ${(result.confidence * 100).toFixed(0)}%)`
@@ -300,18 +310,16 @@ async function testModularPrompt(): Promise<{ passed: boolean; details: string }
   try {
     const assembler = new ModularPromptAssembler({ maxTokens: 1000 });
 
-    const mockClassification = {
-      intention: 'business_summary' as any,
+    const classification = mockClassification({
+      intention: 'business_summary',
       confidence: 0.9,
-      method: 'keyword' as const,
       shouldExecuteTool: true,
       toolName: 'get_business_summary',
       parameters: { period: 'month' },
-      alternatives: [],
-    };
+    });
 
     const assemblyResult = assembler.assemble(
-      mockClassification,
+      classification,
       [],
       ['get_business_summary', 'get_top_clients'],
       { clientCount: 10, orderCount: 25, revenue: 5000 }
@@ -361,20 +369,18 @@ async function testPlanningEngine(): Promise<{ passed: boolean; details: string 
       conversationHistory: [],
     };
 
-    const mockClassification = {
-      intention: 'business_summary' as any,
+    const classification = mockClassification({
+      intention: 'business_summary',
       confidence: 0.9,
-      method: 'keyword' as const,
       shouldExecuteTool: true,
       toolName: 'get_business_summary',
       parameters: {},
-      alternatives: [],
-    };
+    });
 
     // Test planning detection
     const shouldPlan = planningEngine.shouldUsePlanning(
       'Sukurti mėnesinę verslo ataskaitą su rekomendacijomis',
-      mockClassification
+      classification
     );
 
     if (!shouldPlan) {
@@ -384,11 +390,7 @@ async function testPlanningEngine(): Promise<{ passed: boolean; details: string 
     console.log('  ✅ Planning detection working');
 
     // Test plan creation
-    const plan = planningEngine.createPlan(
-      'Mėnesinė verslo apžvalga',
-      mockClassification,
-      mockContext
-    );
+    const plan = planningEngine.createPlan('Mėnesinė verslo apžvalga', classification, mockContext);
 
     if (!plan) {
       return { passed: false, details: 'Failed to create plan' };
@@ -429,19 +431,17 @@ async function testEndToEndWorkflow(
     console.log(`  1️⃣ Query: "${userQuery}"`);
 
     // Step 2: Classify intention
-    let classification;
+    let classification: ClassificationResult;
     if (apiKey) {
       classification = await classifyIntentHybrid(userQuery, apiKey, HYBRID_CLASSIFIER_CONFIG);
     } else {
-      classification = {
-        intention: 'business_summary' as any,
+      classification = mockClassification({
+        intention: 'business_summary',
         confidence: 0.85,
-        method: 'keyword' as const,
         shouldExecuteTool: true,
         toolName: 'get_business_summary',
         parameters: { period: 'month' },
-        alternatives: [],
-      };
+      });
     }
     console.log(
       `  2️⃣ Classification: ${classification.intention} (${classification.method}, ${(classification.confidence * 100).toFixed(0)}%)`
@@ -538,15 +538,7 @@ export async function smokeTest(apiKey?: string): Promise<boolean> {
     // Test 2: Hybrid classifier
     const classification = apiKey
       ? await classifyIntentHybrid('test query', apiKey)
-      : {
-          intention: 'general_chat' as any,
-          confidence: 0.5,
-          method: 'keyword' as const,
-          shouldExecuteTool: false,
-          toolName: null,
-          parameters: {},
-          alternatives: [],
-        };
+      : mockClassification({ intention: 'general_chat', confidence: 0.5 });
     console.log(`✅ Hybrid Classifier: ${classification.intention} classified`);
 
     // Test 3: Modular prompt

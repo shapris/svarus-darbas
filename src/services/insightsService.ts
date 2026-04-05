@@ -316,7 +316,9 @@ export async function getBusinessInsights(
   const run = async (): Promise<DashboardInsight[]> => {
     const apiKey =
       localStorage.getItem('custom_api_key') ||
-      (window as any).aistudio?.getApiKey?.() ||
+      (
+        window as typeof window & { aistudio?: { getApiKey?: () => string } }
+      ).aistudio?.getApiKey?.() ||
       getGeminiKeyFromEnv() ||
       '';
 

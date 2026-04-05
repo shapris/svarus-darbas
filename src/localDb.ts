@@ -120,6 +120,7 @@ export function getCurrentUser(): User | null {
 interface DataRecord {
   id: string;
   uid?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lokalūs įrašai; `unknown` indeksas sulaužo Client/Order ir `supabase` local šaką
   [key: string]: any;
 }
 
@@ -212,7 +213,7 @@ export function notifyChange(collectionName: string, userId: string): void {
 
 // Export all data to JSON file
 export function exportAllData(): string {
-  const data: Record<string, any> = {};
+  const data: Record<string, unknown> = {};
 
   // Get all keys from localStorage with our prefix
   for (let i = 0; i < localStorage.length; i++) {

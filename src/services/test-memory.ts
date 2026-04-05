@@ -1,4 +1,5 @@
 import { shouldSuggestMemory, extractKeywords, prioritizeMemories } from './memoryPriority.js';
+import type { Memory } from '../types';
 
 interface TestMemory {
   id: string;
@@ -95,7 +96,7 @@ test('prioritizeMemories - rūšiuoja pagal svarbą', () => {
     conversationHistory: [],
   };
 
-  const result = prioritizeMemories(mockMemories as any, context);
+  const result = prioritizeMemories(mockMemories as Memory[], context);
   assert(result.length > 0, 'Turi grąžinti rezultatų');
   assert(result[0].importance === 5, 'Svarbiausi pirmi');
 });
@@ -111,7 +112,7 @@ test('prioritizeMemories - naudoja MAX_MEMORIES', () => {
   }));
 
   const context = { query: 'test', userId: 'test', conversationHistory: [] };
-  const result = prioritizeMemories(manyMemories as any, context);
+  const result = prioritizeMemories(manyMemories as Memory[], context);
   assert(result.length <= 5, 'Turi būti ribotas iki 5');
 });
 

@@ -49,17 +49,17 @@ export class PerformanceMonitor {
 }
 
 // Memoization utility
-export function memoize<T extends (...args: any[]) => any>(
-  fn: T,
-  keyGenerator?: (...args: Parameters<T>) => string
-): T {
-  const cache = new Map<string, ReturnType<T>>();
+export function memoize<Args extends unknown[], Return>(
+  fn: (...args: Args) => Return,
+  keyGenerator?: (...args: Args) => string
+): (...args: Args) => Return {
+  const cache = new Map<string, Return>();
 
-  return ((...args: Parameters<T>) => {
+  return ((...args: Args) => {
     const key = keyGenerator ? keyGenerator(...args) : JSON.stringify(args);
 
     if (cache.has(key)) {
-      return cache.get(key);
+      return cache.get(key) as Return;
     }
 
     const result = fn(...args);
@@ -68,34 +68,34 @@ export function memoize<T extends (...args: any[]) => any>(
     // Limit cache size
     if (cache.size > 1000) {
       const firstKey = cache.keys().next().value;
-      cache.delete(firstKey);
+      if (firstKey !== undefined) cache.delete(firstKey);
     }
 
     return result;
-  }) as T;
+  }) as (...args: Args) => Return;
 }
 
 // Debounce utility
-export function debounce<T extends (...args: any[]) => any>(
-  fn: T,
+export function debounce<Args extends unknown[]>(
+  fn: (...args: Args) => void,
   delay: number
-): (...args: Parameters<T>) => void {
-  let timeoutId: NodeJS.Timeout;
+): (...args: Args) => void {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
+  return (...args: Args) => {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
     timeoutId = setTimeout(() => fn(...args), delay);
   };
 }
 
 // Throttle utility
-export function throttle<T extends (...args: any[]) => any>(
-  fn: T,
+export function throttle<Args extends unknown[]>(
+  fn: (...args: Args) => void,
   delay: number
-): (...args: Parameters<T>) => void {
+): (...args: Args) => void {
   let lastCall = 0;
 
-  return (...args: Parameters<T>) => {
+  return (...args: Args) => {
     const now = Date.now();
     if (now - lastCall >= delay) {
       lastCall = now;

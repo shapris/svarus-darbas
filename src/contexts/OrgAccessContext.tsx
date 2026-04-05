@@ -22,6 +22,7 @@ export function OrgAccessProvider({
   return <OrgAccessContext.Provider value={value}>{children}</OrgAccessContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hookas šalia provider
 export function useOrgAccess(): OrgAccessValue {
   return useContext(OrgAccessContext);
 }
