@@ -42,6 +42,7 @@
     "dev:full": "npm run dev:kill && concurrently \"npm run server\" \"npm run dev\"",
     "deploy:vercel": "vercel deploy --prod",
     "check:cloud": "node scripts/cloud-readiness-check.mjs",
+    "check:cloud:frontend": "node scripts/cloud-readiness-check.mjs --frontend-only",
     "check:env": "node scripts/check-vite-env.mjs",
     "setup:vercel-env": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/setup-vercel-env.ps1\""
   },

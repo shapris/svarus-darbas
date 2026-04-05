@@ -50,6 +50,10 @@ Execution is not allowed without loading these rules.
 - Supabase
 - Google Gemini / OpenRouter AI
 
+## Release 1.0.0
+
+Versija **1.0.0** (`package.json`). Santrauka ir gamybiniai reikalavimai: **[CHANGELOG.md](CHANGELOG.md)**. Prieš viešą žymą ir klientams: **[docs/PRODUCTION_CHECKLIST.md](docs/PRODUCTION_CHECKLIST.md)**, **[docs/DEPLOY.md](docs/DEPLOY.md)**, **[docs/LAUNCH_AND_SALES_NEXT_STEPS.md](docs/LAUNCH_AND_SALES_NEXT_STEPS.md)** (§2.3).
+
 ## Paleidimas
 
 ```bash

@@ -22,6 +22,8 @@ Vienas įėjimo taškas: **kur skaityti**, ne dubliuoti tą patį trijuose failu
 
 **Gamybinis sąrašas (automatinė + rankinė):** [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
 
+**Paleidimo režimas ir komercinis šablonas (pardavimui / pilotui):** [`LAUNCH_AND_SALES_NEXT_STEPS.md`](LAUNCH_AND_SALES_NEXT_STEPS.md).
+
 **Vercel / Render env sutapimas ir known gaps:** [`VERCEL_RENDER_ENV_PARITY.md`](VERCEL_RENDER_ENV_PARITY.md).
 
 ```bash

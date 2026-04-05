@@ -2,7 +2,7 @@
 
 Vienas sąrašas: **automatinė** patikra terminale + **rankinė** patikra hostinge (DNS, HTTPS, Auth, Stripe, Render).
 
-**Kontekstas:** [`DEPLOY.md`](DEPLOY.md) → žingsniai ir hierarchija; kintamieji — [`env-matrix.md`](env-matrix.md); pirmas deploy LT — [`PALEIDIMAS_VERCEL_RENDER.md`](PALEIDIMAS_VERCEL_RENDER.md).
+**Kontekstas:** [`DEPLOY.md`](DEPLOY.md) → žingsniai ir hierarchija; kintamieji — [`env-matrix.md`](env-matrix.md); pirmas deploy LT — [`PALEIDIMAS_VERCEL_RENDER.md`](PALEIDIMAS_VERCEL_RENDER.md). Režimas ir pardavimo šablonas — [`LAUNCH_AND_SALES_NEXT_STEPS.md`](LAUNCH_AND_SALES_NEXT_STEPS.md).
 
 ---
 
@@ -15,6 +15,8 @@ npm run verify
 npm run check:cloud
 node --check server.cjs
 ```
+
+**Tik Vercel statinis CRM** (be API `.env` šiame kompiuteryje): `npm run check:cloud:frontend` — nevertina `server.cjs` / service role. Prieš pilną 1.0 vis tiek paleiskite `check:cloud` su API aplinka arba įrašykite trūkstamus laukus į šakninį `.env`.
 
 ### Ką daro `npm run check:cloud`
 
@@ -85,4 +87,4 @@ Skriptas: [`scripts/cloud-readiness-check.mjs`](../scripts/cloud-readiness-check
 - [ ] Užsakymai / klientai kraunasi iš Supabase.
 - [ ] Viena bandomoji sąskaitos siuntimo ar mokėjimo operacija (jei naudojate Resend / Stripe).
 
-Po šito etapo tinka žyma release / komunikacija komandai.
+Po šito etapo tinka žyma release / komunikacija komandai. Žr. taip pat [LAUNCH_AND_SALES_NEXT_STEPS.md](LAUNCH_AND_SALES_NEXT_STEPS.md) §2.3 ir root [CHANGELOG.md](../CHANGELOG.md) prieš viešą **v1.0.0** komunikaciją.

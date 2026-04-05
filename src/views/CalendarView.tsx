@@ -9,96 +9,34 @@ import { formatCurrency } from '../utils';
 import {
   Calendar as CalendarIcon,
   MapPin,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   Users,
   Save,
   Trash2,
-  X,
 } from 'lucide-react';
 import { formatSupabaseUserError, updateData, deleteData, TABLES } from '../supabase';
 import { useToast } from '../hooks/useToast';
 import { logDevError } from '../utils/devConsole';
-import {
-  format,
-  addMonths,
-  subMonths,
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  isSameMonth,
-  isSameDay,
-  addDays,
-} from 'date-fns';
+import { format, addMonths, subMonths } from 'date-fns';
 import { lt } from 'date-fns/locale';
+import { MonthGrid } from './calendar/MonthGrid';
+import { DayDetailsModal } from './calendar/DayDetailsModal';
+import {
+  DEFAULT_SLOT_DURATION,
+  WORK_DAY_END,
+  WORK_DAY_START,
+  estimateOrderDuration,
+  normalizeOrderDateKey,
+  toHHMM,
+  toMinutes,
+  type PlannedOrder,
+} from './calendar/calendarUtils';
 
 interface CalendarViewProps {
   orders: Order[];
   employees: Employee[];
   clients: Client[];
   onOpenClient?: (clientId: string) => void;
-}
-
-type PlannedOrder = {
-  order: Order;
-  startMin: number;
-  endMin: number;
-  durationMin: number;
-};
-
-const WORK_DAY_START = 8 * 60; // 08:00
-const WORK_DAY_END = 18 * 60; // 18:00
-const DEFAULT_SLOT_DURATION = 90;
-const EMPLOYEE_COLOR_CLASS: Record<string, string> = {
-  '#3b82f6': 'bg-blue-500',
-  '#10b981': 'bg-emerald-500',
-  '#f59e0b': 'bg-amber-500',
-  '#ef4444': 'bg-red-500',
-  '#8b5cf6': 'bg-violet-500',
-  '#06b6d4': 'bg-cyan-500',
-  '#84cc16': 'bg-lime-500',
-  '#f97316': 'bg-orange-500',
-};
-
-function toMinutes(time: string): number {
-  const [h, m] = (time || '00:00').split(':').map((x) => parseInt(x, 10) || 0);
-  return h * 60 + m;
-}
-
-function toHHMM(totalMin: number): string {
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function normalizeOrderDateKey(raw: string): string {
-  const value = String(raw || '').trim();
-  if (!value) return '';
-  const isoMatch = value.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (isoMatch) return isoMatch[1];
-  const localMatch = value.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  if (localMatch) {
-    const dd = localMatch[1].padStart(2, '0');
-    const mm = localMatch[2].padStart(2, '0');
-    const yyyy = localMatch[3];
-    return `${yyyy}-${mm}-${dd}`;
-  }
-  const d = new Date(value);
-  if (!Number.isNaN(d.getTime())) {
-    return format(d, 'yyyy-MM-dd');
-  }
-  return '';
-}
-
-function estimateOrderDuration(order: Order): number {
-  const base = 45;
-  const windowPart = Math.min(120, Math.max(0, (order.windowCount || 0) * 4));
-  const floorPart = Math.max(0, ((order.floor || 1) - 1) * 8);
-  const extraServicesCount = Object.values(order.additionalServices || {}).filter(Boolean).length;
-  const extraPart = extraServicesCount * 15;
-  return Math.max(45, Math.min(210, base + windowPart + floorPart + extraPart));
 }
 
 export default function CalendarView({
@@ -139,135 +77,6 @@ export default function CalendarView({
   const onDateClick = (day: Date) => {
     setSelectedDate(day);
     setIsDayDetailsOpen(true);
-  };
-
-  const renderHeader = () => {
-    return (
-      <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-3xl shadow-sm border border-slate-100">
-        <button
-          onClick={prevMonth}
-          title="Ankstesnis mėnuo"
-          className="p-2 hover:bg-slate-50 rounded-full transition-colors"
-        >
-          <ChevronLeft size={20} className="text-slate-600" />
-        </button>
-        <h2 className="text-lg font-black text-slate-900 capitalize tracking-wide">
-          {format(currentMonth, 'MMMM yyyy', { locale: lt })}
-        </h2>
-        <button
-          onClick={nextMonth}
-          title="Kitas mėnuo"
-          className="p-2 hover:bg-slate-50 rounded-full transition-colors"
-        >
-          <ChevronRight size={20} className="text-slate-600" />
-        </button>
-      </div>
-    );
-  };
-
-  const renderDays = () => {
-    const days = [];
-    const startDate = startOfWeek(currentMonth, { weekStartsOn: 1 }); // Monday start
-
-    for (let i = 0; i < 7; i++) {
-      days.push(
-        <div
-          key={i}
-          className="text-center font-bold text-[10px] text-slate-400 uppercase tracking-widest py-2"
-        >
-          {format(addDays(startDate, i), 'EEEEEE', { locale: lt })}
-        </div>
-      );
-    }
-    return <div className="grid grid-cols-7 mb-2">{days}</div>;
-  };
-
-  const renderCells = () => {
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
-
-    const dateFormat = 'yyyy-MM-dd';
-    const rows = [];
-    let days = [];
-    let day = startDate;
-    let formattedDate = '';
-
-    while (day <= endDate) {
-      for (let i = 0; i < 7; i++) {
-        formattedDate = format(day, dateFormat);
-        const cloneDay = day;
-
-        // Find orders for this day
-        const dayOrders = orders.filter((o) => normalizeOrderDateKey(o.date) === formattedDate);
-
-        days.push(
-          <div
-            key={day.toString()}
-            onClick={() => onDateClick(cloneDay)}
-            onDragEnter={() => {
-              if (draggedOrderId) setDragOverDate(formattedDate);
-            }}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              handleDropToDate(formattedDate);
-              setDragOverDate(null);
-            }}
-            className={`min-h-[80px] p-1 border border-slate-50 transition-all cursor-pointer relative ${
-              !isSameMonth(day, monthStart)
-                ? 'bg-slate-50/50 text-slate-300'
-                : isSameDay(day, selectedDate)
-                  ? 'bg-blue-50 border-blue-200 text-blue-700'
-                  : 'bg-white text-slate-700 hover:bg-slate-50'
-            } ${isSameDay(day, new Date()) ? 'font-black' : 'font-medium'} ${
-              dragOverDate === formattedDate ? 'ring-2 ring-blue-300 bg-blue-50/70' : ''
-            }`}
-          >
-            <span
-              className={`text-xs p-1.5 flex items-center justify-center w-6 h-6 rounded-full ${isSameDay(day, new Date()) ? 'bg-blue-600 text-white' : ''}`}
-            >
-              {format(day, 'd')}
-            </span>
-
-            <div className="mt-1 flex flex-col gap-1 px-1">
-              {dayOrders.slice(0, 2).map((order) => {
-                const employee = employees.find((e) => e.id === order.employeeId);
-                const employeeColor = (employee?.color || '').toLowerCase();
-                const colorClass = EMPLOYEE_COLOR_CLASS[employeeColor] || 'bg-slate-400';
-
-                return (
-                  <div
-                    key={order.id}
-                    className={`text-[8px] truncate px-1.5 py-0.5 rounded-sm font-bold flex items-center gap-1 text-white ${colorClass}`}
-                  >
-                    <span>{order.time}</span>
-                    <span>{order.clientName}</span>
-                  </div>
-                );
-              })}
-              {dayOrders.length > 2 && (
-                <div className="text-[8px] text-slate-400 font-bold text-center">
-                  +{dayOrders.length - 2} daugiau
-                </div>
-              )}
-            </div>
-          </div>
-        );
-        day = addDays(day, 1);
-      }
-      rows.push(
-        <div className="grid grid-cols-7" key={day.toString()}>
-          {days}
-        </div>
-      );
-      days = [];
-    }
-    return (
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        {rows}
-      </div>
-    );
   };
 
   const selectedDateString = format(selectedDate, 'yyyy-MM-dd');
@@ -461,11 +270,23 @@ export default function CalendarView({
         <h2 className="text-2xl font-black text-slate-900 tracking-tight">Kalendorius</h2>
       </div>
 
-      <div>
-        {renderHeader()}
-        {renderDays()}
-        {renderCells()}
-      </div>
+      <MonthGrid
+        currentMonth={currentMonth}
+        onPrevMonth={prevMonth}
+        onNextMonth={nextMonth}
+        selectedDate={selectedDate}
+        onSelectDay={onDateClick}
+        orders={orders}
+        employees={employees}
+        draggedOrderId={draggedOrderId}
+        dragOverDate={dragOverDate}
+        onDragEnterDate={setDragOverDate}
+        onDragOver={(e) => e.preventDefault()}
+        onDropOnDate={(dateKey) => {
+          void handleDropToDate(dateKey);
+          setDragOverDate(null);
+        }}
+      />
 
       <div className="mt-8">
         <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm mb-4">
@@ -744,216 +565,30 @@ export default function CalendarView({
         )}
       </div>
 
-      {isDayDetailsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center">
-          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-3xl border border-slate-100 shadow-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-black text-slate-900">
-                Dienos detalės: {format(selectedDate, 'yyyy-MM-dd (EEEE)', { locale: lt })}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsDayDetailsOpen(false)}
-                title="Uždaryti dienos detales"
-                className="p-2 rounded-xl hover:bg-slate-100 text-slate-500"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {filteredSelectedOrders.length === 0 ? (
-              <div className="bg-slate-50 rounded-2xl p-6 text-center text-slate-500 text-sm">
-                Pagal pasirinktus filtrus užsakymų nėra.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredSelectedOrders.map((order) => {
-                  const employee = employees.find((e) => e.id === order.employeeId);
-                  const client = clientsById.get(order.clientId);
-                  const displayClientName =
-                    (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
-                  const displayAddress =
-                    (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
-                  const displayPhone = (client?.phone || '').trim() || 'nesutarta';
-                  const isEditing = editingOrderId === order.id;
-
-                  return (
-                    <div
-                      key={`modal-${order.id}`}
-                      className="border border-slate-100 rounded-2xl p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="font-bold text-slate-900">{displayClientName}</p>
-                          <p className="text-xs text-slate-500">{displayAddress}</p>
-                          <p className="text-xs text-slate-500">Tel.: {displayPhone}</p>
-                        </div>
-                        <div className="text-right">
-                          <p
-                            draggable
-                            onDragStart={() => setDraggedOrderId(order.id)}
-                            onDragEnd={() => {
-                              setDraggedOrderId(null);
-                              setDragOverDate(null);
-                            }}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDrop={() => handleDropSwap(order)}
-                            className={`font-black ${draggedOrderId === order.id ? 'text-blue-600' : 'text-slate-900'} cursor-grab active:cursor-grabbing`}
-                            title="Tempkite ant kito laiko, kad sukeistumėte"
-                          >
-                            {order.time}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatCurrency(order.totalPrice)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <span
-                            className={`px-2 py-1 rounded-lg font-semibold ${
-                              order.status === 'atlikta'
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : order.status === 'vykdoma'
-                                  ? 'bg-blue-50 text-blue-700'
-                                  : 'bg-amber-50 text-amber-700'
-                            }`}
-                          >
-                            Statusas: {order.status}
-                          </span>
-                          <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700">
-                            Darbuotojas: {employee?.name || 'nepriskirtas'}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          {(() => {
-                            const action = getPrimaryStatusAction(order.status);
-                            return (
-                              <button
-                                type="button"
-                                disabled={!action.next}
-                                onClick={() => action.next && updateOrderStatus(order, action.next)}
-                                className={`px-3 py-1.5 rounded-lg font-semibold transition-colors ${action.className}`}
-                              >
-                                {action.label}
-                              </button>
-                            );
-                          })()}
-                          <button
-                            type="button"
-                            onClick={() => beginEdit(order)}
-                            className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200"
-                          >
-                            Redaguoti
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            localStorage.setItem('selected_client_id', order.clientId);
-                            onOpenClient?.(order.clientId);
-                            setIsDayDetailsOpen(false);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-semibold"
-                        >
-                          Kliento kortelė
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeOrder(order.id)}
-                          className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 font-semibold"
-                        >
-                          {isDeleting === order.id ? 'Trinama...' : 'Ištrinti'}
-                        </button>
-                      </div>
-
-                      {isEditing && (
-                        <div className="mt-3 p-3 rounded-2xl border border-blue-100 bg-blue-50/40">
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            <input
-                              type="date"
-                              value={editForm.date}
-                              onChange={(e) => setEditForm((p) => ({ ...p, date: e.target.value }))}
-                              title="Užsakymo data"
-                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
-                            />
-                            <input
-                              type="time"
-                              value={editForm.time}
-                              onChange={(e) => setEditForm((p) => ({ ...p, time: e.target.value }))}
-                              title="Užsakymo laikas"
-                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
-                            />
-                            <select
-                              value={editForm.status}
-                              onChange={(e) =>
-                                setEditForm((p) => ({
-                                  ...p,
-                                  status: e.target.value as OrderStatus,
-                                }))
-                              }
-                              title="Užsakymo statusas"
-                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
-                            >
-                              <option value="suplanuota">suplanuota</option>
-                              <option value="vykdoma">vykdoma</option>
-                              <option value="atlikta">atlikta</option>
-                            </select>
-                            <select
-                              value={editForm.employeeId}
-                              onChange={(e) =>
-                                setEditForm((p) => ({ ...p, employeeId: e.target.value }))
-                              }
-                              title="Priskirtas darbuotojas"
-                              className="bg-white border border-slate-200 rounded-xl p-2 text-xs"
-                            >
-                              <option value="">Be darbuotojo</option>
-                              {employees.map((emp) => (
-                                <option key={`modal-emp-${emp.id}`} value={emp.id}>
-                                  {emp.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <textarea
-                            rows={2}
-                            value={editForm.notes}
-                            onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))}
-                            className="w-full mt-2 bg-white border border-slate-200 rounded-xl p-2 text-xs"
-                            placeholder="Pastabos"
-                          />
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              type="button"
-                              disabled={isSaving}
-                              onClick={() => saveEdit(order)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 inline-flex items-center gap-1"
-                            >
-                              <Save size={12} />
-                              {isSaving ? 'Saugoma...' : 'Išsaugoti'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingOrderId(null)}
-                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700"
-                            >
-                              Atšaukti
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <DayDetailsModal
+        open={isDayDetailsOpen}
+        onClose={() => setIsDayDetailsOpen(false)}
+        selectedDate={selectedDate}
+        filteredSelectedOrders={filteredSelectedOrders}
+        clientsById={clientsById}
+        employees={employees}
+        editingOrderId={editingOrderId}
+        editForm={editForm}
+        setEditForm={setEditForm}
+        beginEdit={beginEdit}
+        saveEdit={saveEdit}
+        removeOrder={removeOrder}
+        updateOrderStatus={updateOrderStatus}
+        getPrimaryStatusAction={getPrimaryStatusAction}
+        isSaving={isSaving}
+        isDeleting={isDeleting}
+        draggedOrderId={draggedOrderId}
+        setDraggedOrderId={setDraggedOrderId}
+        setDragOverDate={setDragOverDate}
+        handleDropSwap={handleDropSwap}
+        onCancelEdit={() => setEditingOrderId(null)}
+        onOpenClient={onOpenClient}
+      />
     </div>
   );
 }

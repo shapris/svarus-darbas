@@ -4,6 +4,7 @@ import path from 'path';
 
 const root = process.cwd();
 const envPath = path.join(root, '.env');
+const frontendOnly = process.argv.includes('--frontend-only');
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -37,6 +38,11 @@ const envFile = parseEnvFile(envPath);
 
 console.log('Cloud readiness check');
 console.log(`Project: ${root}`);
+if (frontendOnly) {
+  console.log('Mode: --frontend-only (tik Vite / Vercel CRM, be server.cjs reikalavimų)');
+} else {
+  console.log('Mode: pilnas (frontend + server.cjs / API hostas pagal .env)');
+}
 console.log('Using backend mode: supabase');
 
 printSection('Frontend (Vercel) env');
@@ -62,35 +68,47 @@ for (const k of frontendOptional) {
 }
 
 printSection('Backend API (server.cjs) env');
-const backendRequired = ['RESEND_API_KEY', 'RESEND_FROM_EMAIL'];
-const backendSupabase = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
-const backendCors = ['FRONTEND_URL', 'CORS_ORIGINS'];
-
-for (const k of backendRequired) {
-  const ok = has(k, envFile);
-  if (!ok) missingHard += 1;
-  console.log(`${ok ? 'OK  ' : 'MISS'} ${k}`);
-}
-for (const k of backendSupabase) {
-  const ok = has(k, envFile) || has(`VITE_${k}`, envFile);
-  if (!ok) missingHard += 1;
-  console.log(`${ok ? 'OK  ' : 'MISS'} ${k} (or VITE_${k})`);
-}
-const serviceRoleOk = has('SUPABASE_SERVICE_ROLE_KEY', envFile);
-if (!serviceRoleOk) missingHard += 1;
-console.log(`${serviceRoleOk ? 'OK  ' : 'MISS'} SUPABASE_SERVICE_ROLE_KEY`);
-const corsOk = backendCors.some((k) => has(k, envFile));
-if (!corsOk) {
-  missingHard += 1;
-  console.log('MISS FRONTEND_URL / CORS_ORIGINS');
+if (frontendOnly) {
+  console.log(
+    'SKIP Pilnas API patikrinimas praleistas. Sąskaitos / Stripe webhook / mokėjimų DB — žr. Render (ar kitą API hostą).'
+  );
+  console.log('INFO Pilnas patikrinimas: npm run check:cloud (be --frontend-only)');
+  console.log(
+    'INFO SUPABASE_SERVICE_ROLE_KEY turi būti API serveryje (ne būtina Vercel statiniam CRM).'
+  );
 } else {
-  console.log('OK   FRONTEND_URL / CORS_ORIGINS');
+  const backendRequired = ['RESEND_API_KEY', 'RESEND_FROM_EMAIL'];
+  const backendSupabase = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+  const backendCors = ['FRONTEND_URL', 'CORS_ORIGINS'];
+
+  for (const k of backendRequired) {
+    const ok = has(k, envFile);
+    if (!ok) missingHard += 1;
+    console.log(`${ok ? 'OK  ' : 'MISS'} ${k}`);
+  }
+  for (const k of backendSupabase) {
+    const ok = has(k, envFile) || has(`VITE_${k}`, envFile);
+    if (!ok) missingHard += 1;
+    console.log(`${ok ? 'OK  ' : 'MISS'} ${k} (or VITE_${k})`);
+  }
+  const serviceRoleOk = has('SUPABASE_SERVICE_ROLE_KEY', envFile);
+  if (!serviceRoleOk) missingHard += 1;
+  console.log(`${serviceRoleOk ? 'OK  ' : 'MISS'} SUPABASE_SERVICE_ROLE_KEY`);
+  const corsOk = backendCors.some((k) => has(k, envFile));
+  if (!corsOk) {
+    missingHard += 1;
+    console.log('MISS FRONTEND_URL / CORS_ORIGINS');
+  } else {
+    console.log('OK   FRONTEND_URL / CORS_ORIGINS');
+  }
 }
 
 printSection('Security warnings');
-const from = val('RESEND_FROM_EMAIL', envFile).toLowerCase();
-if (from.includes('onboarding@resend.dev')) {
-  console.log('WARN Using onboarding@resend.dev (test-only sender).');
+if (!frontendOnly) {
+  const from = val('RESEND_FROM_EMAIL', envFile).toLowerCase();
+  if (from.includes('onboarding@resend.dev')) {
+    console.log('WARN Using onboarding@resend.dev (test-only sender).');
+  }
 }
 if (has('VITE_STRIPE_SECRET_KEY', envFile)) {
   console.log('WARN VITE_STRIPE_SECRET_KEY is public to client build. Remove it from Vercel env.');
@@ -119,8 +137,21 @@ console.log(
 
 printSection('Result');
 if (missingHard === 0) {
-  console.log('READY No hard blockers found.');
+  console.log(
+    frontendOnly
+      ? 'READY Frontend: Vercel CRM blokatorių nėra (pagal .env šiame kompiuteryje).'
+      : 'READY No hard blockers found.'
+  );
   process.exit(0);
 }
 console.log(`BLOCKED Missing ${missingHard} required setting(s).`);
+if (!frontendOnly && !has('SUPABASE_SERVICE_ROLE_KEY', envFile)) {
+  console.log('');
+  console.log(
+    'HINT: Jei tikrinote tik naršyklės CRM (Vercel), paleiskite: npm run check:cloud:frontend'
+  );
+  console.log(
+    'HINT: Service role raktą įrašykite į API hosto (Render) .env arba į šakninį .env pilnam check:cloud.'
+  );
+}
 process.exit(2);

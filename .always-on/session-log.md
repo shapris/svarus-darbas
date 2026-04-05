@@ -4,13 +4,46 @@
 
 ---
 
+## 2026-04-06 — Version 1.0.0 repo paruošimas
+
+- **CHANGELOG.md** [1.0.0], README „Release 1.0.0“, **LAUNCH_AND_SALES_NEXT_STEPS.md** §2.1 (2026-04-06) + **§2.3** checklist prieš viešą tag.
+- **`npm run verify`** — OK; **`check:cloud`** lokaliai išėjimas **2** (trūksta `SUPABASE_SERVICE_ROLE_KEY`) — P6 palieka gamybinius punktus savininkui.
+- **Git:** annotated tag **`v1.0.0`** sukurtas ant dabartinės būsenos; komunikacija klientams tik po **LAUNCH §2.3** ir `check:cloud` = 0 gamyboje (`docs/PRODUCTION_CHECKLIST.md`).
+
+---
+
+## 2026-04-05 — Paleidimas / pardavimas (planas repo)
+
+- **Dokumentacija:** `docs/LAUNCH_AND_SALES_NEXT_STEPS.md` (režimas A/B/C, automatinės patikros lentelė, komercinio paketo šablonas); nuorodos iš `PRODUCTION_CHECKLIST.md`, `DEPLOY.md`.
+- **Automatinė patikra:** `npm run verify` — OK; `node --check server.cjs` — OK; `npm run check:cloud` — išėjimas 2 (šioje aplinkoje trūksta `SUPABASE_SERVICE_ROLE_KEY` ir keli WARN).
+- **Rankinė checklist:** lieka savininkui pagal `PRODUCTION_CHECKLIST.md` §2–3.
+
+---
+
+## 2026-04-05 — P5: OrdersView + scout
+
+- **UI:** `src/views/orders/OrderListCard.tsx` (viena kortelė), `OrderFormModal.tsx` (pridėjimas/redagavimas); `OrdersView.tsx` sutrumpintas — state ir handleriai lieka ten.
+- **Scout:** `scripts/improvement-scout.ps1` — `alert` atitikmuo `\balert\s*\(` (išvengia klaidingų „alert“ iš kitų žodžių); `npm run verify` po pakeitimų — OK.
+- **Darbotvarkė:** P5 ir P4-E OrdersView eilutė atnaujinta.
+
+---
+
+## 2026-04-05 — Tolimesnis P4 planas (D/E/G + barrel)
+
+- **Supabase:** `src/supabase.ts` — tik re-export; `authSession.ts`, `booking.ts` (buvo); `ordersSchemaState` (TS import `let` pataisa); `npm run verify` OK.
+- **UI skaidymas:** `views/calendar/*` (MonthGrid, DayDetailsModal, calendarUtils); `components/chatAssistant/*` (toolHandler, conversationHelpers, types, browserMedia).
+- **Produktas:** `OrdersView` CSV eksportas (filtruotas sąrašas); `docs/sms-templates-lt.md` + nuoroda Nustatymuose.
+- **Testai:** `tests/helpers/strictConsole.ts` — ignoruoti išorinį `429` „Failed to load resource“ (rate limit, ne CRM regresija).
+
+---
+
 ## 2026-04-05 — P4: didelė implementacijos banga
 
 - **Dokumentacija:** `VERCEL_RENDER_ENV_PARITY`, `MIGRATIONS_POLICY`, `RLS_SUMMARY`, `BACKUP_AND_OPS`, `PERIODIC_MAINTENANCE`, `STRIPE_TESTING`, `CLIENT_PORTAL_MVP`, `BUNDLE_ANALYSIS`, `UX_EMPTY_STATES`; `DEPLOY.md` §5 žemėlapis; `env-matrix` nuoroda į parity.
 - **Kodas:** `src/utils/devConsole.ts` (`logDevError`); `console.error` → dev-only be `ErrorBoundary`; `supabase/constants.ts`, `supabase/dbTypes.ts`; `ChatAssistant` send debounce 650 ms; `views/orders/orderConstants.ts`; global `:focus-visible` (`index.css`); `useToast` klaidų gairės.
 - **Testai / CI:** `tests/offline-crm.spec.ts` (login + užsakymas), `tests/utils-pricing.test.ts`, `npm run test:offline-crm` į `verify`; GitHub Actions Playwright browser cache.
 - **Įrankiai:** `rollup-plugin-visualizer`, `npm run build:analyze` → `dist/stats.html`; scout: **93/100** (tikslas ≥90) — likę 2× `alert`, 2× `console.error` (ErrorBoundary + devConsole), 3× `any`.
-- **Likučiai darbotvarkėje:** P4-D normalizavimas / ownerScope / CRUD / portal moduliai; P4-E `CalendarView`/`ChatAssistant` skaidymas; P4-G CSV eksportas, SMS doc.
+- **Likučiai (istorinis įrašas):** žr. naujesnį bloką „Tolimesnis P4 planas“ — šie punktai vėliau uždaryti.
 
 ---
 

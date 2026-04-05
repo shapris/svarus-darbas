@@ -46,7 +46,8 @@ function Top-LargestFiles {
 
 $todoCount = Count-Matches @("TODO", "FIXME", "HACK")
 $consoleErrorCount = Count-Matches @("console\.error\(")
-$alertCount = Count-Matches @("alert\(")
+# Tikras window.alert kvietimas — ne „role=alert“, ne komentarai „Proactive alerts“.
+$alertCount = Count-Matches @("\balert\s*\(")
 $anyCount = Count-Matches @("\bas\s+any\b", ":\s*any\b")
 
 $largest = Top-LargestFiles

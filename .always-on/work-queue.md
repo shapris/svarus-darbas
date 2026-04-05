@@ -70,16 +70,16 @@
 ### D. Architektūra — `supabase.ts` skaidymas (po vieną PR)
 
 - [x] **Išskirti konstantas ir tipus:** `TABLES`, `DatabaseRecord`, auth helperių tipai → `src/supabase/constants.ts` arba `src/supabase/types.ts`; `supabase.ts` importuoja. *2026-04-05: `constants.ts`, `dbTypes.ts` (AuthUser/DatabaseRecord), re-export iš `supabase.ts`.*
-- [ ] **Išskirti normalizavimą:** `normalize*FromDb`, stulpelių fallback logika → `src/supabase/normalize.ts`.
-- [ ] **Išskirti owner scope / fetch:** `fetchOwnerScopedRowsRaw`, `isMissingUidColumnError` → `src/supabase/ownerScope.ts`.
-- [ ] **Išskirti CRUD:** `getData`, `addData`, `updateData`, `deleteData` → `src/supabase/crud.ts` (arba po lentelę grupėmis).
-- [ ] **Išskirti auth / booking / portal:** vieša rezervacija, `registerClientUser`, `getClientOrders` → atskiri moduliai; `supabase.ts` lieka plonas barrel export (backward compatible).
+- [x] **Išskirti normalizavimą:** `normalize*FromDb`, stulpelių fallback logika → `src/supabase/normalize.ts`. *2026-04-05.*
+- [x] **Išskirti owner scope / fetch:** `fetchOwnerScopedRowsRaw`, `isMissingUidColumnError` → `src/supabase/ownerScope.ts`. *2026-04-05.*
+- [x] **Išskirti CRUD:** `getData`, `addData`, `updateData`, `deleteData` → `src/supabase/crud.ts` (arba po lentelę grupėmis). *2026-04-05.*
+- [x] **Išskirti auth / booking / portal:** vieša rezervacija, `registerClientUser`, `getClientOrders` → atskiri moduliai; `supabase.ts` lieka plonas barrel export (backward compatible). *2026-04-05: `booking.ts`, `authSession.ts`, barrel `src/supabase.ts`; `ordersSchemaState` vietoj importuojamo `let`.*
 
 ### E. Architektūra — dideli komponentai
 
-- [x] **`OrdersView.tsx`:** išskirti sąrašo eilutę, filtrus ir modalą į `src/views/orders/*` (arba `components/orders/*`). *2026-04-05: pradžia — `views/orders/orderConstants.ts` (status + photo limit); sąrašas/modal tolesniam PR.*
-- [ ] **`CalendarView.tsx`:** išskirti mėnesio tinklelį ir dienos detales į atskirus failus.
-- [ ] **`ChatAssistant.tsx`:** išskirti žinutės bubble, įrankių vykdymą, istorijos state į 2–3 failus (be elgsenos keitimo pirmame PR).
+- [x] **`OrdersView.tsx`:** išskirti sąrašo eilutę, filtrus ir modalą į `src/views/orders/*` (arba `components/orders/*`). *2026-04-05: `orderConstants.ts`; `OrderListCard.tsx` + `OrderFormModal.tsx`; `OrdersView.tsx` — logika ir filtrai; `npm run verify` OK.*
+- [x] **`CalendarView.tsx`:** išskirti mėnesio tinklelį ir dienos detales į atskirus failus. *2026-04-05: `views/calendar/MonthGrid.tsx`, `DayDetailsModal.tsx`, `calendarUtils.ts`.*
+- [x] **`ChatAssistant.tsx`:** išskirti žinutės bubble, įrankių vykdymą, istorijos state į 2–3 failus (be elgsenos keitimo pirmame PR). *2026-04-05: `components/chatAssistant/*` (types, browserMedia, conversationHelpers, toolHandler).*
 
 ### F. UX ir prieinamumas
 
@@ -91,8 +91,8 @@
 
 - [x] **Klientų portalas:** apibrėžti MVP (ką tikrai naudoja klientas) ir sutrumpinti flow jei perteklius. *2026-04-05: `docs/CLIENT_PORTAL_MVP.md`.*
 - [x] **Mokėjimai / Stripe:** end-to-end testas su Stripe test raktais (dokumentuota); arba aiškiai pažymėti „manual QA only“. *2026-04-05: `docs/STRIPE_TESTING.md`.*
-- [ ] **Ataskaitos / eksportas:** CSV arba PDF eksportas užsakymams (jei verslas prašo — vienas formatas pirmiau).
-- [ ] **Priminimai:** SMS šablonų peržiūra LT kalbai ir teisiniam tekstui (vienas doc + placeholderiai).
+- [x] **Ataskaitos / eksportas:** CSV arba PDF eksportas užsakymams (jei verslas prašo — vienas formatas pirmiau). *2026-04-05: `OrdersView` — filtruoto sąrašo CSV (UTF-8 BOM).*
+- [x] **Priminimai:** SMS šablonų peržiūra LT kalbai ir teisiniam tekstui (vienas doc + placeholderiai). *2026-04-05: `docs/sms-templates-lt.md`; nuoroda `SettingsView`.*
 
 ### H. Duomenų bazė ir migracijos
 
@@ -111,6 +111,22 @@
 - [x] **Kas mėnesį:** `npm outdated` peržiūra, minor/patch atnaujinimai su `verify`. *2026-04-05: `docs/PERIODIC_MAINTENANCE.md`.*
 - [x] **Kas ketvirtį:** dependency major versijų planas (React, Vite, Supabase client). *2026-04-05: tas pats doc.*
 - [x] **Po incidento:** įrašas į `session-log.md` + vienas naujas P4 punktas jei reikia prevencijos. *2026-04-05: procesas `PERIODIC_MAINTENANCE.md`.*
+
+---
+
+## P5 — tęsinys (po visų P4 uždarymo)
+
+- [x] **OrdersView skaidymas:** sąrašo eilutė + pridėjimo/redagavimo modalas → `src/views/orders/*`; `npm run verify`. *2026-04-05: `OrderListCard.tsx`, `OrderFormModal.tsx`.*
+- [x] **Scout ciklas:** `npm run scout:improvements`; per `improvement-backlog.md` sutvarkyti likusius signalus (`console.error`, `any`) kur ROI aiškus. *2026-04-05: scout paleistas; `improvement-scout.ps1` — `\balert\s*\(` (be false positive); backlog atnaujintas.*
+- [x] **„alert“ → toast:** jei `scout` dar skaičiuoja `alert(` — pakeisti į `useToast` / neblokuojantį pranešimą (pvz. ErrorBoundary). *2026-04-05: `src` be `window.alert`; scout skaičiavimas pataisytas.*
+
+---
+
+## P6 — Version 1.0.0 (paleidimo riba)
+
+- [x] **Repo dokumentacija ir vartai (lokalus):** `CHANGELOG.md` [1.0.0]; README „Release 1.0.0“; `LAUNCH_AND_SALES_NEXT_STEPS.md` §2.1 atnaujinta + §2.3 checklist prieš tag; `npm run verify` + `node --check server.cjs` OK. *2026-04-06*
+- [ ] **Gamybiniai vartai:** su **produkcijos** env `npm run check:cloud` → išėjimas **0**; uždaryti `PRODUCTION_CHECKLIST.md` §2–3 ir §3 dūmus. *savininkas*
+- [x] **Git žyma (kodo bazė):** annotated tag `v1.0.0` ant commit su CHANGELOG 1.0.0; jei po deploy reikia kito commit — perkelti tag (`git tag -d v1.0.0` ir sukurti iš naujo) arba naudoti `v1.0.1`. Optional GitHub Release — savininkas. *2026-04-06*
 
 ---
 
@@ -135,5 +151,7 @@
 | 2026-04-05 | P4-A env matrica | `docs/env-matrix.md` + nuorodos `.env.example`, `DEPLOY`. |
 | 2026-04-05 | P4-A gamybinė patikra | `docs/PRODUCTION_CHECKLIST.md` + `DEPLOY.md` §4. |
 | 2026-04-05 | P4 masinė banga | Docs (Vercel parity, migrations, RLS, backup, Stripe, portal MVP, UX, bundle, periodic); `logDevError`; supabase `constants`/`dbTypes`; Chat debounce; Playwright offline+order; Vitest utils; CI Playwright cache; scout score 93; `verify` + `build:analyze`. Likučiai: P4-D2–D5, P4-E Calendar/Chat, P4-G CSV/SMS. |
+| 2026-04-05 | P5 OrdersView + scout | `OrderListCard` / `OrderFormModal`; scout `alert` regex; P5 uždaryta; `npm run verify` OK. |
+| 2026-04-06 | v1.0.0 repo paruošimas | `CHANGELOG.md`, README, `LAUNCH` §2.3; P6; `verify` OK; `check:cloud` lokaliai dar 2 — gamyba lieka P6 atviruose punktuose. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
