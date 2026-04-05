@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-05 — P4 ilgalaikis planas (darbotvarkė)
+
+- **Padaryta:** `work-queue.md` → sekcija **P4** su ~35 nepriklausomais žingsniais (A dokumentacija/deploy — J periodinė priežiūra); vykdymo eilė **P0→P1→P2→P3→P4** atnaujinta instrukcijoje.
+
+---
+
 ## 2026-04-05 — UI: perteklinės detalės
 
 - **Padaryta:** `Layout` — be „CRM“ subtitra, lengvesnis šešėlis, be dvigubo aktyvaus tab ženklo; `MoreSectionsView` — tik pavadinimai; `BookingPage` — trumpesnis header; `Dashboard` — pašalinta paslėpta „dienos citata“ (TTS be teksto), oro tekstas, perteklinės antraštės, supaprastinti priminimai; `SettingsView` — sutrumpintas rezervacijų pranešimų blokas.
