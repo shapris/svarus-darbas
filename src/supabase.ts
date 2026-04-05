@@ -147,9 +147,12 @@ function ownerScopeColumn(tableName: string): 'uid' | 'owner_id' {
  * Jei DB dar turi tik `uid` arba eilutėse `owner_id` NULL, kitaip sąrašas būna tuščias.
  */
 let resolvedOwnerScopeColumn: Record<string, 'owner_id' | 'uid'> = {};
+/** Lentelės, kur `uid` stulpens nėra (kanoninė schema) — nebekartoti `?uid=eq.` užklausos. */
+const tablesKnownWithoutUidColumn = new Set<string>();
 
 function clearResolvedOwnerScopeCache() {
   resolvedOwnerScopeColumn = {};
+  tablesKnownWithoutUidColumn.clear();
 }
 
 /** Realtime filtras turi sutapti su tuo stulpeliu, pagal kurį getData iš tikrųjų skaito. */
@@ -159,17 +162,38 @@ function getEffectiveOwnerScopeColumn(tableName: string): 'owner_id' | 'uid' {
 }
 
 /**
- * Kai `owner_id` užklausa grąžina 0 eilučių, bandoma legacy `uid`. Jei stulpelio nėra (PG 42703),
- * lentelėje tik `owner_id` — grąžiname tuščią sąrašą be klaidos.
+ * Kai `owner_id` užklausa grąžina 0 eilučių, bandoma legacy `uid`. Jei stulpelio nėra,
+ * lentelėje tik `owner_id` (kanoninė schema) — grąžiname tuščią sąrašą be 400 konsolėje.
  */
-function isMissingUidColumnError(error: { code?: string; message?: string } | null): boolean {
-  const code = String(error?.code ?? '');
-  const msg = String(error?.message ?? '');
+function isMissingUidColumnError(
+  error: { code?: string; message?: string; details?: string; hint?: string } | null
+): boolean {
+  if (!error) return false;
+  const code = String(error.code ?? '');
+  const msg = String(error.message ?? '');
+  const details = String(error.details ?? '');
+  const hint = String(error.hint ?? '');
+  const blob = `${msg} ${details} ${hint}`;
+
   if (code === '42703' && /\.uid\b/i.test(msg) && /does not exist/i.test(msg)) {
     return true;
   }
-  const match = msg.match(/Could not find the '([^']+)' column/i);
-  if (code === 'PGRST204' && match?.[1] === 'uid') return true;
+  if (/\buid\b/i.test(msg) && /does not exist/i.test(msg) && /column/i.test(msg)) {
+    return true;
+  }
+  const quoted = msg.match(/Could not find the '([^']+)' column/i);
+  if (code === 'PGRST204' && quoted?.[1]?.toLowerCase() === 'uid') return true;
+  // PostgREST kartais grąžina tik 400 / kitą kodą — tikriname tekstą
+  const b = blob.toLowerCase();
+  if (
+    (b.includes("'uid'") || b.includes('`uid`') || /\bcolumn\s+[\"']?uid[\"']?/i.test(blob)) &&
+    (b.includes('does not exist') ||
+      b.includes('not found') ||
+      b.includes('could not find') ||
+      b.includes('schema cache'))
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -221,9 +245,15 @@ async function fetchOwnerScopedRowsRaw(
     return rows1;
   }
 
+  if (tablesKnownWithoutUidColumn.has(tableName)) {
+    resolvedOwnerScopeColumn[tableName] = 'owner_id';
+    return [];
+  }
+
   const { data: d3, error: e3 } = await run('uid');
   if (e3) {
     if (isMissingUidColumnError(e3)) {
+      tablesKnownWithoutUidColumn.add(tableName);
       resolvedOwnerScopeColumn[tableName] = 'owner_id';
       return [];
     }
