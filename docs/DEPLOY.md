@@ -22,6 +22,8 @@ Vienas įėjimo taškas: **kur skaityti**, ne dubliuoti tą patį trijuose failu
 
 **Gamybinis sąrašas (automatinė + rankinė):** [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
 
+**Vercel / Render env sutapimas ir known gaps:** [`VERCEL_RENDER_ENV_PARITY.md`](VERCEL_RENDER_ENV_PARITY.md).
+
 ```bash
 npm run verify
 npm run check:cloud
@@ -29,3 +31,16 @@ node --check server.cjs
 ```
 
 CI: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — po Prettier vykdoma `npm run verify`.
+
+## 5. Kita dokumentacija (P4)
+
+| Failas                                               | Turinys                                       |
+| ---------------------------------------------------- | --------------------------------------------- |
+| [`MIGRATIONS_POLICY.md`](MIGRATIONS_POLICY.md)       | Migracijos vs SQL Editor, breaking pakeitimai |
+| [`RLS_SUMMARY.md`](RLS_SUMMARY.md)                   | Lentelės → RLS esmė                           |
+| [`BACKUP_AND_OPS.md`](BACKUP_AND_OPS.md)             | Supabase backup / PITR nuorodos               |
+| [`PERIODIC_MAINTENANCE.md`](PERIODIC_MAINTENANCE.md) | Mėnesio / ketvirčio procesas                  |
+| [`STRIPE_TESTING.md`](STRIPE_TESTING.md)             | Stripe rankinė QA                             |
+| [`CLIENT_PORTAL_MVP.md`](CLIENT_PORTAL_MVP.md)       | Portalo MVP apimtis                           |
+| [`BUNDLE_ANALYSIS.md`](BUNDLE_ANALYSIS.md)           | `npm run build:analyze`                       |
+| [`UX_EMPTY_STATES.md`](UX_EMPTY_STATES.md)           | Tuščių būsenų šablonas                        |

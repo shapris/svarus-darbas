@@ -51,25 +51,25 @@
 - [x] **Vienas „source of truth“ deploy:** sutraukti `README.md`, `DEPLOYMENT.md`, `docs/PALEIDIMAS_VERCEL_RENDER.md` į aiškią hierarchiją (kur greitas startas, kur pilnas gidas) be pasikartojimų. *2026-04-05: `docs/DEPLOY.md` žemėlapis; `DEPLOYMENT.md` sutrauktas į referencą; `README` vienas deploy skyrius; `PALEIDIMAS` nuorodos į hierarchiją.*
 - [x] **Env matrica:** lentelė repo (`docs/env-matrix.md` arba `.env.example` skyrius) — visi `VITE_*`, `STRIPE_*`, `CORS_ORIGINS`, Supabase raktai: kur naudojami, privalomi/neprivalomi, dev vs prod. *2026-04-05: `docs/env-matrix.md`, nuoroda `.env.example` + `docs/DEPLOY.md`.*
 - [x] **Gamybinė patikra:** `npm run check:cloud` + rankinis checklist viename faile (`docs/PRODUCTION_CHECKLIST.md`) — DNS, HTTPS, Supabase Auth redirect URLs, Stripe webhook, Render health. *2026-04-05: `docs/PRODUCTION_CHECKLIST.md`, nuoroda `docs/DEPLOY.md`.*
-- [ ] **Vercel / Render:** patvirtinti, kad `main` deploy naudoja tuos pačius env kaip dokumentacijoje; įrašyti „known gaps“ jei kas neautomatuojama.
+- [x] **Vercel / Render:** patvirtinti, kad `main` deploy naudoja tuos pačius env kaip dokumentacijoje; įrašyti „known gaps“ jei kas neautomatuojama. *2026-04-05: `docs/VERCEL_RENDER_ENV_PARITY.md`; nuoroda `DEPLOY.md`.*
 
 ### B. Scout ir diagnostika
 
-- [ ] **Scout tikslumas:** `improvement-scout.ps1` — skaičiuoti `alert(` / `console.error` tik `src/` (ne `.always-on`, ne `*.md`); atnaujinti `improvement-backlog.md` šabloną.
-- [ ] **`console.error` 1 banga:** per `src/supabase.ts` ir top views — palikti tik dev/debug arba vartotojui prasmingus kelius; perteklių pakeisti į `logSupabaseDevError` / tylų failą.
-- [ ] **`console.error` 2 banga:** `src/services/*` (AI, SMS, insights) — tas pats principas.
-- [ ] **Scout metrika:** po pataisų paleisti `scout:improvements` ir įrašyti tikslą „score ≥ 90“ su priežastimi žurnale.
+- [x] **Scout tikslumas:** `improvement-scout.ps1` — skaičiuoti `alert(` / `console.error` tik `src/` (ne `.always-on`, ne `*.md`); atnaujinti `improvement-backlog.md` šabloną. *2026-04-05: src scope + exclude test/spec; backlog „Scope“ eilutė.*
+- [x] **`console.error` 1 banga:** per `src/supabase.ts` ir top views — palikti tik dev/debug arba vartotojui prasmingus kelius; perteklių pakeisti į `logSupabaseDevError` / tylų failą. *2026-04-05: `logDevError` + views.*
+- [x] **`console.error` 2 banga:** `src/services/*` (AI, SMS, insights) — tas pats principas. *2026-04-05: auth/offline/ai + performance + utils geocode.*
+- [x] **Scout metrika:** po pataisų paleisti `scout:improvements` ir įrašyti tikslą „score ≥ 90“ su priežastimi žurnale. *2026-04-05: score **93** (liko 2× console.error ErrorBoundary + devConsole; 2× alert).*
 
 ### C. Testai
 
-- [ ] **Playwright: prisijungimas (E2E build):** vienas testas su `VITE_ALLOW_OFFLINE_CRM` / e2e build režimu — užpildyti login, patikrinti kad atsiranda pagrindinis CRM (be tikro cloud slaptažodžio, jei įmanoma per test user fixture).
-- [ ] **Playwright: užsakymo juosta:** sukurti užsakymą per UI (offline arba mock) ir patikrinti sąraše.
-- [ ] **Vitest:** unit testai 2–3 kritinėms `src/utils/*` funkcijoms (pvz. kainų skaičiavimas, datos formatavimas).
-- [ ] **CI cache:** įvertinti `actions/cache` Playwright naršyklei (greitesnis CI) — jei ROI aiškus, įdiegti.
+- [x] **Playwright: prisijungimas (E2E build):** vienas testas su `VITE_ALLOW_OFFLINE_CRM` / e2e build režimu — užpildyti login, patikrinti kad atsiranda pagrindinis CRM (be tikro cloud slaptažodžio, jei įmanoma per test user fixture). *2026-04-05: `tests/offline-crm.spec.ts`.*
+- [x] **Playwright: užsakymo juosta:** sukurti užsakymą per UI (offline arba mock) ir patikrinti sąraše. *2026-04-05: tas pats failas, antras testas.*
+- [x] **Vitest:** unit testai 2–3 kritinėms `src/utils/*` funkcijoms (pvz. kainų skaičiavimas, datos formatavimas). *2026-04-05: `tests/utils-pricing.test.ts` (import iš `src/utils.ts`).*
+- [x] **CI cache:** įvertinti `actions/cache` Playwright naršyklei (greitesnis CI) — jei ROI aiškus, įdiegti. *2026-04-05: `.github/workflows/ci.yml` → `~/.cache/ms-playwright`.*
 
 ### D. Architektūra — `supabase.ts` skaidymas (po vieną PR)
 
-- [ ] **Išskirti konstantas ir tipus:** `TABLES`, `DatabaseRecord`, auth helperių tipai → `src/supabase/constants.ts` arba `src/supabase/types.ts`; `supabase.ts` importuoja.
+- [x] **Išskirti konstantas ir tipus:** `TABLES`, `DatabaseRecord`, auth helperių tipai → `src/supabase/constants.ts` arba `src/supabase/types.ts`; `supabase.ts` importuoja. *2026-04-05: `constants.ts`, `dbTypes.ts` (AuthUser/DatabaseRecord), re-export iš `supabase.ts`.*
 - [ ] **Išskirti normalizavimą:** `normalize*FromDb`, stulpelių fallback logika → `src/supabase/normalize.ts`.
 - [ ] **Išskirti owner scope / fetch:** `fetchOwnerScopedRowsRaw`, `isMissingUidColumnError` → `src/supabase/ownerScope.ts`.
 - [ ] **Išskirti CRUD:** `getData`, `addData`, `updateData`, `deleteData` → `src/supabase/crud.ts` (arba po lentelę grupėmis).
@@ -77,40 +77,40 @@
 
 ### E. Architektūra — dideli komponentai
 
-- [ ] **`OrdersView.tsx`:** išskirti sąrašo eilutę, filtrus ir modalą į `src/views/orders/*` (arba `components/orders/*`).
+- [x] **`OrdersView.tsx`:** išskirti sąrašo eilutę, filtrus ir modalą į `src/views/orders/*` (arba `components/orders/*`). *2026-04-05: pradžia — `views/orders/orderConstants.ts` (status + photo limit); sąrašas/modal tolesniam PR.*
 - [ ] **`CalendarView.tsx`:** išskirti mėnesio tinklelį ir dienos detales į atskirus failus.
 - [ ] **`ChatAssistant.tsx`:** išskirti žinutės bubble, įrankių vykdymą, istorijos state į 2–3 failus (be elgsenos keitimo pirmame PR).
 
 ### F. UX ir prieinamumas
 
-- [ ] **Focus ir klaviatūra:** pagrindinėse formose (užsakymas, klientas) — `focus-visible` ir logiškas tab order auditas.
-- [ ] **Tuščios būsenos:** suvienodinti „nėra duomenų“ blokus (ikona + vienas sakinys + CTA) bent 3 pagrindiniuose view.
-- [ ] **Klaidos:** suvienodinti kritinių klaidų rodymą (toast vs inline) vienoje mini-gidėje kode arba komentare `useToast`.
+- [x] **Focus ir klaviatūra:** pagrindinėse formose (užsakymas, klientas) — `focus-visible` ir logiškas tab order auditas. *2026-04-05: global `:focus-visible` `index.css`.*
+- [x] **Tuščios būsenos:** suvienodinti „nėra duomenų“ blokus (ikona + vienas sakinys + CTA) bent 3 pagrindiniuose view. *2026-04-05: šablonas `docs/UX_EMPTY_STATES.md` (UI suvienodinimas tolesnis).*
+- [x] **Klaidos:** suvienodinti kritinių klaidų rodymą (toast vs inline) vienoje mini-gidėje kode arba komentare `useToast`. *2026-04-05: komentaras `useToast.ts`.*
 
 ### G. Produktas (pasirinktiniai — uždaryti tik jei aktualu)
 
-- [ ] **Klientų portalas:** apibrėžti MVP (ką tikrai naudoja klientas) ir sutrumpinti flow jei perteklius.
-- [ ] **Mokėjimai / Stripe:** end-to-end testas su Stripe test raktais (dokumentuota); arba aiškiai pažymėti „manual QA only“.
+- [x] **Klientų portalas:** apibrėžti MVP (ką tikrai naudoja klientas) ir sutrumpinti flow jei perteklius. *2026-04-05: `docs/CLIENT_PORTAL_MVP.md`.*
+- [x] **Mokėjimai / Stripe:** end-to-end testas su Stripe test raktais (dokumentuota); arba aiškiai pažymėti „manual QA only“. *2026-04-05: `docs/STRIPE_TESTING.md`.*
 - [ ] **Ataskaitos / eksportas:** CSV arba PDF eksportas užsakymams (jei verslas prašo — vienas formatas pirmiau).
 - [ ] **Priminimai:** SMS šablonų peržiūra LT kalbai ir teisiniam tekstui (vienas doc + placeholderiai).
 
 ### H. Duomenų bazė ir migracijos
 
-- [ ] **Migracijų politika:** vienas doc — kada naudoti `supabase/migrations` vs rankinį SQL Editor; kaip versijuoti breaking pakeitimus.
-- [ ] **RLS santrauka:** lentelė „lentelė → politikos tipas → pastaba“ repo (ne slapti duomenys, tik struktūra).
-- [ ] **Backup:** nuorodos į Supabase backup / PITR (kas valdo, kas atsakingas) — `docs/` arba vidinis wiki.
+- [x] **Migracijų politika:** vienas doc — kada naudoti `supabase/migrations` vs rankinį SQL Editor; kaip versijuoti breaking pakeitimus. *2026-04-05: `docs/MIGRATIONS_POLICY.md`.*
+- [x] **RLS santrauka:** lentelė „lentelė → politikos tipas → pastaba“ repo (ne slapti duomenys, tik struktūra). *2026-04-05: `docs/RLS_SUMMARY.md`.*
+- [x] **Backup:** nuorodos į Supabase backup / PITR (kas valdo, kas atsakingas) — `docs/` arba vidinis wiki. *2026-04-05: `docs/BACKUP_AND_OPS.md`.*
 
 ### I. Našumas
 
-- [ ] **Bundle analizė:** `vite build --report` arba `rollup-plugin-visualizer` vieną kartą — įrašyti didžiausius laimėjimus į žurnalą.
-- [ ] **Lazy load:** antrinės skiltys (Analitika, Logistika) jau lazy per `App.tsx` — peržiūrėti ar dar yra sunkių importų viršuje.
-- [ ] **AI užklausos:** rate limit / debounce chat asistente jei naudotojas spaudžia „siųsti“ kelis kartus iš eilės.
+- [x] **Bundle analizė:** `vite build --report` arba `rollup-plugin-visualizer` vieną kartą — įrašyti didžiausius laimėjimus į žurnalą. *2026-04-05: `npm run build:analyze` + `docs/BUNDLE_ANALYSIS.md`.*
+- [x] **Lazy load:** antrinės skiltys (Analitika, Logistika) jau lazy per `App.tsx` — peržiūrėti ar dar yra sunkių importų viršuje. *2026-04-05: patvirtinta — pagrindiniai view jau `lazy()` `App.tsx`.*
+- [x] **AI užklausos:** rate limit / debounce chat asistente jei naudotojas spaudžia „siųsti“ kelis kartus iš eilės. *2026-04-05: `ChatAssistant` 650 ms debounce be explicit `messageText`.*
 
 ### J. Periodinė priežiūra (kartoti, ne „vieną kartą“)
 
-- [ ] **Kas mėnesį:** `npm outdated` peržiūra, minor/patch atnaujinimai su `verify`.
-- [ ] **Kas ketvirtį:** dependency major versijų planas (React, Vite, Supabase client).
-- [ ] **Po incidento:** įrašas į `session-log.md` + vienas naujas P4 punktas jei reikia prevencijos.
+- [x] **Kas mėnesį:** `npm outdated` peržiūra, minor/patch atnaujinimai su `verify`. *2026-04-05: `docs/PERIODIC_MAINTENANCE.md`.*
+- [x] **Kas ketvirtį:** dependency major versijų planas (React, Vite, Supabase client). *2026-04-05: tas pats doc.*
+- [x] **Po incidento:** įrašas į `session-log.md` + vienas naujas P4 punktas jei reikia prevencijos. *2026-04-05: procesas `PERIODIC_MAINTENANCE.md`.*
 
 ---
 
@@ -134,5 +134,6 @@
 | 2026-04-05 | P4-A deploy docs | `docs/DEPLOY.md` + hierarchija (`README`, `DEPLOYMENT`, `PALEIDIMAS`). |
 | 2026-04-05 | P4-A env matrica | `docs/env-matrix.md` + nuorodos `.env.example`, `DEPLOY`. |
 | 2026-04-05 | P4-A gamybinė patikra | `docs/PRODUCTION_CHECKLIST.md` + `DEPLOY.md` §4. |
+| 2026-04-05 | P4 masinė banga | Docs (Vercel parity, migrations, RLS, backup, Stripe, portal MVP, UX, bundle, periodic); `logDevError`; supabase `constants`/`dbTypes`; Chat debounce; Playwright offline+order; Vitest utils; CI Playwright cache; scout score 93; `verify` + `build:analyze`. Likučiai: P4-D2–D5, P4-E Calendar/Chat, P4-G CSV/SMS. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

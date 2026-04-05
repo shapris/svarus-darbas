@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Order, Client, Expense, Memory, AppSettings, DEFAULT_SETTINGS } from '../types';
 import { AuthUser } from '../supabase';
 import { formatCurrency } from '../utils';
+import { logDevError } from '../utils/devConsole';
 import {
   Clock,
   Calendar as CalendarIcon,
@@ -174,7 +175,7 @@ export default function Dashboard({
           }
         });
       } catch (error) {
-        console.error('Failed to fetch insights:', error);
+        logDevError('Failed to fetch insights:', error);
         // Set empty insights on error to prevent infinite loading
         setInsights([]);
       } finally {

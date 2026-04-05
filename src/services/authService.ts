@@ -5,6 +5,7 @@
 
 import { supabase } from '../supabase';
 import type { UserRole } from '../types';
+import { logDevError } from '../utils/devConsole';
 
 export interface AuthUser {
   id: string;
@@ -97,7 +98,7 @@ export class AuthService {
       });
 
       if (profileError) {
-        console.error('Profile creation failed:', profileError);
+        logDevError('Profile creation failed:', profileError);
         // Continue anyway - profile can be created later
       }
 
@@ -107,7 +108,7 @@ export class AuthService {
       });
 
       if (settingsError) {
-        console.error('Settings creation failed:', settingsError);
+        logDevError('Settings creation failed:', settingsError);
       }
 
       const user: AuthUser = {
@@ -120,7 +121,7 @@ export class AuthService {
       this.currentUser = user;
       return { user, error: null };
     } catch (error: unknown) {
-      console.error('Registration error:', error);
+      logDevError('Registration error:', error);
       const msg = error instanceof Error ? error.message : 'Registration failed';
       return { user: null, error: msg };
     }
@@ -155,7 +156,7 @@ export class AuthService {
       this.currentUser = user;
       return { user, error: null };
     } catch (error: unknown) {
-      console.error('Login error:', error);
+      logDevError('Login error:', error);
       const msg = error instanceof Error ? error.message : 'Login failed';
       return { user: null, error: msg };
     }
@@ -178,7 +179,7 @@ export class AuthService {
       if (error) throw error;
       return { success: true, error: null };
     } catch (error: unknown) {
-      console.error('Password reset error:', error);
+      logDevError('Password reset error:', error);
       const msg = error instanceof Error ? error.message : 'Password reset failed';
       return { success: false, error: msg };
     }
@@ -206,7 +207,7 @@ export class AuthService {
       this.currentUser = { ...user, ...updates };
       return { success: true, error: null };
     } catch (error: unknown) {
-      console.error('Profile update error:', error);
+      logDevError('Profile update error:', error);
       const msg = error instanceof Error ? error.message : 'Update failed';
       return { success: false, error: msg };
     }
@@ -222,7 +223,7 @@ export class AuthService {
       if (error) throw error;
       return { success: true, error: null };
     } catch (error: unknown) {
-      console.error('Password change error:', error);
+      logDevError('Password change error:', error);
       const msg = error instanceof Error ? error.message : 'Password change failed';
       return { success: false, error: msg };
     }

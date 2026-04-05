@@ -4,6 +4,7 @@
  */
 
 import { AppSettings, Order, Client, INVOICE_API_STORAGE_KEY } from './types';
+import { logDevError } from './utils/devConsole';
 import { usesLocalStorageBackend, supabase } from './supabase';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -181,7 +182,7 @@ export async function geocodeAddress(
     }
     return null;
   } catch (error) {
-    console.error('Geocoding error:', error);
+    logDevError('Geocoding error:', error);
     return null;
   }
 }

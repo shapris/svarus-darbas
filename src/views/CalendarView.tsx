@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatSupabaseUserError, updateData, deleteData, TABLES } from '../supabase';
 import { useToast } from '../hooks/useToast';
+import { logDevError } from '../utils/devConsole';
 import {
   format,
   addMonths,
@@ -335,7 +336,7 @@ export default function CalendarView({
       setEditingOrderId(null);
       showToast.success('Užsakymas atnaujintas kalendoriuje');
     } catch (e) {
-      console.error('Calendar update failed', e);
+      logDevError('Calendar update failed', e);
       const hint = formatSupabaseUserError(e);
       showToast.error(
         hint ? `Nepavyko atnaujinti užsakymo: ${hint}` : 'Nepavyko atnaujinti užsakymo'
@@ -353,7 +354,7 @@ export default function CalendarView({
       showToast.success('Užsakymas ištrintas');
       if (editingOrderId === orderId) setEditingOrderId(null);
     } catch (e) {
-      console.error('Calendar delete failed', e);
+      logDevError('Calendar delete failed', e);
       const hint = formatSupabaseUserError(e);
       showToast.error(hint ? `Nepavyko ištrinti užsakymo: ${hint}` : 'Nepavyko ištrinti užsakymo');
     } finally {
@@ -370,7 +371,7 @@ export default function CalendarView({
       await updateData(TABLES.ORDERS, order.id, { status } as Partial<Record<string, unknown>>);
       showToast.success(`Statusas pakeistas į "${status}"`);
     } catch (e) {
-      console.error('Calendar status update failed', e);
+      logDevError('Calendar status update failed', e);
       const hint = formatSupabaseUserError(e);
       showToast.error(hint ? `Nepavyko pakeisti statuso: ${hint}` : 'Nepavyko pakeisti statuso');
     }
@@ -414,7 +415,7 @@ export default function CalendarView({
       } as Partial<Record<string, unknown>>);
       showToast.success('Užsakymų laikai sukeisti');
     } catch (e) {
-      console.error('Calendar drag/drop swap failed', e);
+      logDevError('Calendar drag/drop swap failed', e);
       const hint = formatSupabaseUserError(e);
       showToast.error(
         hint ? `Nepavyko sukeisti laikų: ${hint}` : 'Nepavyko sukeisti užsakymų laikų'
@@ -437,7 +438,7 @@ export default function CalendarView({
       } as Partial<Record<string, unknown>>);
       showToast.success(`Užsakymas perkeltas į ${targetDate}`);
     } catch (e) {
-      console.error('Calendar drag/drop date move failed', e);
+      logDevError('Calendar drag/drop date move failed', e);
       const hint = formatSupabaseUserError(e);
       showToast.error(
         hint

@@ -35,6 +35,7 @@ import { calculateOrderPrice } from '../utils';
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { logDevError } from '../utils/devConsole';
 
 interface LocalUser {
   uid: string;
@@ -226,7 +227,10 @@ export default function ChatAssistant({
       .filter(Boolean);
   };
   const lastUserMessageRef = useRef<string>('');
+  /** Saugiklis nuo kelių Enter / mygtuko paspaudimų iš eilės (ta pati žinutė). */
+  const lastSendAtMsRef = useRef(0);
   const lastSpeechErrorAlertAtRef = useRef<number>(0);
+  const SEND_DEBOUNCE_MS = 650;
 
   const detectMemoryCategory = (
     query: string,
@@ -458,7 +462,7 @@ export default function ChatAssistant({
         try {
           recognitionRef.current.stop();
         } catch (e) {
-          console.error('Error stopping recognition', e);
+          logDevError('Error stopping recognition', e);
           setIsRecording(false);
           recognitionRef.current = null;
         }
@@ -529,7 +533,7 @@ export default function ChatAssistant({
             return;
           }
 
-          console.error('Speech recognition error:', event.error);
+          logDevError('Speech recognition error:', event.error);
           showToast.error(userMessage);
         };
 
@@ -548,7 +552,7 @@ export default function ChatAssistant({
         recognitionRef.current = recognition;
         recognition.start();
       } catch (error) {
-        console.error('Failed to start recognition', error);
+        logDevError('Failed to start recognition', error);
         setIsRecording(false);
         showToast.error(
           'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
@@ -924,7 +928,7 @@ export default function ChatAssistant({
         return `✅ ${orderIds.length} užsakymų būsena pakeista į "${status}".`;
       }
     } catch (error) {
-      console.error('Tool execution error:', error);
+      logDevError('Tool execution error:', error);
       return `Klaida vykdant veiksmą: ${error instanceof Error ? error.message : 'Nežinoma klaida'}`;
     }
     return 'Nežinomas veiksmas.';
@@ -953,6 +957,12 @@ export default function ChatAssistant({
   const handleSend = async (messageText?: string) => {
     const textToSend = messageText || input.trim();
     if (!textToSend || isLoading) return;
+
+    if (!messageText) {
+      const now = Date.now();
+      if (now - lastSendAtMsRef.current < SEND_DEBOUNCE_MS) return;
+      lastSendAtMsRef.current = now;
+    }
 
     lastUserMessageRef.current = textToSend;
     if (!messageText) setInput('');
@@ -1077,7 +1087,7 @@ export default function ChatAssistant({
             }
           }
         } catch (e) {
-          console.error('Second chat error:', e);
+          logDevError('Second chat error:', e);
           finalResponse =
             'Veiksmai atlikti, bet įvyko klaida generuojant atsakymą. Patikrinkite duomenis sąrašuose.';
           currentHistory = updatedHistory;
@@ -1149,7 +1159,7 @@ export default function ChatAssistant({
         }
       }
     } catch (error) {
-      console.error('Chat Error:', error);
+      logDevError('Chat Error:', error);
       const errorMsg = `Atsiprašau, įvyko klaida: ${error instanceof Error ? error.message : 'Nežinoma klaida'}.`;
       setMessages((prev) => [
         ...prev,

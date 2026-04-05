@@ -61,6 +61,10 @@ Legenda: **B** = būtina tam kontekste · **N** = neprivaloma · **T** = tik kū
 - **`STRIPE_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`** — tik serverio aplinkoje, **niekada** Vercel `VITE_*`.
 - Jei `check:cloud` perspėja apie `VITE_STRIPE_SECRET_KEY` — pašalinti; secret neturi būti kliente.
 
+## Hostingo sutapimas
+
+- Vercel + Render env kontraktas ir **known gaps:** [`VERCEL_RENDER_ENV_PARITY.md`](VERCEL_RENDER_ENV_PARITY.md).
+
 ## Patikros
 
 ```bash

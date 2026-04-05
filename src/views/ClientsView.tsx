@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatDate, formatCurrency } from '../utils';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
+import { logDevError } from '../utils/devConsole';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import ClientAddressAutocomplete, {
   googleMapsSearchUrl,
@@ -141,7 +142,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       });
     } catch (error) {
       showToast.error(`Nepavyko išsaugoti kliento${formatClientSaveError(error)}`);
-      console.error('Error saving client:', error);
+      logDevError('Error saving client:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +173,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
       showToast.success('Klientas sėkmingai ištrintas');
     } catch (error) {
       showToast.error(`Nepavyko ištrinti kliento${formatClientSaveError(error)}`);
-      console.error('Error deleting client:', error);
+      logDevError('Error deleting client:', error);
     } finally {
       setIsDeleting(null);
     }

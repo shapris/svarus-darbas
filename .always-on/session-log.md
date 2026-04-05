@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-04-05 — P4: didelė implementacijos banga
+
+- **Dokumentacija:** `VERCEL_RENDER_ENV_PARITY`, `MIGRATIONS_POLICY`, `RLS_SUMMARY`, `BACKUP_AND_OPS`, `PERIODIC_MAINTENANCE`, `STRIPE_TESTING`, `CLIENT_PORTAL_MVP`, `BUNDLE_ANALYSIS`, `UX_EMPTY_STATES`; `DEPLOY.md` §5 žemėlapis; `env-matrix` nuoroda į parity.
+- **Kodas:** `src/utils/devConsole.ts` (`logDevError`); `console.error` → dev-only be `ErrorBoundary`; `supabase/constants.ts`, `supabase/dbTypes.ts`; `ChatAssistant` send debounce 650 ms; `views/orders/orderConstants.ts`; global `:focus-visible` (`index.css`); `useToast` klaidų gairės.
+- **Testai / CI:** `tests/offline-crm.spec.ts` (login + užsakymas), `tests/utils-pricing.test.ts`, `npm run test:offline-crm` į `verify`; GitHub Actions Playwright browser cache.
+- **Įrankiai:** `rollup-plugin-visualizer`, `npm run build:analyze` → `dist/stats.html`; scout: **93/100** (tikslas ≥90) — likę 2× `alert`, 2× `console.error` (ErrorBoundary + devConsole), 3× `any`.
+- **Likučiai darbotvarkėje:** P4-D normalizavimas / ownerScope / CRUD / portal moduliai; P4-E `CalendarView`/`ChatAssistant` skaidymas; P4-G CSV eksportas, SMS doc.
+
+---
+
 ## 2026-04-05 — P4-A: gamybinė patikra (checklist)
 
 - **Padaryta:** `docs/PRODUCTION_CHECKLIST.md` — `verify` / `check:cloud` / `node --check`, lentelė kas tikrina skriptas, rankiniai žingsniai (DNS, HTTPS, Supabase Auth URLs, Stripe `/webhook`, Render `/health`, Resend, schema); nuorodos `docs/DEPLOY.md` §4, `docs/PALEIDIMAS_VERCEL_RENDER.md` §4.

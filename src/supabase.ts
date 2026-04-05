@@ -26,6 +26,9 @@ import {
   type Invoice,
   type Transaction,
 } from './types';
+import { TABLES } from './supabase/constants';
+import type { AuthUser, DatabaseRecord } from './supabase/dbTypes';
+import { logDevError } from './utils/devConsole';
 
 function stripBom(s: string): string {
   return s.replace(/^\uFEFF/, '');
@@ -123,18 +126,8 @@ export function isClientSelfRegistrationEnabled(): boolean {
   );
 }
 
-// Database table names
-export const TABLES = {
-  CLIENTS: 'clients',
-  ORDERS: 'orders',
-  EXPENSES: 'expenses',
-  EMPLOYEES: 'employees',
-  SETTINGS: 'settings',
-  INVENTORY: 'inventory',
-  PROFILES: 'profiles',
-  INVOICES: 'invoices',
-  TRANSACTIONS: 'transactions',
-} as const;
+export type { AuthUser, DatabaseRecord } from './supabase/dbTypes';
+export { TABLES } from './supabase/constants';
 
 /** RLS / filtravimui: kur saugomas savininkas (`profiles` → uid uuid). */
 function ownerScopeColumn(tableName: string): 'uid' | 'owner_id' {
@@ -267,32 +260,13 @@ async function fetchOwnerScopedRowsRaw(
   return rows3;
 }
 
-// Type definitions for database records
-export interface DatabaseRecord {
-  id?: string;
-  uid?: string;
-  created_at?: string;
-  updated_at?: string;
-  /** Laisvi DB stulpeliai — reikalinga, kad `Client`/`Order`/… būtų `T extends DatabaseRecord`. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- indeksas be `any` sulaužo „T extends DatabaseRecord“
-  [key: string]: any;
-}
-
-// Auth helpers
-export interface AuthUser {
-  uid: string;
-  email: string;
-  displayName: string | null;
-  photoURL: string | null;
-}
-
 /** Opt-in only: set VITE_DEBUG_SUPABASE=true to log fetch/query details. */
 const DEBUG_SUPABASE = import.meta.env.VITE_DEBUG_SUPABASE === 'true';
 
 /** Klaidos į konsolę tik dev arba su VITE_DEBUG_SUPABASE — ramiau gamyboje naršyklėje. */
 function logSupabaseDevError(context: string, err: unknown): void {
   if (import.meta.env.DEV || DEBUG_SUPABASE) {
-    console.error(`[Supabase] ${context}`, err);
+    logDevError(`[Supabase] ${context}`, err);
   }
 }
 

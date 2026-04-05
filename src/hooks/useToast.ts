@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/**
+ * Klaidos UX: naudokite `showToast.error` vartotojui matomoms klaidoms (forma, tinklas).
+ * `console.error` gamyboje — tik per `logDevError` / ErrorBoundary kritiniams diagnostiniams atvejams.
+ */
 import { useState, useCallback, useRef, useMemo } from 'react';
 
 interface Toast {

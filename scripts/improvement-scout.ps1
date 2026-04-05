@@ -13,7 +13,10 @@ if (-not (Test-Path $OutDir)) {
 Set-Location $ProjectPath
 
 $codePatterns = @("*.ts", "*.tsx", "*.js", "*.jsx")
-$codeFiles = Get-ChildItem -Path "src" -Recurse -File -Include $codePatterns -ErrorAction SilentlyContinue
+$codeFiles = @(
+    Get-ChildItem -Path "src" -Recurse -File -Include $codePatterns -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\tests?\\' -and $_.Name -notmatch '\.(test|spec)\.(ts|tsx|js|jsx)$' }
+)
 
 function Count-Matches {
     param(
@@ -93,6 +96,7 @@ Generated: $timestamp
 
 ## Signals
 
+- **Scope:** only `src/**/*.ts(x)` and `js(x)` (excludes `*.test.*`, `*.spec.*`, and any `src/tests` tree).
 - TODO/FIXME/HACK count: **$todoCount**
 - console.error(...) count: **$consoleErrorCount**
 - alert(...) count: **$alertCount**

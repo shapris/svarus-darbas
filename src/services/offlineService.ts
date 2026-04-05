@@ -4,6 +4,7 @@
  */
 
 import { Client, Order, Expense, AppSettings } from '../types';
+import { logDevError } from '../utils/devConsole';
 
 export interface OfflineData {
   clients: Client[];
@@ -47,7 +48,7 @@ export class OfflineService {
         this.syncAll();
       }
     } catch (error) {
-      console.error('Failed to initialize offline service:', error);
+      logDevError('Failed to initialize offline service:', error);
     }
   }
 
@@ -153,7 +154,7 @@ export class OfflineService {
       const store = transaction.objectStore('offlineData');
       await store.put({ id: 'snapshot', ...snapshot });
     } catch (error) {
-      console.error('Failed to save offline snapshot:', error);
+      logDevError('Failed to save offline snapshot:', error);
     }
   }
 
@@ -177,7 +178,7 @@ export class OfflineService {
     try {
       this.syncQueue = await this.getData<SyncOperation>('syncQueue');
     } catch (error) {
-      console.error('Failed to load sync queue:', error);
+      logDevError('Failed to load sync queue:', error);
       this.syncQueue = [];
     }
   }
@@ -188,7 +189,7 @@ export class OfflineService {
     try {
       await this.saveData('syncQueue', this.syncQueue);
     } catch (error) {
-      console.error('Failed to save sync queue:', error);
+      logDevError('Failed to save sync queue:', error);
     }
   }
 
@@ -226,7 +227,7 @@ export class OfflineService {
       this.syncQueue = this.syncQueue.filter((op) => op.status !== 'completed');
       await this.saveSyncQueue();
     } catch (error) {
-      console.error('Sync failed:', error);
+      logDevError('Sync failed:', error);
     } finally {
       this.syncInProgress = false;
     }
@@ -327,7 +328,7 @@ export class OfflineService {
         };
         await syncReg.sync.register('background-sync');
       } catch (error) {
-        console.error('Background sync registration failed:', error);
+        logDevError('Background sync registration failed:', error);
       }
     }
   }

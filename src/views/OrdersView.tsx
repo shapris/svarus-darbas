@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Order, Client, AppSettings, OrderStatus, Employee } from '../types';
+import { MAX_PHOTO_DATA_URL_LENGTH, ORDER_STATUS_LABEL_LT } from './orders/orderConstants';
 import { addData, updateData, deleteData, TABLES } from '../supabase';
 import {
   calculateOrderPrice,
@@ -42,14 +43,6 @@ import { motion, AnimatePresence } from 'motion/react';
 interface LocalUser {
   uid: string;
 }
-
-const ORDER_STATUS_LABEL_LT: Record<OrderStatus, string> = {
-  suplanuota: 'Suplanuota',
-  vykdoma: 'Vykdoma',
-  atlikta: 'Atlikta',
-};
-
-const MAX_PHOTO_DATA_URL_LENGTH = 900_000;
 
 interface OrdersViewProps {
   orders: Order[];

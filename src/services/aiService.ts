@@ -9,6 +9,7 @@ import { prioritizeMemories, formatMemoriesForContext } from './memoryPriority.j
 import { isOpenRouterKey, callOpenRouter, getOpenRouterKey } from './openRouterService.js';
 import { ALL_TOOLS } from './toolDefinitions.js';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
+import { logDevError } from '../utils/devConsole.js';
 
 /** OpenAI/OpenRouter expects `function.arguments` as a JSON string. */
 function toolArgumentsAsJsonString(raw: unknown): string {
@@ -202,7 +203,7 @@ function handleAIError(
   message: string,
   history: ChatHistoryTurn[]
 ): { text: string; history: ChatHistoryTurn[] } {
-  console.error('AI Service Error:', error);
+  logDevError('AI Service Error:', error);
   const errMsg = error instanceof Error ? error.message : String(error);
   const errLower = errMsg.toLowerCase();
 

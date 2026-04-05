@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 const __dirnameVite = path.dirname(fileURLToPath(import.meta.url));
 import { VitePWA } from 'vite-plugin-pwa';
@@ -49,13 +50,24 @@ function apiProxyOnError(proxy: { on: (ev: string, fn: (...args: unknown[]) => v
   });
 }
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const analyze = mode === 'analyze';
   return {
     // Visada krauname .env iš projekto šaknies (kur vite.config.ts)
     envDir: __dirnameVite,
     plugins: [
       react(),
       tailwindcss(),
+      ...(analyze
+        ? [
+            visualizer({
+              filename: 'dist/stats.html',
+              gzipSize: true,
+              brotliSize: true,
+              open: false,
+            }),
+          ]
+        : []),
       VitePWA({
         // Temporary hardening: force old service workers to self-unregister,
         // because stale cached index/chunks are breaking module loading in production.

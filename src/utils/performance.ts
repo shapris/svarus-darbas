@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { logDevError } from './devConsole';
+
 // Performance monitoring utilities
 export class PerformanceMonitor {
   private static metrics: Map<string, number[]> = new Map();
@@ -269,7 +271,7 @@ export class RequestBatcher<T> {
     try {
       await this.processor(batch);
     } catch (error) {
-      console.error('Batch processing failed:', error);
+      logDevError('Batch processing failed:', error);
     }
   }
 
