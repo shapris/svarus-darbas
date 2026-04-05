@@ -20,6 +20,8 @@ Vienas įėjimo taškas: **kur skaityti**, ne dubliuoti tą patį trijuose failu
 
 ## 4. Kokybė prieš release
 
+**Gamybinis sąrašas (automatinė + rankinė):** [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
+
 ```bash
 npm run verify
 npm run check:cloud

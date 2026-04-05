@@ -75,6 +75,8 @@
 
 ## 4. Patikra prieš „1.0 gyvai“
 
+**Pilnas gamybinis sąrašas (automatinė + rankinė):** [`PRODUCTION_CHECKLIST.md`](PRODUCTION_CHECKLIST.md).
+
 - [ ] Vercel atsidaro, prisijungi su tikra paskyra.
 - [ ] Užsakymai / klientai kraunasi (Supabase).
 - [ ] `https://TAVO-API.onrender.com/health` naršyklėje rodo JSON (`status`, `invoiceEmail`).

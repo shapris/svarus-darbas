@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-05 — P4-A: gamybinė patikra (checklist)
+
+- **Padaryta:** `docs/PRODUCTION_CHECKLIST.md` — `verify` / `check:cloud` / `node --check`, lentelė kas tikrina skriptas, rankiniai žingsniai (DNS, HTTPS, Supabase Auth URLs, Stripe `/webhook`, Render `/health`, Resend, schema); nuorodos `docs/DEPLOY.md` §4, `docs/PALEIDIMAS_VERCEL_RENDER.md` §4.
+
+---
+
 ## 2026-04-05 — P4-A: env matrica
 
 - **Padaryta:** `docs/env-matrix.md` (Vite vs `server.cjs`, B/N, saugumas, patikros); nuorodos `/.env.example`, `docs/DEPLOY.md`.
