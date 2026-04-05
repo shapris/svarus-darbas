@@ -361,10 +361,8 @@ export function getMemoryStatistics(memories: PrioritizedMemory[]): {
 export function shouldSuggestMemory(
   query: string,
   response: string,
-  existingMemories: Memory[]
+  _existingMemories: Memory[]
 ): { shouldRemember: boolean; suggestedContent: string; reason: string } {
-  const queryLower = query.toLowerCase();
-
   // Check if query contains memory-worthy patterns
   const memoryPatterns = [
     { pattern: /prisimink|įsimink|atsimink|memory/i, reason: 'Explicit memory request' },
@@ -406,7 +404,7 @@ export function shouldSuggestMemory(
 /**
  * Extract memory content from query/response
  */
-function extractMemoryContent(query: string, response: string): string {
+function extractMemoryContent(query: string, _response: string): string {
   // Simple extraction - in production, you might use AI for summarization
   const queryParts = query.split(/[.!?]/).filter((p) => p.trim().length > 10);
   return queryParts[0]?.trim() || query.slice(0, 200);

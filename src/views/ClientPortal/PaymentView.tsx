@@ -3,16 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
-import {
-  CreditCard,
-  Calendar,
-  DollarSign,
-  CheckCircle,
-  AlertCircle,
-  FileText,
-  Download,
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CreditCard, DollarSign, CheckCircle, AlertCircle, FileText, Download } from 'lucide-react';
 import { Order, Invoice } from '../../types';
 import {
   createPaymentIntent,
@@ -36,7 +28,6 @@ interface PaymentViewProps {
 
 export default function PaymentView({ order, onPaymentComplete }: PaymentViewProps) {
   const { showToast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentData, setPaymentData] = useState<PaymentFormData>({
@@ -49,18 +40,18 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
-  useEffect(() => {
-    loadInvoices();
-  }, []);
-
-  const loadInvoices = async () => {
+  const loadInvoices = useCallback(async () => {
     try {
       const invoiceList = await getInvoices(order.clientId);
       setInvoices(invoiceList.filter((inv) => inv.order_id === order.id));
     } catch {
       // Failed to load invoices silently
     }
-  };
+  }, [order.clientId, order.id]);
+
+  useEffect(() => {
+    void loadInvoices();
+  }, [loadInvoices]);
 
   const handlePayment = async () => {
     const validation = validatePaymentForm(paymentData);
@@ -146,7 +137,6 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
   };
 
   const isOrderPaid = invoices.some((inv) => inv.status === 'paid');
-  const hasPendingInvoice = invoices.some((inv) => inv.status === 'pending');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

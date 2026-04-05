@@ -39,8 +39,6 @@ export class ClientSegmentationService {
     const clientOrders = orders.filter((o) => o.clientId === client.id && o.status === 'atlikta');
     const totalOrders = clientOrders.length;
     const totalSpent = clientOrders.reduce((sum, o) => sum + o.totalPrice, 0);
-    const avgOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
-
     const lastOrder = clientOrders.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     )[0];

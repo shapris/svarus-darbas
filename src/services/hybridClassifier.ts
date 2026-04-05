@@ -53,7 +53,7 @@ export interface ClassificationResult {
   method: 'keyword' | 'llm' | 'hybrid';
   shouldExecuteTool: boolean;
   toolName: string | null;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   fallbackReason?: string;
   alternatives: Array<{
     intention: ExtendedIntention;
@@ -72,8 +72,8 @@ export const HYBRID_CLASSIFIER_CONFIG = {
 // Simple classifier for testing
 export async function classifyIntentHybrid(
   text: string,
-  apiKey?: string,
-  config?: any
+  _apiKey?: string,
+  _config?: unknown
 ): Promise<ClassificationResult> {
   const textLower = text.toLowerCase();
 

@@ -5,32 +5,26 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Client, BuildingType, Order, OrderStatus } from '../types';
-import { getData, addData, updateData, deleteData, TABLES } from '../supabase';
+import { addData, updateData, deleteData, TABLES } from '../supabase';
 import {
   Search,
   Plus,
   User as UserIcon,
   Phone,
   MapPin,
-  Building,
-  MoreVertical,
   X,
   Edit,
   Trash2,
   History,
   ChevronRight,
   Loader2,
-  Star,
   Users,
-  AlertTriangle,
-  UserCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDate, formatCurrency } from '../utils';
-import LoadingSpinner, { ButtonLoader } from '../components/LoadingSpinner';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
-import { clientSegmentation, type ClientSegment } from '../services/clientSegmentation';
 import ClientAddressAutocomplete, {
   googleMapsSearchUrl,
 } from '../components/ClientAddressAutocomplete';

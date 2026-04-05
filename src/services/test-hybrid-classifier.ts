@@ -366,7 +366,7 @@ export async function performanceTest(
           llmCount++;
         }
       }
-    } catch (error) {
+    } catch {
       // Skip failed classifications
     }
   }

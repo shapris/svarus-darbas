@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-04 — P2 lint: ~82 → ~36 įspėjimų
+
+- **Padaryta:** nenaudojami importai / deps (`ClientsView`, `CalendarView`, `InventoryView`, ClientPortal); `updateData` be `any`; `ClientRegistration` → `AuthUser`/`Client`; `smsService`/`ttsService`/`hybridClassifier`/`modularPrompt`/`memoryPriority`/`analyticsService` smulkūs tipai; `npm run verify` OK.
+
+---
+
 ## 2026-04-04 — P2 view lint + BookingPage ID + ESLint `no-useless-escape`
 
 - **Padaryta:** `AnalyticsView`, `ExpensesView`, `LogisticsView` — nenaudojami importai / smulkūs lint; `BookingPage` — `addData` grąžos `id` tikrinimas (`string`), be `any`; `supabase.ts` — regex be perteklinių `\"` (`no-useless-escape`); Prettier `AnalyticsView`.

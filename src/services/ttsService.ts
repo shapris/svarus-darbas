@@ -107,28 +107,11 @@ export async function getElevenLabsSpeech(
 
 // OpenAI TTS via OpenRouter
 export async function getOpenAITSViaOpenRouter(
-  text: string,
-  voice: string = 'alloy'
+  _text: string,
+  _voice: string = 'alloy'
 ): Promise<HTMLAudioElement | null> {
   const apiKey = localStorage.getItem('custom_api_key') || '';
   if (!apiKey) return null;
-
-  // Map common voice names to OpenAI voices
-  const voiceMap: Record<string, string> = {
-    Puck: 'onyx',
-    Charon: 'onyx',
-    Kore: 'nova',
-    Fenrir: 'shimmer',
-    Zephyr: 'alloy',
-    Aoede: 'alloy',
-    rachel: 'nova',
-    domi: 'nova',
-    adam: 'onyx',
-    sam: 'shimmer',
-    bella: 'shimmer',
-    josh: 'onyx',
-  };
-  const openAIVoice = voiceMap[voice] || 'alloy';
 
   // OpenRouter deprecated their audio/speech endpoint, use browser TTS as fallback
   return null;
@@ -143,7 +126,7 @@ export type OpenAIVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimme
 export async function getSpeechAudio(
   text: string,
   voice: string = 'Zephyr',
-  provider: VoiceProvider = 'google'
+  _provider: VoiceProvider = 'google'
 ): Promise<HTMLAudioElement | null> {
   // Check for dedicated TTS API key first
   let apiKey = localStorage.getItem('tts_api_key') || '';
@@ -152,7 +135,9 @@ export async function getSpeechAudio(
   if (!apiKey) {
     apiKey =
       localStorage.getItem('custom_api_key') ||
-      (window as any).aistudio?.getApiKey?.() ||
+      (
+        window as typeof window & { aistudio?: { getApiKey?: () => string } }
+      ).aistudio?.getApiKey?.() ||
       getGeminiKeyFromEnv();
   }
 
@@ -210,12 +195,17 @@ export async function getSpeechAudio(
       const wavBase64 = wrapPcmInWav(base64Audio);
       return new Audio(`data:audio/wav;base64,${wavBase64}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const e = error as {
+      status?: unknown;
+      code?: unknown;
+      error?: { code?: unknown; status?: unknown };
+    };
     const isQuotaError =
-      error?.status === 'RESOURCE_EXHAUSTED' ||
-      error?.code === 429 ||
-      error?.error?.code === 429 ||
-      error?.error?.status === 'RESOURCE_EXHAUSTED' ||
+      e.status === 'RESOURCE_EXHAUSTED' ||
+      e.code === 429 ||
+      e.error?.code === 429 ||
+      e.error?.status === 'RESOURCE_EXHAUSTED' ||
       (typeof error === 'string' && error.includes('429'));
 
     if (isQuotaError) {
@@ -286,7 +276,7 @@ export async function generateSpeech(
       utterance.onend = () => {
         resolve();
       };
-      utterance.onerror = (e) => {
+      utterance.onerror = () => {
         resolve();
       };
 

@@ -3,14 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar,
   Clock,
   DollarSign,
   User,
   Home,
-  Settings,
   LogOut,
   FileText,
   CheckCircle,
@@ -36,11 +35,7 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!profile.clientId) return;
 
     try {
@@ -51,7 +46,11 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile.clientId]);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

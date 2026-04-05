@@ -25,7 +25,7 @@ interface PromptModule {
 interface PromptCondition {
   field: 'intention' | 'hasTools' | 'hasMemories' | 'timeOfDay' | 'clientType';
   operator: 'equals' | 'includes' | 'exists' | 'gt' | 'lt';
-  value: any;
+  value: unknown;
 }
 
 interface PromptAssemblyConfig {
@@ -585,7 +585,7 @@ export class ModularPromptAssembler {
     conditions: PromptCondition[],
     classification: ClassificationResult,
     memories: PrioritizedMemory[],
-    businessContext?: { clientCount?: number; orderCount?: number; revenue?: number }
+    _businessContext?: { clientCount?: number; orderCount?: number; revenue?: number }
   ): boolean {
     if (conditions.length === 0) return true;
 
@@ -607,8 +607,10 @@ export class ModularPromptAssembler {
 
         case 'timeOfDay': {
           const hour = new Date().getHours();
-          if (condition.operator === 'gt') return hour > condition.value;
-          if (condition.operator === 'lt') return hour < condition.value;
+          const threshold = condition.value;
+          if (typeof threshold !== 'number') break;
+          if (condition.operator === 'gt') return hour > threshold;
+          if (condition.operator === 'lt') return hour < threshold;
           break;
         }
 

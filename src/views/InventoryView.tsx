@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { InventoryItem } from '../types';
-import { getData, addData, updateData, deleteData, subscribeToData, TABLES } from '../supabase';
+import { addData, updateData, deleteData, subscribeToData, TABLES } from '../supabase';
 import { Package, Plus, Search, AlertTriangle, Edit2, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../hooks/useToast';
@@ -371,7 +371,10 @@ export default function InventoryView({ userId }: InventoryViewProps) {
                       id="inventory-category"
                       value={formData.category}
                       onChange={(e) =>
-                        setFormData({ ...formData, category: e.target.value as any })
+                        setFormData({
+                          ...formData,
+                          category: e.target.value as InventoryItem['category'],
+                        })
                       }
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     >

@@ -5,13 +5,28 @@
 
 import React, { useState } from 'react';
 import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { registerClientUser } from '../../supabase';
+import { registerClientUser, type AuthUser } from '../../supabase';
+import type { Client } from '../../types';
 import { formatAuthErrorForUser, AUTH_FALLBACK } from '../../utils/authMessages';
 import { motion } from 'motion/react';
 
+function mapSignUpUserToAuthUser(u: {
+  id: string;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+}): AuthUser {
+  const meta = u.user_metadata ?? {};
+  return {
+    uid: u.id,
+    email: u.email ?? '',
+    displayName: typeof meta.display_name === 'string' ? meta.display_name : null,
+    photoURL: typeof meta.avatar_url === 'string' ? meta.avatar_url : null,
+  };
+}
+
 interface ClientRegistrationProps {
   allowRegistration: boolean;
-  onSuccess: (user: any, client: any) => void;
+  onSuccess: (user: AuthUser, client: Client) => void;
   onBack: () => void;
 }
 
@@ -127,7 +142,7 @@ export default function ClientRegistration({
 
       setSuccess(true);
       setTimeout(() => {
-        onSuccess(result.user, result.client);
+        onSuccess(mapSignUpUserToAuthUser(result.user), result.client);
       }, 2000);
     } catch (err: unknown) {
       setError(formatAuthErrorForUser(err, AUTH_FALLBACK.register));

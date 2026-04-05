@@ -244,7 +244,7 @@ export class AnalyticsService {
   // Get forecast data
   getForecast(
     orders: Order[],
-    settings: AppSettings
+    _settings: AppSettings
   ): {
     nextWeekRevenue: number;
     nextMonthRevenue: number;

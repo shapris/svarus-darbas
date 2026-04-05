@@ -75,7 +75,8 @@ export class SMSService {
     sms = sms.replace('{adresas}', order.address);
     sms = sms.replace('{kaina}', this.formatPrice(order.totalPrice));
     sms = sms.replace('{atsiliepimu_linkas}', 'https://g.page/r/your-google-review-link/review');
-    sms = sms.replace('{mokejimo_info}', (settings as any).paymentInfo || 'Banko pavedimu');
+    const paymentInfo = (settings as AppSettings & { paymentInfo?: string }).paymentInfo;
+    sms = sms.replace('{mokejimo_info}', paymentInfo || 'Banko pavedimu');
 
     return sms;
   }
@@ -88,7 +89,7 @@ export class SMSService {
   }
 
   // Schedule reminders for an order
-  scheduleReminders(order: Order, client: Client, settings: AppSettings): SMSReminder[] {
+  scheduleReminders(order: Order, client: Client, _settings: AppSettings): SMSReminder[] {
     const reminders: SMSReminder[] = [];
     const orderDate = new Date(`${order.date}T${order.time}`);
 
@@ -217,11 +218,11 @@ export class SMSService {
     try {
       const saved = localStorage.getItem('sms_reminders');
       if (saved) {
-        this.reminders = JSON.parse(saved).map((r: any) => ({
+        this.reminders = (JSON.parse(saved) as Record<string, unknown>[]).map((r) => ({
           ...r,
-          scheduledFor: new Date(r.scheduledFor),
-          sentAt: r.sentAt ? new Date(r.sentAt) : undefined,
-        }));
+          scheduledFor: new Date(String(r.scheduledFor)),
+          sentAt: r.sentAt ? new Date(String(r.sentAt)) : undefined,
+        })) as SMSReminder[];
       }
     } catch (error) {
       console.warn('Failed to load SMS reminders:', error);

@@ -30,7 +30,6 @@ import {
   isSameMonth,
   isSameDay,
   addDays,
-  parseISO,
 } from 'date-fns';
 import { lt } from 'date-fns/locale';
 
@@ -332,7 +331,7 @@ export default function CalendarView({
         status: editForm.status,
         employeeId: editForm.employeeId,
         notes: editForm.notes,
-      } as any);
+      } as Partial<Record<string, unknown>>);
       setEditingOrderId(null);
       showToast.success('Užsakymas atnaujintas kalendoriuje');
     } catch (e) {
@@ -368,7 +367,7 @@ export default function CalendarView({
       return;
     }
     try {
-      await updateData(TABLES.ORDERS, order.id, { status } as any);
+      await updateData(TABLES.ORDERS, order.id, { status } as Partial<Record<string, unknown>>);
       showToast.success(`Statusas pakeistas į "${status}"`);
     } catch (e) {
       console.error('Calendar status update failed', e);
@@ -407,8 +406,12 @@ export default function CalendarView({
     if (!sourceOrder) return;
     setIsSaving(true);
     try {
-      await updateData(TABLES.ORDERS, sourceOrder.id, { time: targetOrder.time } as any);
-      await updateData(TABLES.ORDERS, targetOrder.id, { time: sourceOrder.time } as any);
+      await updateData(TABLES.ORDERS, sourceOrder.id, {
+        time: targetOrder.time,
+      } as Partial<Record<string, unknown>>);
+      await updateData(TABLES.ORDERS, targetOrder.id, {
+        time: sourceOrder.time,
+      } as Partial<Record<string, unknown>>);
       showToast.success('Užsakymų laikai sukeisti');
     } catch (e) {
       console.error('Calendar drag/drop swap failed', e);
@@ -429,7 +432,9 @@ export default function CalendarView({
     if (!sourceOrder || sourceOrder.date === targetDate) return;
     setIsSaving(true);
     try {
-      await updateData(TABLES.ORDERS, sourceOrder.id, { date: targetDate } as any);
+      await updateData(TABLES.ORDERS, sourceOrder.id, {
+        date: targetDate,
+      } as Partial<Record<string, unknown>>);
       showToast.success(`Užsakymas perkeltas į ${targetDate}`);
     } catch (e) {
       console.error('Calendar drag/drop date move failed', e);
