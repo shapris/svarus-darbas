@@ -243,7 +243,8 @@ export interface DatabaseRecord {
   uid?: string;
   created_at?: string;
   updated_at?: string;
-  /** Laisvi DB stulpeliai — `any`, kad `Client`/`Order`/… galėtų būti `T extends DatabaseRecord`. */
+  /** Laisvi DB stulpeliai — reikalinga, kad `Client`/`Order`/… būtų `T extends DatabaseRecord`. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- indeksas be `any` sulaužo „T extends DatabaseRecord“
   [key: string]: any;
 }
 

@@ -30,8 +30,8 @@
 
 ## P2 — nuolatinė kokybė (kai P0/P1 tuščią ar uždaryta)
 
-- [ ] **Lint skola:** mažinti `no-explicit-any`, nenaudojamus importus / kintamuosius (toliau: `supabase.ts`, `OrdersView`, `Dashboard`, `openRouterService`, test utilai); po pakeitimų `npm run lint`. *2026-04-04: masinis praeitis — ESLint įspėjimai **~239 → ~129**; + `supabase.ts` (klaidos `unknown`, subscribe `_payload`, vietinis `localGetData` cast), `openRouterService.ts` (`FunctionDeclaration`, `requestBody`, `catch`).*
-- [ ] **Testai:** `npm run test` + `npm run test:smoke` prieš release; sutvarkyti flaky E2E jei atsiranda.
+- [ ] **Lint skola:** mažinti `no-explicit-any`, nenaudojamus importus / kintamuosius (toliau: `supabase.ts`, `OrdersView`, `Dashboard`, `openRouterService`, test utilai); po pakeitimų `npm run lint`. *2026-04-04: masinis praeitis — ESLint įspėjimai **~239 → ~129**; + `supabase.ts` (klaidos `unknown`, subscribe `_payload`, vietinis `localGetData` cast), `openRouterService.ts` (`FunctionDeclaration`, `requestBody`, `catch`).* *2026-04-05: **~129 → ~101** — `Dashboard` (nenaudojami importai, `AppSettings`/`DEFAULT_SETTINGS`, `useEffect` deps paaiškinimas), `OrdersView` (`as any` → `Record<string, unknown>`), `DatabaseRecord` eslint-disable su priežastimi.*
+- [x] **Testai:** `npm run test` + `npm run test:smoke` prieš release; sutvarkyti flaky E2E jei atsiranda. *2026-04-05: rutina vykdoma su P2 pakeitimais — unit + smoke OK; flaky šiuo metu nefiksuota.*
 - [x] **Priklausomybės:** periodiškai `npm audit`; po `audit fix` — build + smoke. *2026-04-04: `npm audit fix` (lodash) → 0; `npm run build` + `npm test` OK.*
 
 ---
@@ -48,5 +48,6 @@
 | 2026-04-04 | P2 pradžia + audit | `npm audit fix` (lodash) → 0 spragų; `App.tsx` `getData<SettingsRow>` be `any`; pridėtas P2 blokas darbotvarkėje. |
 | 2026-04-04 | P2 tęsinys | `ChatAssistant` lint/typai; priklausomybių punktas uždarytas; `package-lock` atnaujintas. |
 | 2026-04-04 | Viso projekto lint banga | ESLint ~239→~155; `aiService`/`toolRouter`/`planningEngine` tipai; `useToast` stabilus `showToast`; atminties blokas system prompt'e. |
+| 2026-04-05 | P2 tęsinys | ESLint ~101 įspėjimų; `Dashboard`/`OrdersView`/`supabase.ts` lint pataisymai; `npm run test` + `test:smoke` OK. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

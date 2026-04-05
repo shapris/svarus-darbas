@@ -4,41 +4,26 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Order, Client, Expense, Memory } from '../types';
+import { Order, Client, Expense, Memory, AppSettings, DEFAULT_SETTINGS } from '../types';
 import { AuthUser } from '../supabase';
-import { formatCurrency, formatDate } from '../utils';
+import { formatCurrency } from '../utils';
 import {
-  CheckCircle2,
   Clock,
   Calendar as CalendarIcon,
   TrendingUp,
-  TrendingDown,
   Plus,
   Users,
-  FileText,
   Sparkles,
-  Cloud,
   Sun,
   CloudRain,
-  Thermometer,
   MapPin,
   PieChart,
   Package,
   Users2,
   MessageSquare,
-  Bell,
   Send,
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateSpeech, getSpeechAudio, stopAllAudio } from '../services/ttsService';
 import {
   DASHBOARD_INSIGHT_LABELS,
@@ -47,7 +32,7 @@ import {
   type DashboardInsight,
 } from '../services/insightsService';
 import { smsService } from '../services/smsService';
-import { Volume2, Mic, Quote, VolumeX } from 'lucide-react';
+import { Volume2, Quote, VolumeX } from 'lucide-react';
 
 interface DashboardProps {
   orders: Order[];
@@ -56,7 +41,7 @@ interface DashboardProps {
   memories: Memory[];
   setActiveTab: (tab: string) => void;
   user?: AuthUser;
-  settings?: any;
+  settings?: AppSettings;
 }
 
 interface WeatherData {
@@ -79,9 +64,10 @@ export default function Dashboard({
   expenses,
   memories,
   setActiveTab,
-  user,
+  user: _user,
   settings,
 }: DashboardProps) {
+  const smsSettings = settings ?? DEFAULT_SETTINGS;
   const [insights, setInsights] = useState<DashboardInsight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
@@ -98,16 +84,16 @@ export default function Dashboard({
 
     // Check for pending reminders every minute
     const interval = setInterval(() => {
-      smsService.checkPendingReminders(orders, clients, settings || {});
+      smsService.checkPendingReminders(orders, clients, smsSettings);
       setSmsStats(smsService.getReminderStats());
     }, 60000);
 
     // Initial check
-    smsService.checkPendingReminders(orders, clients, settings || {});
+    smsService.checkPendingReminders(orders, clients, smsSettings);
     setSmsStats(smsService.getReminderStats());
 
     return () => clearInterval(interval);
-  }, [orders, clients, settings]);
+  }, [orders, clients, smsSettings]);
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -196,6 +182,8 @@ export default function Dashboard({
       }
     };
     fetchInsights();
+    // Tik ilgių pokyčiai — pilni masyvai perkrautų per dažnai ir dubliuotų API kvietimus
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- žr. cacheKey aukščiau
   }, [orders.length, clients.length, memories.length, expenses.length]);
 
   useEffect(() => {
@@ -808,7 +796,7 @@ export default function Dashboard({
                             reminder.type,
                             orders,
                             clients,
-                            settings || {}
+                            smsSettings
                           );
                           setSmsStats(smsService.getReminderStats());
                         }}

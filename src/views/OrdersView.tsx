@@ -255,7 +255,7 @@ export default function OrdersView({
           address,
           buildingType: newClientData.buildingType,
           createdAt: new Date().toISOString(),
-        } as any);
+        } as Record<string, unknown>);
         orderClient = createdClient as unknown as Client;
       }
       const coords = await geocodeAddress(orderClient.address);
@@ -277,9 +277,9 @@ export default function OrdersView({
       };
 
       if (editingOrder) {
-        await updateData(TABLES.ORDERS, editingOrder.id, orderData as any);
+        await updateData(TABLES.ORDERS, editingOrder.id, orderData as Record<string, unknown>);
       } else {
-        await addData(TABLES.ORDERS, user.uid, orderData as any);
+        await addData(TABLES.ORDERS, user.uid, orderData as Record<string, unknown>);
       }
       setIsAdding(false);
       setEditingOrder(null);
@@ -298,7 +298,7 @@ export default function OrdersView({
   const handleStatusUpdate = async (order: Order, status: OrderStatus) => {
     setStatusUpdatingOrderId(order.id);
     try {
-      await updateData(TABLES.ORDERS, order.id, { status } as any);
+      await updateData(TABLES.ORDERS, order.id, { status } as Record<string, unknown>);
 
       // Handle recurring orders
       if (status === 'atlikta' && order.isRecurring && order.recurringInterval) {
@@ -325,7 +325,7 @@ export default function OrdersView({
           createdAt: new Date().toISOString(),
         };
 
-        await addData(TABLES.ORDERS, user.uid, newOrderData as any);
+        await addData(TABLES.ORDERS, user.uid, newOrderData as Record<string, unknown>);
         showToast.success(
           `Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`
         );
@@ -515,7 +515,9 @@ export default function OrdersView({
     setIsBulkUpdating(true);
     try {
       await Promise.all(
-        selectedOrderIds.map((id) => updateData(TABLES.ORDERS, id, { status } as any))
+        selectedOrderIds.map((id) =>
+          updateData(TABLES.ORDERS, id, { status } as Record<string, unknown>)
+        )
       );
       showToast.success(`Atnaujinta užsakymų: ${selectedOrderIds.length}`);
       setSelectedOrderIds([]);
@@ -532,7 +534,9 @@ export default function OrdersView({
     try {
       await Promise.all(
         selectedOrderIds.map((id) =>
-          updateData(TABLES.ORDERS, id, { employeeId: bulkEmployeeId || '' } as any)
+          updateData(TABLES.ORDERS, id, {
+            employeeId: bulkEmployeeId || '',
+          } as Record<string, unknown>)
         )
       );
       showToast.success(`Priskyrimas atnaujintas: ${selectedOrderIds.length}`);
@@ -548,7 +552,9 @@ export default function OrdersView({
   const handleQuickAssign = async (order: Order, employeeId: string) => {
     setAssigningOrderId(order.id);
     try {
-      await updateData(TABLES.ORDERS, order.id, { employeeId: employeeId || '' } as any);
+      await updateData(TABLES.ORDERS, order.id, {
+        employeeId: employeeId || '',
+      } as Record<string, unknown>);
       showToast.success(employeeId ? 'Darbuotojas priskirtas' : 'Priskyrimas pašalintas');
     } catch {
       showToast.error('Nepavyko atnaujinti darbuotojo priskyrimo');

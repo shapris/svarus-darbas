@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-06 — P2 lint + push (Vercel per GitHub)
+
+- **Padaryta:** ESLint ~101 (`Dashboard`, `OrdersView`, `DatabaseRecord` komentaras); `decisions.md` (ekranas / pokalbio riba); `work-queue.md` P2 žurnalas; push į `main`.
+- **Vercel:** naujas deploy paleidžiamas automatiškai po GitHub push (jei projektas prijungtas prie repo).
+
+---
+
 ## 2026-04-04 — Deploy gidas (Vercel + Render)
 
 - **Padaryta:** `docs/PALEIDIMAS_VERCEL_RENDER.md` (LT žingsniai), `render.yaml` (API blueprint), `package.json` → `npm start` = `node server.cjs`; `DEPLOYMENT.md` / `README.md` nuorodos; verify OK.
