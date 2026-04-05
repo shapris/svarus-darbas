@@ -22,6 +22,7 @@ import {
   Users2,
   MessageSquare,
   Send,
+  Bell,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateSpeech, getSpeechAudio, stopAllAudio } from '../services/ttsService';
@@ -32,7 +33,7 @@ import {
   type DashboardInsight,
 } from '../services/insightsService';
 import { smsService } from '../services/smsService';
-import { Volume2, Quote, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react';
 
 interface DashboardProps {
   orders: Order[];
@@ -73,7 +74,6 @@ export default function Dashboard({
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
   const [cachedAudios, setCachedAudios] = useState<Record<string, HTMLAudioElement>>({});
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [dailyQuote, setDailyQuote] = useState<string>('');
   const [smsStats, setSmsStats] = useState(smsService.getReminderStats());
   const [isInsightsFallback, setIsInsightsFallback] = useState(false);
 
@@ -185,27 +185,6 @@ export default function Dashboard({
     // Tik ilgių pokyčiai — pilni masyvai perkrautų per dažnai ir dubliuotų API kvietimus
     // eslint-disable-next-line react-hooks/exhaustive-deps -- žr. cacheKey aukščiau
   }, [orders.length, clients.length, memories.length, expenses.length]);
-
-  useEffect(() => {
-    const quotes = [
-      'Sėkmė yra ne galutinis taškas, o drąsa tęsti.',
-      'Geriausias būdas nuspėti ateitį yra ją sukurti patiems.',
-      'Kiekvienas švarus langas yra nauja galimybė pamatyti pasaulį geriau.',
-      'Verslas auga ten, kur yra dėmesys detalėms ir klientui.',
-      'Niekada nepasiduokite, nes būtent tada, kai sunkiausia, įvyksta proveržis.',
-    ];
-    const quote = quotes[Math.floor(Math.random() * quotes.length)];
-    setDailyQuote(quote);
-
-    // Pre-fetch quote audio
-    const prefetchQuote = async () => {
-      const audio = await getSpeechAudio(quote, 'Zephyr');
-      if (audio) {
-        setCachedAudios((prev) => ({ ...prev, 'daily-quote': audio }));
-      }
-    };
-    prefetchQuote();
-  }, []);
 
   const today = new Date().toISOString().split('T')[0];
   const todayOrders = orders.filter((o) => o.date === today);
@@ -383,36 +362,11 @@ export default function Dashboard({
     }
   };
 
-  const handleVoiceQuote = async () => {
-    if (isSpeaking === -1) {
-      stopAllAudio();
-      setIsSpeaking(null);
-      return;
-    }
-
-    if (cachedAudios['daily-quote']) {
-      stopAllAudio();
-      setIsSpeaking(-1);
-      const audio = cachedAudios['daily-quote'];
-      audio.onended = () => setIsSpeaking(null);
-      await audio.play();
-      return;
-    }
-
-    setIsSpeaking(-1); // Special index for global quote
-    try {
-      await generateSpeech(dailyQuote, 'Zephyr');
-    } finally {
-      setIsSpeaking(null);
-    }
-  };
-
   return (
     <div className="space-y-8 pb-10">
       <div className="flex flex-col md:flex-row gap-4">
         {nextOrder && (
-          <section className="flex-1 bg-blue-600 p-6 rounded-[2.5rem] shadow-2xl shadow-blue-200 text-white relative overflow-hidden group">
-            <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700" />
+          <section className="flex-1 bg-blue-600 p-6 rounded-[2.5rem] shadow-xl shadow-blue-200/80 text-white relative overflow-hidden">
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
                 <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-md">
@@ -455,14 +409,6 @@ export default function Dashboard({
                 </p>
               </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-xs font-bold">Prognozė šiandienai</p>
-              <p className="text-[10px] opacity-60 leading-relaxed">
-                {weather.isRainy
-                  ? 'Lietinga diena. Rekomenduojama perkelti lauko darbus į vidų arba kitą dieną.'
-                  : 'Puikios sąlygos langų valymui. Geras matomumas ir greitas džiūvimas.'}
-              </p>
-            </div>
           </section>
         )}
       </div>
@@ -470,7 +416,7 @@ export default function Dashboard({
       {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length > 0 && (
         <section className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-amber-600">🔔</span>
+            <Bell size={18} className="text-amber-600 shrink-0" aria-hidden />
             <h2 className="text-lg font-bold text-amber-900">Svarbūs priminimai</h2>
             <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-200 px-2 py-1 rounded-full">
               {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length}
@@ -485,22 +431,18 @@ export default function Dashboard({
                   key={mem.id}
                   className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="text-amber-500 mt-1">⭐⭐⭐⭐⭐</div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900">{mem.content}</p>
-                      <p className="text-[10px] text-amber-600 mt-1">
-                        {mem.category === 'verslas'
-                          ? '💼 Verslas'
-                          : mem.category === 'klientas'
-                            ? '👤 Klientas'
-                            : mem.category === 'procesas'
-                              ? '⚙️ Procesas'
-                              : '📋 Kita'}
-                        : {mem.createdAt?.split('T')[0] || 'N/A'}
-                      </p>
-                    </div>
-                  </div>
+                  <p className="text-sm font-medium text-slate-900">{mem.content}</p>
+                  <p className="text-[10px] text-amber-700 mt-1">
+                    {mem.category === 'verslas'
+                      ? 'Verslas'
+                      : mem.category === 'klientas'
+                        ? 'Klientas'
+                        : mem.category === 'procesas'
+                          ? 'Procesas'
+                          : 'Kita'}
+                    {' · '}
+                    {mem.createdAt?.split('T')[0] || '—'}
+                  </p>
                 </div>
               ))}
           </div>
@@ -508,12 +450,7 @@ export default function Dashboard({
       )}
 
       <section>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-slate-900">Apžvalga</h2>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Paskutinės 30 d.
-          </span>
-        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Apžvalga</h2>
         <div className="grid grid-cols-2 gap-4">
           {stats.map((stat, i) => (
             <button
@@ -538,16 +475,10 @@ export default function Dashboard({
       </section>
 
       <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-slate-900">Dienos prioritetai</h2>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Veiksmai dabar
-          </span>
-        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Dienos prioritetai</h2>
         {dayPriorityItems.length === 0 ? (
-          <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-            Šiuo metu kritinių veiksmų nėra. Galite skirti laiką naujiems užsakymams arba klientų
-            aptarnavimui.
+          <div className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-2xl p-3">
+            Kritinių veiksmų nėra.
           </div>
         ) : (
           <div className="space-y-3">
@@ -658,33 +589,16 @@ export default function Dashboard({
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles size={20} className="text-amber-500" />
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">AI įžvalgos</h2>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                Trys blokai: atmintis ir komanda · rinka bei įranga · klientai ir operacijos.
-                Kiekvieną galite perklausyti atskirai.
-              </p>
-              {isInsightsFallback && (
-                <span className="inline-flex mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-100 text-amber-800">
-                  AI įžvalgos laikinai nepasiekiamos (kvota), rodomos vietinės įžvalgos
-                </span>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleVoiceQuote}
-            className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-amber-200 transition-colors"
-          >
-            {isSpeaking === -1 ? (
-              <VolumeX size={12} className="animate-pulse" />
-            ) : (
-              <Quote size={12} />
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles size={20} className="text-amber-500 shrink-0" aria-hidden />
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-slate-900">AI įžvalgos</h2>
+            {isInsightsFallback && (
+              <span className="inline-flex mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-amber-100 text-amber-800">
+                AI laikinai nepasiekiamos — rodomos vietinės įžvalgos
+              </span>
             )}
-            Dienos citata
-          </button>
+          </div>
         </div>
         <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-3xl border border-amber-100/50 shadow-sm space-y-4">
           {isLoadingInsights ? (
@@ -819,12 +733,7 @@ export default function Dashboard({
       </section>
 
       <section>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold text-slate-900">Finansų dinamika</h2>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            Paskutiniai 6 mėn.
-          </span>
-        </div>
+        <h2 className="text-lg font-bold text-slate-900 mb-4">Finansų dinamika</h2>
         <div
           className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
           style={{ height: '300px', width: '100%' }}

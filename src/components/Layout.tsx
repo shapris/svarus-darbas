@@ -37,7 +37,7 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-100/90 via-slate-50 to-white flex flex-col max-w-md mx-auto border-x border-slate-200/90 shadow-[0_0_0_1px_rgba(15,23,42,0.04),0_25px_50px_-12px_rgba(15,23,42,0.12)]">
+    <div className="min-h-screen bg-gradient-to-b from-slate-100/90 via-slate-50 to-white flex flex-col max-w-md mx-auto border-x border-slate-200/90 shadow-lg shadow-slate-900/5">
       {/* Header */}
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 py-3.5 sticky top-0 z-20 flex justify-between items-center shadow-sm shadow-slate-900/[0.04]">
         <div className="flex items-center gap-3 min-w-0">
@@ -48,7 +48,6 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
             <h1 className="text-base font-bold text-slate-900 tracking-tight truncate">
               Švarus Darbas
             </h1>
-            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">CRM</p>
           </div>
         </div>
         {onLogout && (
@@ -99,9 +98,6 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
                     {tab.label}
                   </span>
                 </span>
-                {isActive && (
-                  <span className="absolute top-1 left-1/2 -translate-x-1/2 w-7 h-0.5 rounded-full bg-blue-600" />
-                )}
               </button>
             );
           })}

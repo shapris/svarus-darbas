@@ -252,12 +252,11 @@ export default function BookingPage({ userId }: BookingPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 pb-12 max-w-md mx-auto border-x border-slate-200">
-      <header className="py-8 text-center">
-        <h1 className="text-2xl font-black text-blue-600 tracking-tight mb-2">
-          Langų Valymo Rezervacija
+    <div className="min-h-screen bg-slate-50 p-4 pb-12 max-w-md mx-auto">
+      <header className="py-6 text-center">
+        <h1 className="text-2xl font-black text-blue-600 tracking-tight">
+          Langų valymo rezervacija
         </h1>
-        <p className="text-slate-500 text-sm">Užpildykite formą ir sužinokite preliminarią kainą</p>
       </header>
 
       <AnimatePresence>

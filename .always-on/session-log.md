@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-05 — UI: perteklinės detalės
+
+- **Padaryta:** `Layout` — be „CRM“ subtitra, lengvesnis šešėlis, be dvigubo aktyvaus tab ženklo; `MoreSectionsView` — tik pavadinimai; `BookingPage` — trumpesnis header; `Dashboard` — pašalinta paslėpta „dienos citata“ (TTS be teksto), oro tekstas, perteklinės antraštės, supaprastinti priminimai; `SettingsView` — sutrumpintas rezervacijų pranešimų blokas.
+
+---
+
 ## 2026-04-05 — P3: scout kelias + CI `verify`
 
 - **`scripts/improvement-scout.ps1`:** `$ProjectPath` iš `Resolve-Path (Join-Path $PSScriptRoot "..")` — veikia bet kuriame klonuotame kelyje.

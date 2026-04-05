@@ -708,12 +708,9 @@ export default function SettingsView({
                   Perspėjimas apie naują rezervaciją
                 </p>
                 <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Kai klientas užrezervuoja per jūsų nuorodą ir esate prisijungę prie CRM, viršuje
-                  pasirodys žalias pranešimas su vardu ir data. Norėdami matyti sistemos pranešimą
-                  net kito skirtuko fone, įjunkite leidimą žemiau. Reikia, kad Supabase būtų
-                  įjungtas Realtime įrašams lentelėje{' '}
-                  <code className="text-[10px] bg-slate-100 px-1 rounded">orders</code> (Dashboard →
-                  Database → Replication).
+                  Nauja rezervacija — žalias pranešimas CRM viršuje. Darbalaukio pranešimams žemiau
+                  reikia naršyklės leidimo. Supabase: Realtime įjungtas lentelėje{' '}
+                  <code className="text-[10px] bg-slate-100 px-1 rounded">orders</code>.
                 </p>
                 {notifPermission === 'unsupported' ? (
                   <p className="text-xs text-slate-400 mt-2">Naršyklėje nėra pranešimų API.</p>
