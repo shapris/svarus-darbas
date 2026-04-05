@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-05 — P4-A: deploy dokumentacijos hierarchija
+
+- **Padaryta:** naujas `docs/DEPLOY.md` (įėjimo taškas); `DEPLOYMENT.md` — trumpa techninė santrauka; `README.md` — vienas deploy skyrius; `docs/PALEIDIMAS_VERCEL_RENDER.md` — nuorodos į hierarchiją.
+
+---
+
 ## 2026-04-05 — P4 ilgalaikis planas (darbotvarkė)
 
 - **Padaryta:** `work-queue.md` → sekcija **P4** su ~35 nepriklausomais žingsniais (A dokumentacija/deploy — J periodinė priežiūra); vykdymo eilė **P0→P1→P2→P3→P4** atnaujinta instrukcijoje.

@@ -130,22 +130,12 @@ npm run verify       # lint + build + test + smoke + console + invoice
 npm run check:cloud # Patikrina ar netrūksta cloud/env nustatymų
 ```
 
-## Pirmas deploy (Vercel + Render)
+## Debesies deploy (Vercel, Render, Supabase)
 
-Žingsnis po žingsnio (ką dėti į hostingą, kokie kintamieji): **[docs/PALEIDIMAS_VERCEL_RENDER.md](docs/PALEIDIMAS_VERCEL_RENDER.md)**.  
-API hostui Render naudoja repo failą **`render.yaml`**; starto komanda: **`npm start`**.
-
-## Greitas cloud checklist
-
-Prieš paleidžiant visiems naudotojams (be jūsų kompiuterio):
-
-1. Frontend hostinge (pvz. Vercel) suveskite `VITE_*` reikšmes.
-2. `server.cjs` paleiskite atskirame hostinge (Render/Railway/VPS).
-3. API hostinge suveskite: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `FRONTEND_URL` (arba `CORS_ORIGINS`).
-4. Paleiskite `npm run check:cloud` lokaliai — parodys trūkstamus punktus.
-5. Jei naudojate Supabase, produkcijoje rekomenduotas vienintelis kelias:
-   `supabase/production_owner_id_schema.sql` -> `supabase/public_booking_rpcs.sql`.
-6. Legacy `uid + quoted camelCase` SQL kelias paliktas tik suderinamumui; nemaišykite jo su kanonine schema tam pačiam projektui.
+1. **Žemėlapis:** **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+2. **Pirmas kartas LT:** **[docs/PALEIDIMAS_VERCEL_RENDER.md](docs/PALEIDIMAS_VERCEL_RENDER.md)**.
+3. **Techninė santrauka / triktis:** **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+4. Render: **`render.yaml`**; API: **`npm start`**. Prieš release: **`npm run verify`**, **`npm run check:cloud`**.
 
 ## Struktūra
 

@@ -1,6 +1,7 @@
 # Pirmas paleidimas: Vercel (puslapis) + Render (API)
 
-Šiame faile — **geriausia praktika** ir aiškus padalijimas: **ką padarai tu** (paskyros, raktai) ir **kas jau paruošta repo**.
+**Visų deploy dokumentų žemėlapis:** [`DEPLOY.md`](DEPLOY.md).  
+Šiame faile — **pilnas LT žingsnis po žingsnio** pirmam debesies paleidimui. Techninė santrauka (EN) ir triktis: root [`DEPLOYMENT.md`](../DEPLOYMENT.md).
 
 ---
 
@@ -9,7 +10,6 @@
 - `vercel.json` — statinis build (`dist`), SPA maršrutai.
 - `render.yaml` — Render API serviso šablonas (`npm ci` → `npm start` → `/health`).
 - `package.json` → skriptas **`npm start`** = `node server.cjs` (Render / Railway supranta).
-- `DEPLOYMENT.md` — techninis santraukos lapas.
 
 ---
 
@@ -95,4 +95,4 @@ npm run check:cloud
 - **Sąskaitos neišsiunčia** — Render logai + ar `RESEND_*` ir ar `invoiceEmail: true` iš `/health`.
 - **Stripe duomenys dingsta po restart** — trūksta `SUPABASE_SERVICE_ROLE_KEY` arba mokėjimų lentelių schemoje.
 
-Daugiau: root `DEPLOYMENT.md`.
+Daugiau: root [`DEPLOYMENT.md`](../DEPLOYMENT.md) (triktis, architektūra) ir [`DEPLOY.md`](DEPLOY.md).
