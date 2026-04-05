@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-05 — P4-A: env matrica
+
+- **Padaryta:** `docs/env-matrix.md` (Vite vs `server.cjs`, B/N, saugumas, patikros); nuorodos `/.env.example`, `docs/DEPLOY.md`.
+
+---
+
 ## 2026-04-05 — P4-A: deploy dokumentacijos hierarchija
 
 - **Padaryta:** naujas `docs/DEPLOY.md` (įėjimo taškas); `DEPLOYMENT.md` — trumpa techninė santrauka; `README.md` — vienas deploy skyrius; `docs/PALEIDIMAS_VERCEL_RENDER.md` — nuorodos į hierarchiją.

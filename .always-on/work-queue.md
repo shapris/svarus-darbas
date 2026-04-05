@@ -49,7 +49,7 @@
 ### A. Dokumentacija ir gamyba
 
 - [x] **Vienas „source of truth“ deploy:** sutraukti `README.md`, `DEPLOYMENT.md`, `docs/PALEIDIMAS_VERCEL_RENDER.md` į aiškią hierarchiją (kur greitas startas, kur pilnas gidas) be pasikartojimų. *2026-04-05: `docs/DEPLOY.md` žemėlapis; `DEPLOYMENT.md` sutrauktas į referencą; `README` vienas deploy skyrius; `PALEIDIMAS` nuorodos į hierarchiją.*
-- [ ] **Env matrica:** lentelė repo (`docs/env-matrix.md` arba `.env.example` skyrius) — visi `VITE_*`, `STRIPE_*`, `CORS_ORIGINS`, Supabase raktai: kur naudojami, privalomi/neprivalomi, dev vs prod.
+- [x] **Env matrica:** lentelė repo (`docs/env-matrix.md` arba `.env.example` skyrius) — visi `VITE_*`, `STRIPE_*`, `CORS_ORIGINS`, Supabase raktai: kur naudojami, privalomi/neprivalomi, dev vs prod. *2026-04-05: `docs/env-matrix.md`, nuoroda `.env.example` + `docs/DEPLOY.md`.*
 - [ ] **Gamybinė patikra:** `npm run check:cloud` + rankinis checklist viename faile (`docs/PRODUCTION_CHECKLIST.md`) — DNS, HTTPS, Supabase Auth redirect URLs, Stripe webhook, Render health.
 - [ ] **Vercel / Render:** patvirtinti, kad `main` deploy naudoja tuos pačius env kaip dokumentacijoje; įrašyti „known gaps“ jei kas neautomatuojama.
 
@@ -132,5 +132,6 @@
 | 2026-04-05 | P3 scout + CI | `improvement-scout.ps1` kelias; `ci.yml` → `npm run verify`; `scout:improvements` atnaujina `.always-on/improvement-backlog.md`. |
 | 2026-04-05 | P4 planas | Pridėtas ilgas P4 blokas (`work-queue.md`) — deploy, scout, testai, refaktorius, UX, DB, našumas, priežiūra. |
 | 2026-04-05 | P4-A deploy docs | `docs/DEPLOY.md` + hierarchija (`README`, `DEPLOYMENT`, `PALEIDIMAS`). |
+| 2026-04-05 | P4-A env matrica | `docs/env-matrix.md` + nuorodos `.env.example`, `DEPLOY`. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

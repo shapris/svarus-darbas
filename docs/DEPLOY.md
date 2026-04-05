@@ -5,7 +5,8 @@ Vienas įėjimo taškas: **kur skaityti**, ne dubliuoti tą patį trijuose failu
 ## 1. Vietinis kūrimas (jūsų kompiuteris)
 
 - **Instrukcijos:** root [`README.md`](../README.md) → skyrius **Paleidimas** ir **Sąskaitos PDF**.
-- **Aplinka:** [`../.env.example`](../.env.example) → `npm run check:env`, `npm run check:cloud` prieš cloud.
+- **Aplinka:** [`../.env.example`](../.env.example); **matrica (B/N, Vite vs serveris):** [`env-matrix.md`](env-matrix.md).
+- **Patikra:** `npm run check:env`, `npm run check:cloud` prieš cloud.
 
 ## 2. Pirmas deploy į debesį (Vercel + Render + Supabase)
 
