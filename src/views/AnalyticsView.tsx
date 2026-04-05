@@ -10,8 +10,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -22,7 +20,6 @@ import {
   Line,
 } from 'recharts';
 import { TrendingUp, PieChart as PieChartIcon, Users, Euro, Award } from 'lucide-react';
-import { motion } from 'motion/react';
 
 interface AnalyticsViewProps {
   orders: Order[];
@@ -33,7 +30,12 @@ interface AnalyticsViewProps {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-export default function AnalyticsView({ orders, expenses, clients, settings }: AnalyticsViewProps) {
+export default function AnalyticsView({
+  orders,
+  expenses,
+  clients: _clients,
+  settings,
+}: AnalyticsViewProps) {
   const completedOrders = orders.filter((o) => o.status === 'atlikta');
 
   // 1. Revenue & Expenses over the last 12 months

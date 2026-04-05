@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Expense } from '../types';
 import { addData, deleteData, TABLES } from '../supabase';
-import { Plus, Trash2, Wallet, Calendar, Tag, Search, TrendingDown } from 'lucide-react';
+import { Plus, Trash2, Wallet, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatCurrency, formatDate } from '../utils';
 import { useToast } from '../hooks/useToast';

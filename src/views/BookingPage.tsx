@@ -13,18 +13,9 @@ import {
   usesLocalStorageBackend,
   isRemoteBackend,
 } from '../supabase';
-import { AppSettings, DEFAULT_SETTINGS, BuildingType, OrderStatus } from '../types';
+import { AppSettings, DEFAULT_SETTINGS, BuildingType, OrderStatus, Client } from '../types';
 import { calculateOrderPrice, formatCurrency, geocodeAddress } from '../utils';
-import {
-  Calendar,
-  Clock,
-  MapPin,
-  User,
-  Phone,
-  CheckCircle2,
-  ChevronRight,
-  Info,
-} from 'lucide-react';
+import { Calendar, User, CheckCircle2, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface BookingPageProps {
@@ -125,10 +116,10 @@ export default function BookingPage({ userId }: BookingPageProps) {
           }
         );
       } else {
-        const allClients = await getData<any>(TABLES.CLIENTS, userId);
+        const allClients = await getData<Client>(TABLES.CLIENTS, userId);
         const existingClient =
           normalizedPhone !== 'nesutarta'
-            ? allClients.find((c: any) => c.phone === normalizedPhone)
+            ? allClients.find((c) => c.phone === normalizedPhone)
             : null;
 
         let clientId: string;
@@ -143,7 +134,11 @@ export default function BookingPage({ userId }: BookingPageProps) {
             buildingType: formData.buildingType,
             createdAt: new Date().toISOString(),
           });
-          clientId = (newClient as any).id;
+          const insertedId = (newClient as Record<string, unknown>)['id'];
+          if (typeof insertedId !== 'string' || insertedId === '') {
+            throw new Error('Nepavyko sukurti kliento: trūksta ID');
+          }
+          clientId = insertedId;
         }
 
         await addData(TABLES.ORDERS, userId, {

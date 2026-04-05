@@ -186,7 +186,7 @@ function isMissingUidColumnError(
   // PostgREST kartais grąžina tik 400 / kitą kodą — tikriname tekstą
   const b = blob.toLowerCase();
   if (
-    (b.includes("'uid'") || b.includes('`uid`') || /\bcolumn\s+[\"']?uid[\"']?/i.test(blob)) &&
+    (b.includes("'uid'") || b.includes('`uid`') || /\bcolumn\s+["']?uid["']?/i.test(blob)) &&
     (b.includes('does not exist') ||
       b.includes('not found') ||
       b.includes('could not find') ||

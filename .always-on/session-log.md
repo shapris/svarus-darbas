@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-04 — P2 view lint + BookingPage ID + ESLint `no-useless-escape`
+
+- **Padaryta:** `AnalyticsView`, `ExpensesView`, `LogisticsView` — nenaudojami importai / smulkūs lint; `BookingPage` — `addData` grąžos `id` tikrinimas (`string`), be `any`; `supabase.ts` — regex be perteklinių `\"` (`no-useless-escape`); Prettier `AnalyticsView`.
+- **Patikra:** `npm run verify` — OK (82 ESLint warnings, 0 errors).
+
+---
+
 ## 2026-04-06 — Supabase: be 400 kai nėra `uid` stulpelio
 
 - **Problema:** `employees` / `expenses` — po tuščios `owner_id` užklausos bandytas legacy `uid=eq.` → 400 (kanoninė schema be `uid`).

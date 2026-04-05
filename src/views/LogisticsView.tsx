@@ -3,16 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Order } from '../types';
 import { formatDate } from '../utils';
-import { MapPin, Navigation, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { MapPin, Navigation, Clock, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix for default marker icons in React Leaflet
+// Fix for default marker icons in React Leaflet (Leaflet tipai neeksportuoja _getIconUrl)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Leaflet Default icon prototype
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -31,8 +32,11 @@ interface LogisticsViewProps {
 }
 
 export default function LogisticsView({ orders }: LogisticsViewProps) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   const todaysOrders = useMemo(() => {
     return orders
@@ -169,7 +173,7 @@ export default function LogisticsView({ orders }: LogisticsViewProps) {
               />
               {todaysOrders
                 .filter((o) => o.lat && o.lng)
-                .map((order, index) => (
+                .map((order) => (
                   <Marker key={order.id} position={[order.lat!, order.lng!]}>
                     <Popup>
                       <div className="font-sans">
