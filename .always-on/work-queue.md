@@ -36,6 +36,12 @@
 
 ---
 
+## P3 — infrastruktūra / priežiūra (kai P2 uždaryta)
+
+- [x] **Scout + CI:** `scripts/improvement-scout.ps1` naudoja repo šaknį (`$PSScriptRoot/..`), ne fiksuotą diską; GitHub Actions po Prettier paleidžia **`npm run verify`** (lint, types, build, unit, smoke, `test:console`, `test:invoice`). *2026-04-05*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -51,5 +57,6 @@
 | 2026-04-05 | P2 tęsinys | ESLint ~101 įspėjimų; `Dashboard`/`OrdersView`/`supabase.ts` lint pataisymai; `npm run test` + `test:smoke` OK. |
 | 2026-04-04 | P2 lint banga | ESLint **~82 → ~36**; `npm run verify` OK; likę: `authService`, `security`, test failai, react-refresh. |
 | 2026-04-04 | P2 lint uždaryta | ESLint **0 warnings**; `npm run verify` OK; P2 „Lint skola“ pažymėta atlikta. |
+| 2026-04-05 | P3 scout + CI | `improvement-scout.ps1` kelias; `ci.yml` → `npm run verify`; `scout:improvements` atnaujina `.always-on/improvement-backlog.md`. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

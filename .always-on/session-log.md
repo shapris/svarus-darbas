@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-05 — P3: scout kelias + CI `verify`
+
+- **`scripts/improvement-scout.ps1`:** `$ProjectPath` iš `Resolve-Path (Join-Path $PSScriptRoot "..")` — veikia bet kuriame klonuotame kelyje.
+- **`.github/workflows/ci.yml`:** po `format:check` vienas žingsnis `npm run verify` (įskaitant `test:console`, `test:invoice`).
+- **`npm run scout:improvements`** — atnaujinti `improvement-backlog.md` / `improvement-state.json`.
+
+---
+
 ## 2026-04-04 — P2 lint: 0 ESLint įspėjimų
 
 - **Padaryta:** likusi partija (`authService`, `security`, `performance`, `insightsService`, `intentionClassifier`, `offlineService`, `test-integration`, `test-memory`, `localDb` export, react-refresh `eslint-disable`); `npm run verify` OK.

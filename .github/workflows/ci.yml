@@ -30,14 +30,5 @@ jobs:
       - name: Prettier (check)
         run: npm run format:check
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Smoke E2E
-        run: npm run test:smoke
+      - name: Verify (lint, types, build, unit, smoke, console, invoice E2E)
+        run: npm run verify

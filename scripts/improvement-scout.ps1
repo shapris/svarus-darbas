@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
-$ProjectPath = "c:\Users\aaa\Downloads\svarus darbas 1\svarus-darbas-1"
+# Repo šaknis = katalogas virš `scripts/` (veikia bet kuriame klonuotame kelyje).
+$ProjectPath = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $OutDir = Join-Path $ProjectPath ".always-on"
 $BacklogPath = Join-Path $OutDir "improvement-backlog.md"
 $StatePath = Join-Path $OutDir "improvement-state.json"

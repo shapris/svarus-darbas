@@ -1,23 +1,22 @@
 ﻿# Improvement Backlog
 
-Generated: 2026-04-02 18:51:29
+Generated: 2026-04-05 17:54:28
 
 ## Health Score
 
-- Score: **68 / 100**
+- Score: **85 / 100**
 
 ## Signals
 
 - TODO/FIXME/HACK count: **0**
-- console.error(...) count: **63**
+- console.error(...) count: **32**
 - alert(...) count: **2**
-- any usage count: **110**
-- NPM audit high/moderate: **1 / 0**
-- Largest code files: **src\supabase.ts (65 KB); src\components\ChatAssistant.tsx (64,9 KB); src\views\OrdersView.tsx (64 KB); src\views\CalendarView.tsx (35,7 KB); src\views\Dashboard.tsx (33,9 KB)**
+- any usage count: **3**
+- NPM audit high/moderate: **0 / 0**
+- Largest code files: **src\components\ChatAssistant.tsx (70,9 KB); src\supabase.ts (68,2 KB); src\views\OrdersView.tsx (67,6 KB); src\views\CalendarView.tsx (39,3 KB); src\views\Dashboard.tsx (37,9 KB)**
 
 ## Next Actions (Auto-Prioritized)
 
 - Replace remaining alert(...) calls with toast notifications.
 - Reduce noisy console.error(...) paths in runtime flows and keep only actionable logs.
 - Decrease any usage in top active modules by introducing strict local types.
-- Review dependency vulnerabilities and patch non-breaking updates.
