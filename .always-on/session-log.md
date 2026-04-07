@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-04-07 — P9.1 statuso el. laiškai po užsakymo būsenos keitimo
+
+- **Serveris:** pridėtas `POST /api/send-order-status-email` (`server.cjs`) su `verifySupabaseUserJwt` ir gavėjo validacija per `verifyInvoiceRecipientMatchesOrder` (laiškas siunčiamas tik jei el. paštas sutampa su kliento kortele užsakyme).
+- **Frontend:** naujas `src/services/clientNotificationService.ts`; `OrdersView` po `handleStatusUpdate` kviečia el. pašto siuntimą, jei įjungti kliento notifai ir yra validus kliento el. paštas.
+- **Elgsena:** užsakymo būsenos atnaujinimas lieka prioritetas — jei el. paštas nepavyksta, rodoma `warning`, bet statuso pakeitimas nėra atšaukiamas.
+- **Patikra:** `npm run verify` pilnai žalias (lint, build, unit, smoke, console, invoice, offline-crm).
+
+---
+
 ## 2026-04-07 — P8.2–P8.5 pilnas uždarymas
 
 - **P8.2 UX:** `ClientDashboard` pridėtos aiškios `loading/error/retry` būsenos, neapmokėtų užsakymų CTA ir išskleidžiamos užsakymo detalės.

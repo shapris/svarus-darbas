@@ -16,6 +16,7 @@ import {
   looksLikeValidEmail,
   compressImageToJpegDataUrl,
 } from '../utils';
+import { sendOrderStatusEmail } from '../services/clientNotificationService';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
@@ -276,6 +277,33 @@ export default function OrdersView({
     setStatusUpdatingOrderId(order.id);
     try {
       await updateData(TABLES.ORDERS, order.id, { status } as Record<string, unknown>);
+
+      const client = resolveClientForOrder(order);
+      const targetEmail = client?.email?.trim() || '';
+      if (
+        settings.clientStatusNotifications !== false &&
+        targetEmail &&
+        looksLikeValidEmail(targetEmail)
+      ) {
+        try {
+          await sendOrderStatusEmail({
+            orderId: order.id,
+            to: targetEmail,
+            status,
+            clientName: resolveOrderClientName(order) || client?.name || 'kliente',
+            address: orderDisplayAddress(order),
+            date: order.date,
+            time: order.time,
+          });
+        } catch (notifyError) {
+          const msg = notifyError instanceof Error ? notifyError.message : '';
+          showToast.warning(
+            msg
+              ? `Būsena išsaugota, bet el. paštas neišsiųstas: ${msg}`
+              : 'Būsena išsaugota, bet el. paštas neišsiųstas.'
+          );
+        }
+      }
 
       // Handle recurring orders
       if (status === 'atlikta' && order.isRecurring && order.recurringInterval) {

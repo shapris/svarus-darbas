@@ -150,6 +150,14 @@
 
 ---
 
+## P9 — klientų pranešimų automatika (vykdoma toliau)
+
+- [x] **P9.1 Būsenos el. paštas iš CRM pakeitus užsakymo statusą:** po statuso keitimo siųsti klientui transakcinį laišką (kai kliento el. paštas validus), su serverio validacija kad gavėjas sutampa su užsakymo klientu. *2026-04-07: naujas `POST /api/send-order-status-email` (`server.cjs`) + `clientNotificationService` + `OrdersView` integracija; pilnas `npm run verify` OK.*
+- [ ] **P9.2 Priminimų eilė serveryje:** periodinis priminimų generavimas ir siuntimas be naršyklės atidarymo (ne `sms:` URI).
+- [ ] **P9.3 Notifų auditas:** įrašyti kiekvieną išsiųstą pranešimą į DB (tipas, gavėjas, būsena, klaida).
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -179,5 +187,6 @@
 | 2026-04-07 | P6 uždarymas | Uždaryti gamybiniai vartai: `npm run check:cloud` = READY; produkcijos CRM dūmams patvirtintas admin/staff bendras workspace (`workspace_owner_id=96b1e...`) ir bendras `clients/orders` matomumas tame pačiame duomenų rinkinyje. |
 | 2026-04-07 | P8.1 klientų portalo URL routing | `App.tsx` pridėti `/client/*` maršrutų parseris/sinchronizacija (`pushState/replaceState`) ir role-based redirect (`client` -> dashboard, `staff/admin` -> `/`); `tests/smoke.spec.ts` papildytas maršrutų testas; `npm run verify` žalias. |
 | 2026-04-07 | P8.2–P8.5 klientų portalo užbaigimas | `ClientDashboard` UX (loading/error/retry + order details), mokėjimų istorija (`getPaymentHistory`), automatinis statuso/mokėjimų feed su persistencija, `SettingsView` toggle kliento saviregistracijai ir kliento notifų įjungimui; `npm run verify` + `scout:improvements` (score 100). |
+| 2026-04-07 | P9.1 statuso el. paštas | Įdėtas backend endpoint `POST /api/send-order-status-email` su auth + gavėjo validacija per užsakymo klientą; frontend integruota į `OrdersView` po statuso keitimo (`sendOrderStatusEmail`), nesustabdo statuso išsaugojimo jei laiškas nepavyksta; `npm run verify` OK. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

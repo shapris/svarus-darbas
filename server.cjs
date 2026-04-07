@@ -422,6 +422,13 @@ function buildResendFromHeader() {
   return `${displayName} <${raw}>`;
 }
 
+function orderStatusLabelLt(status) {
+  if (status === 'suplanuota') return 'Suplanuota';
+  if (status === 'vykdoma') return 'Vykdoma';
+  if (status === 'atlikta') return 'Atlikta';
+  return String(status || 'Atnaujinta');
+}
+
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
@@ -601,6 +608,74 @@ app.post('/api/send-invoice-email', async (req, res) => {
     return res.json({ ok: true, id: sent?.id });
   } catch (error) {
     console.error('[send-invoice-email]', error);
+    return res.status(500).json({ error: error.message || 'Serverio klaida' });
+  }
+});
+
+/**
+ * Užsakymo būsenos pranešimas klientui el. paštu.
+ * Saugumas: gavėjo el. paštas privalo sutapti su kliento kortele užsakyme.
+ */
+app.post('/api/send-order-status-email', async (req, res) => {
+  try {
+    const resendKey = (process.env.RESEND_API_KEY || '').trim();
+    const fromHeader = buildResendFromHeader();
+    if (!resendKey) {
+      return res.status(503).json({
+        error: 'El. pašto siuntimas nesukonfigūruotas (trūksta RESEND_API_KEY).',
+      });
+    }
+
+    const auth = await verifySupabaseUserJwt(req.headers.authorization);
+    if (!auth.ok) {
+      return res.status(auth.status || 401).json({ error: auth.message });
+    }
+
+    const { orderId, to, status, clientName, address, date, time } = req.body || {};
+    if (!orderId || !to || !status) {
+      return res.status(400).json({ error: 'Trūksta privalomų laukų (orderId, to, status).' });
+    }
+    if (!looksLikeEmail(to)) {
+      return res.status(400).json({ error: 'Neteisingas gavėjo el. paštas.' });
+    }
+
+    const match = await verifyInvoiceRecipientMatchesOrder(orderId, to, req.headers.authorization);
+    if (!match.ok) {
+      return res.status(match.status || 400).json({ error: match.message });
+    }
+
+    const statusLt = orderStatusLabelLt(status);
+    const safeClientName = String(clientName || 'kliente').trim() || 'kliente';
+    const safeAddress = String(address || '').trim();
+    const safeDate = String(date || '').trim();
+    const safeTime = String(time || '').trim();
+
+    const subject = `Užsakymo būsena atnaujinta: ${statusLt}`;
+    const lines = [
+      `Sveiki, ${safeClientName}!`,
+      '',
+      `Jūsų užsakymo būsena atnaujinta: ${statusLt}.`,
+      safeDate ? `Data: ${safeDate}${safeTime ? ` ${safeTime}` : ''}` : '',
+      safeAddress ? `Adresas: ${safeAddress}` : '',
+      '',
+      'Jei turite klausimų, atsakykite į šį laišką.',
+      '',
+      'Pagarbiai,',
+      'Švarus darbas',
+    ].filter(Boolean);
+
+    const resend = new Resend(resendKey);
+    const { data: sent, error: sendErr } = await resend.emails.send({
+      from: fromHeader,
+      to: String(to).trim(),
+      subject,
+      text: lines.join('\n'),
+    });
+    if (sendErr) {
+      return res.status(422).json({ error: String(sendErr.message || 'Resend klaida') });
+    }
+    return res.json({ ok: true, id: sent?.id });
+  } catch (error) {
     return res.status(500).json({ error: error.message || 'Serverio klaida' });
   }
 });
