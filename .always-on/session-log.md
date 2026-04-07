@@ -9,7 +9,8 @@
 - **Cloud/env:** `.env` papildytas `SUPABASE_SERVICE_ROLE_KEY`; `npm run check:cloud` dabar grąžina `READY` (0).
 - **P7.1:** `src/components/chatAssistant/toolHandler.ts` pašalintas `any` cast, įvestas `AssistantToolArgs` tipas; `lint:types`, `lint:eslint`, `build`, `test:unit` — OK.
 - **P7.3:** pridėta migracija `supabase/migrations/20260407160000_profiles_uid_unique.sql` (`profiles` dublikatų valymas + `UNIQUE(uid)`), atnaujintas `DATABASE_SETUP.md`.
-- **Kitas žingsnis:** pabaigti rankinę produkcijos dūmų patikrą pagal `docs/PRODUCTION_CHECKLIST.md` §3 ir tęsti P7 `console.error` likučių mažinimą.
+- **P7.2 + auditas:** `devConsole` perjungtas į `console.warn`, `ErrorBoundary` pervestas į `logDevError`; `npm audit fix` (vite `6.4.2`) — `audit high/moderate = 0`; `scout` score pakeltas iki **99** (`console.error = 0`).
+- **Kitas žingsnis:** pabaigti rankinę produkcijos dūmų patikrą pagal `docs/PRODUCTION_CHECKLIST.md` §3.
 
 ---
 

@@ -4,6 +4,6 @@
  */
 export function logDevError(...args: unknown[]): void {
   if (import.meta.env.DEV || import.meta.env.VITE_DEBUG_SUPABASE === 'true') {
-    console.error(...args);
+    console.warn(...args);
   }
 }

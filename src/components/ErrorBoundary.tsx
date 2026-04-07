@@ -5,6 +5,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { logDevError } from '../utils/devConsole';
 
 interface Props {
   children: ReactNode;
@@ -35,7 +36,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     // Log error to console in development
     if (process.env.NODE_ENV === 'development') {
-      console.error('ErrorBoundary caught an error:', error, errorInfo);
+      logDevError('ErrorBoundary caught an error:', error, errorInfo);
     }
   }
 

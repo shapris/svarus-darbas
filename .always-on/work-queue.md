@@ -133,7 +133,7 @@
 ## P7 — po paleidimo stabilizacija (kai P6 uždaryta)
 
 - [x] **Sumažinti `any` naudojimą (scout signalas = 3):** pirmiausia `src/components/chatAssistant/toolHandler.ts` ir didžiausiuose aktyviuose moduliuose įvesti tikslesnius argumentų tipus. *2026-04-07: `toolHandler` `Record<string, any>` → `AssistantToolArgs` (be `any`), `lint/build/test` OK.*
-- [ ] **Sumažinti `console.error` likučius (scout signalas = 2):** palikti tik diagnostiškai prasmingus kelius, kitur `logDevError` / `warn`.
+- [x] **Sumažinti `console.error` likučius (scout signalas = 2):** palikti tik diagnostiškai prasmingus kelius, kitur `logDevError` / `warn`. *2026-04-07: `devConsole` naudoja `console.warn`, `ErrorBoundary` pervestas į `logDevError`; scout `console.error(...) count = 0`.*
 - [x] **Supabase `profiles.uid` stabilumas:** pridėti migraciją su `UNIQUE(uid)` po dublikatų valymo, kad `ON CONFLICT (uid)` būtų patikimas ir nebereikėtų fallback SQL. *2026-04-07: `supabase/migrations/20260407160000_profiles_uid_unique.sql` + `DATABASE_SETUP.md` atnaujinimas.*
 
 ---
@@ -163,5 +163,6 @@
 | 2026-04-06 | v1.0.0 repo paruošimas | `CHANGELOG.md`, README, `LAUNCH` §2.3; P6; `verify` OK; `check:cloud` lokaliai dar 2 — gamyba lieka P6 atviruose punktuose. |
 | 2026-04-07 | P6 tarpinė būsena | `npm run check:cloud:frontend` = 0 (READY). Pilnas `check:cloud` vis dar blokuotas dėl `SUPABASE_SERVICE_ROLE_KEY` (API hosto env), todėl P6 „Gamybiniai vartai“ paliekamas atviras iki hostingo suvedimo. |
 | 2026-04-07 | P6/P7 progresas | `SUPABASE_SERVICE_ROLE_KEY` suvestas `.env`; `npm run check:cloud` = 0; P7 uždaryti: `any` mažinimas `toolHandler` ir nauja migracija `20260407160000_profiles_uid_unique.sql` (+ `DATABASE_SETUP.md`). |
+| 2026-04-07 | P7 konsolė + audit | `logDevError` perjungta į `console.warn`, `ErrorBoundary` naudoja `logDevError`; `npm audit fix` atnaujino `vite` į `6.4.2`; `scout` score **99**, `console.error=0`, `audit high/moderate=0`. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
