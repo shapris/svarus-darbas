@@ -45,7 +45,8 @@
     "check:cloud": "node scripts/cloud-readiness-check.mjs",
     "check:cloud:frontend": "node scripts/cloud-readiness-check.mjs --frontend-only",
     "check:env": "node scripts/check-vite-env.mjs",
-    "setup:vercel-env": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/setup-vercel-env.ps1\""
+    "setup:vercel-env": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/setup-vercel-env.ps1\"",
+    "prepare": "husky"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -84,7 +85,9 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
     "globals": "^15.15.0",
+    "husky": "^9.1.7",
     "jsdom": "^29.0.1",
+    "lint-staged": "^16.4.0",
     "playwright": "^1.58.2",
     "prettier": "^3.8.1",
     "puppeteer": "^24.40.0",
@@ -96,5 +99,13 @@
     "vite": "^6.2.0",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,html,yml,yaml}": [
+      "prettier --write"
+    ],
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix"
+    ]
   }
 }
