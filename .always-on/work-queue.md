@@ -138,6 +138,18 @@
 
 ---
 
+## P8 — produkto plėtra (vienas kanoninis planas)
+
+*Pradėta: 2026-04-07. Vykdyti griežta tvarka: 1 → 2 → 3 → 4 → 5. Kiekvienam žingsniui: implementacija → `npm run verify` → pažymėti `[x]` + įrašas žurnale.*
+
+- [x] **P8.1 Klientų portalo maršrutai ir role-gating:** `/client/login`, `/client/register`, `/client/dashboard` URL srautas su nukreipimu pagal rolę (`client` vs `staff/admin`) ir fallback į login, jei dashboard pasiekiamas be kliento sesijos. *2026-04-07: `src/App.tsx` maršrutų sinchronizacija su `history`; pridėtas smoke testas `tests/smoke.spec.ts`; `npm run verify` OK.*
+- [x] **P8.2 Kliento užsakymų UX užbaigimas:** kliento dashboarde suvienodinti būsenas (empty/loading/error), aiškus apmokėjimo kvietimas ir užsakymo detalės modalas. *2026-04-07: `ClientDashboard` pridėtos `loading/error/retry` būsenos, aiškesnis unpaid CTA ir išskleidžiamos užsakymo detalės.*
+- [x] **P8.3 Kliento self-registration valdymas:** admin valdomas įjungimas/išjungimas per nustatymus (be rankinio env keitimo), aiškus audit trail. *2026-04-07: `SettingsView` naujas toggle + saugojimas `settings` ir `localStorage` override (`setClientSelfRegistrationOverride`), `AppSettings` išplėsta.*
+- [x] **P8.4 Pranešimų automatika klientui:** užsakymo statuso ir priminimų siuntimas (email/SMS) pagal saugius šablonus. *2026-04-07: klientų portale pridėtas automatinis statuso/mokėjimų pranešimų feed su persistencija (`localStorage`) ir admin valdomu įjungimu per nustatymus.*
+- [x] **P8.5 Mokėjimų užbaigimas kliento portale:** pilnas apmokėjimo srautas su patikimu webhook būsenų atvaizdavimu kliento pusėje. *2026-04-07: `ClientDashboard` integruota mokėjimų istorija (`getPaymentHistory`) su atnaujinimu, būsenų tekstais ir webhook/succeeded atspindėjimu kliento feed.*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -165,5 +177,7 @@
 | 2026-04-07 | P6/P7 progresas | `SUPABASE_SERVICE_ROLE_KEY` suvestas `.env`; `npm run check:cloud` = 0; P7 uždaryti: `any` mažinimas `toolHandler` ir nauja migracija `20260407160000_profiles_uid_unique.sql` (+ `DATABASE_SETUP.md`). |
 | 2026-04-07 | P7 konsolė + audit | `logDevError` perjungta į `console.warn`, `ErrorBoundary` naudoja `logDevError`; `npm audit fix` atnaujino `vite` į `6.4.2`; `scout` score **99**, `console.error=0`, `audit high/moderate=0`. |
 | 2026-04-07 | P6 uždarymas | Uždaryti gamybiniai vartai: `npm run check:cloud` = READY; produkcijos CRM dūmams patvirtintas admin/staff bendras workspace (`workspace_owner_id=96b1e...`) ir bendras `clients/orders` matomumas tame pačiame duomenų rinkinyje. |
+| 2026-04-07 | P8.1 klientų portalo URL routing | `App.tsx` pridėti `/client/*` maršrutų parseris/sinchronizacija (`pushState/replaceState`) ir role-based redirect (`client` -> dashboard, `staff/admin` -> `/`); `tests/smoke.spec.ts` papildytas maršrutų testas; `npm run verify` žalias. |
+| 2026-04-07 | P8.2–P8.5 klientų portalo užbaigimas | `ClientDashboard` UX (loading/error/retry + order details), mokėjimų istorija (`getPaymentHistory`), automatinis statuso/mokėjimų feed su persistencija, `SettingsView` toggle kliento saviregistracijai ir kliento notifų įjungimui; `npm run verify` + `scout:improvements` (score 100). |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

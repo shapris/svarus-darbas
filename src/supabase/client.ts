@@ -78,7 +78,33 @@ export const isDemoMode = usesLocalStorageBackend;
 
 export const needsBackendSetup = !supabase && !usesLocalStorageBackend;
 
+const CLIENT_SELF_REGISTRATION_OVERRIDE_KEY = 'svarus_client_self_registration_enabled';
+
+function readClientSelfRegistrationOverride(): boolean | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CLIENT_SELF_REGISTRATION_OVERRIDE_KEY);
+    if (raw == null) return null;
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function setClientSelfRegistrationOverride(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(CLIENT_SELF_REGISTRATION_OVERRIDE_KEY, enabled ? 'true' : 'false');
+  } catch {
+    /* localStorage gali būti nepasiekiamas */
+  }
+}
+
 export function isClientSelfRegistrationEnabled(): boolean {
+  const override = readClientSelfRegistrationOverride();
+  if (override !== null) return override;
   return (
     usesLocalStorageBackend ||
     envTrim(import.meta.env.VITE_CLIENT_SELF_REGISTRATION).toLowerCase() === 'true'

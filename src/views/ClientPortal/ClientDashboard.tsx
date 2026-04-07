@@ -16,41 +16,160 @@ import {
   AlertCircle,
   X,
   CreditCard,
+  RefreshCcw,
 } from 'lucide-react';
 import { getClientOrders, signOut, type AuthUser } from '../../supabase';
-import { Order, UserProfile } from '../../types';
+import { AppSettings, Order, UserProfile } from '../../types';
 import { motion } from 'motion/react';
 import PaymentView from './PaymentView';
+import {
+  getPaymentHistory,
+  getPaymentStatusText,
+  type PaymentIntent,
+} from '../../services/paymentService';
+import { useToast } from '../../hooks/useToast';
 
 interface ClientDashboardProps {
   user: AuthUser;
   profile: UserProfile;
+  settings?: AppSettings;
   onLogout: () => void;
 }
 
-export default function ClientDashboard({ user, profile, onLogout }: ClientDashboardProps) {
+export default function ClientDashboard({
+  user,
+  profile,
+  settings,
+  onLogout,
+}: ClientDashboardProps) {
+  const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersError, setOrdersError] = useState('');
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [paymentsError, setPaymentsError] = useState('');
+  const [payments, setPayments] = useState<PaymentIntent[]>([]);
+  const [notifications, setNotifications] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'orders' | 'profile' | 'payment'>('orders');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (!profile.clientId) return;
-
+    setLoadingOrders(true);
+    setOrdersError('');
     try {
       const clientOrders = await getClientOrders(profile.clientId);
       setOrders(clientOrders);
-    } catch {
-      // Error loading orders silently
+    } catch (error: unknown) {
+      setOrdersError(error instanceof Error ? error.message : 'Nepavyko gauti užsakymų.');
     } finally {
-      setLoading(false);
+      setLoadingOrders(false);
+    }
+  }, [profile.clientId]);
+
+  const loadPayments = useCallback(async () => {
+    if (!profile.clientId) return;
+    setLoadingPayments(true);
+    setPaymentsError('');
+    try {
+      const rows = await getPaymentHistory(profile.clientId);
+      setPayments(rows);
+    } catch (error: unknown) {
+      setPaymentsError(
+        error instanceof Error ? error.message : 'Nepavyko gauti mokėjimų istorijos.'
+      );
+    } finally {
+      setLoadingPayments(false);
     }
   }, [profile.clientId]);
 
   useEffect(() => {
     void loadOrders();
-  }, [loadOrders]);
+    void loadPayments();
+  }, [loadOrders, loadPayments]);
+
+  useEffect(() => {
+    const key = `client_portal_notifications_${profile.uid}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as string[];
+        if (Array.isArray(parsed)) setNotifications(parsed.slice(0, 15));
+      }
+    } catch {
+      /* ignore JSON errors */
+    }
+  }, [profile.uid]);
+
+  useEffect(() => {
+    const key = `client_portal_notifications_${profile.uid}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(notifications.slice(0, 15)));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [notifications, profile.uid]);
+
+  useEffect(() => {
+    if (!orders.length) return;
+    const key = `client_portal_order_status_cache_${profile.uid}`;
+    let previousById: Record<string, string> = {};
+    try {
+      previousById = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, string>;
+    } catch {
+      previousById = {};
+    }
+    const nextById: Record<string, string> = {};
+    const messages: string[] = [];
+    for (const order of orders) {
+      nextById[order.id] = order.status;
+      const prev = previousById[order.id];
+      if (prev && prev !== order.status) {
+        messages.push(
+          `Užsakymo ${order.date} ${order.time} būsena pasikeitė: „${prev}“ → „${order.status}“.`
+        );
+      }
+    }
+    if (messages.length > 0 && settings?.clientStatusNotifications !== false) {
+      setNotifications((prev) => [...messages.reverse(), ...prev].slice(0, 15));
+      showToast.success('Yra naujų užsakymo būsenos atnaujinimų.');
+    }
+    try {
+      localStorage.setItem(key, JSON.stringify(nextById));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [orders, profile.uid, settings?.clientStatusNotifications, showToast]);
+
+  useEffect(() => {
+    if (!payments.length) return;
+    const key = `client_portal_paid_cache_${profile.uid}`;
+    let paidIds: string[] = [];
+    try {
+      paidIds = JSON.parse(localStorage.getItem(key) || '[]') as string[];
+    } catch {
+      paidIds = [];
+    }
+    const knownPaid = new Set(paidIds);
+    const nowPaid = payments
+      .filter((p) => p.status === 'succeeded')
+      .map((p) => p.id)
+      .filter(Boolean);
+    const newlyPaid = nowPaid.filter((id) => !knownPaid.has(id));
+    if (newlyPaid.length > 0 && settings?.clientStatusNotifications !== false) {
+      setNotifications((prev) =>
+        [`Gautas mokėjimo patvirtinimas (${newlyPaid.length}). Ačiū!`, ...prev].slice(0, 15)
+      );
+      showToast.success('Mokėjimas patvirtintas.');
+    }
+    try {
+      localStorage.setItem(key, JSON.stringify(nowPaid));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [payments, profile.uid, settings?.clientStatusNotifications, showToast]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,6 +225,8 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
     completed: orders.filter((o) => o.status === 'atlikta').length,
     totalSpent: orders.filter((o) => o.isPaid).reduce((sum, o) => sum + o.totalPrice, 0),
   };
+
+  const unpaidOrders = orders.filter((order) => !order.isPaid);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -185,6 +306,21 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'orders' && (
           <div className="space-y-6">
+            {notifications.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-indigo-50 border border-indigo-200 rounded-lg p-4"
+              >
+                <h3 className="text-sm font-semibold text-indigo-900 mb-2">Nauji pranešimai</h3>
+                <ul className="space-y-1 text-xs text-indigo-800">
+                  {notifications.slice(0, 4).map((note, i) => (
+                    <li key={`${note}-${i}`}>- {note}</li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <motion.div
@@ -258,10 +394,22 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
                 <h2 className="text-lg font-medium text-gray-900">Užsakymų Istorija</h2>
               </div>
               <div className="divide-y divide-gray-200">
-                {loading ? (
+                {loadingOrders ? (
                   <div className="px-6 py-8 text-center">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     <p className="mt-2 text-gray-500">Kraunami užsakymai...</p>
+                  </div>
+                ) : ordersError ? (
+                  <div className="px-6 py-8 text-center">
+                    <AlertCircle className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                    <p className="text-rose-700 mb-3">{ordersError}</p>
+                    <button
+                      onClick={() => void loadOrders()}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-100 text-rose-700 hover:bg-rose-200 transition-colors"
+                    >
+                      <RefreshCcw className="w-4 h-4" />
+                      Bandyti dar kartą
+                    </button>
                   </div>
                 ) : orders.length === 0 ? (
                   <div className="px-6 py-8 text-center">
@@ -310,8 +458,31 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
                         <div className="text-right">
                           <p className="text-lg font-semibold text-gray-900">€{order.totalPrice}</p>
                           {order.isPaid && <p className="text-xs text-green-600">Apmokėta</p>}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedOrderId((prev) => (prev === order.id ? null : order.id))
+                            }
+                            className="text-xs text-blue-600 hover:text-blue-800 mt-2"
+                          >
+                            {expandedOrderId === order.id ? 'Slėpti detales' : 'Rodyti detales'}
+                          </button>
                         </div>
                       </div>
+                      {expandedOrderId === order.id && (
+                        <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700">
+                          <p>
+                            <strong>Pastabos:</strong> {order.notes?.trim() || 'Nėra pastabų'}
+                          </p>
+                          <p>
+                            <strong>Papildomos paslaugos:</strong>{' '}
+                            {Object.entries(order.additionalServices)
+                              .filter(([, enabled]) => enabled)
+                              .map(([name]) => name)
+                              .join(', ') || 'Nėra'}
+                          </p>
+                        </div>
+                      )}
                     </motion.div>
                   ))
                 )}
@@ -348,47 +519,85 @@ export default function ClientDashboard({ user, profile, onLogout }: ClientDashb
                 <h2 className="text-lg font-medium text-gray-900 mb-4">
                   Pasirinkite Užsakymą Apmokėjimui
                 </h2>
+                {paymentsError && (
+                  <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {paymentsError}
+                  </div>
+                )}
                 <div className="space-y-3">
-                  {loading ? (
+                  {loadingOrders ? (
                     <div className="text-center py-8">
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                       <p className="mt-2 text-gray-500">Kraunami užsakymai...</p>
                     </div>
-                  ) : orders.length === 0 ? (
+                  ) : unpaidOrders.length === 0 ? (
                     <div className="text-center py-8">
                       <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500">Nėra užsakymų apmokėjimui</p>
                     </div>
                   ) : (
-                    orders
-                      .filter((order) => !order.isPaid)
-                      .map((order) => (
-                        <div
-                          key={order.id}
-                          onClick={() => setSelectedOrder(order)}
-                          className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                Langų valymas - {order.address}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {new Date(order.date).toLocaleDateString('lt-LT')} {order.time}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                Langai: {order.windowCount} | Aukštas: {order.floor}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-lg font-semibold text-gray-900">
-                                €{order.totalPrice}
-                              </p>
-                              <p className="text-sm text-orange-600">Laukiama apmokėjimo</p>
-                            </div>
+                    unpaidOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        onClick={() => setSelectedOrder(order)}
+                        className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              Langų valymas - {order.address}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {new Date(order.date).toLocaleDateString('lt-LT')} {order.time}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Langai: {order.windowCount} | Aukštas: {order.floor}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-semibold text-gray-900">
+                              €{order.totalPrice}
+                            </p>
+                            <p className="text-sm text-orange-600">Laukiama apmokėjimo</p>
                           </div>
                         </div>
-                      ))
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-medium text-gray-900">Mokėjimų istorija</h3>
+                    <button
+                      type="button"
+                      onClick={() => void loadPayments()}
+                      className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                    >
+                      <RefreshCcw className="w-3 h-3" />
+                      Atnaujinti
+                    </button>
+                  </div>
+                  {loadingPayments ? (
+                    <p className="text-sm text-gray-500">Kraunama...</p>
+                  ) : payments.length === 0 ? (
+                    <p className="text-sm text-gray-500">Mokėjimų istorijos dar nėra.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {payments.slice(0, 5).map((payment) => (
+                        <div
+                          key={payment.id}
+                          className="rounded-lg border border-gray-200 px-3 py-2 text-sm flex items-center justify-between"
+                        >
+                          <span className="text-gray-600">
+                            #{payment.id.slice(-8)} · {getPaymentStatusText(payment.status)}
+                          </span>
+                          <span className="font-semibold text-gray-900">
+                            €{(payment.amount / 100).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>

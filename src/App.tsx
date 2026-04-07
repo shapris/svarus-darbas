@@ -22,6 +22,7 @@ import {
   createDefaultProfile,
   requestPasswordResetEmail,
   isClientSelfRegistrationEnabled,
+  setClientSelfRegistrationOverride,
 } from './supabase';
 import Layout from './components/Layout';
 import BackendSetupRequired from './components/BackendSetupRequired';
@@ -72,6 +73,28 @@ const ResetPasswordView = lazy(() => import('./views/ResetPasswordView'));
 const MoreSectionsView = lazy(() => import('./views/MoreSectionsView'));
 
 // Optimized toast system - removed DOM manipulation
+type ClientPortalRoute = 'login' | 'register' | 'dashboard' | null;
+
+function parseClientPortalRoute(pathname: string): ClientPortalRoute {
+  if (pathname === '/client/login') return 'login';
+  if (pathname === '/client/register') return 'register';
+  if (pathname === '/client/dashboard') return 'dashboard';
+  return null;
+}
+
+function toClientPortalPath(route: Exclude<ClientPortalRoute, null>): string {
+  return `/client/${route}`;
+}
+
+function syncClientPortalPath(route: ClientPortalRoute, mode: 'push' | 'replace' = 'push'): void {
+  const nextPath = route ? toClientPortalPath(route) : '/';
+  if (window.location.pathname === nextPath) return;
+  if (mode === 'replace') {
+    window.history.replaceState(null, '', nextPath);
+  } else {
+    window.history.pushState(null, '', nextPath);
+  }
+}
 
 export default function App() {
   const clientSelfRegistrationEnabled = isClientSelfRegistrationEnabled();
@@ -128,11 +151,12 @@ export default function App() {
     }
   }, []);
 
-  // Simple routing for booking page
+  // Simple routing for booking page + client portal route
   const path = window.location.pathname;
   const isBookingPage = path.startsWith('/booking/');
   const bookingUserId = isBookingPage ? path.split('/')[2] : null;
   const isResetPasswordPage = /^\/reset-password\/?$/.test(path);
+  const requestedClientPortalRoute = parseClientPortalRoute(path);
 
   useEffect(() => {
     let cancelled = false;
@@ -297,7 +321,11 @@ export default function App() {
       authUid: user.uid,
     });
 
-    type SettingsRow = AppSettings & { invoice_api_base_url?: string };
+    type SettingsRow = AppSettings & {
+      invoice_api_base_url?: string;
+      client_self_registration_enabled?: boolean;
+      client_status_notifications?: boolean;
+    };
     getData<SettingsRow>(TABLES.SETTINGS, dataOwnerId).then((settingsData) => {
       let fromLs = '';
       try {
@@ -314,6 +342,14 @@ export default function App() {
             row.invoiceApiBaseUrl?.trim() ||
             (typeof row.invoice_api_base_url === 'string' ? row.invoice_api_base_url.trim() : '') ||
             fromLs,
+          clientSelfRegistrationEnabled:
+            row.clientSelfRegistrationEnabled ??
+            row.client_self_registration_enabled ??
+            DEFAULT_SETTINGS.clientSelfRegistrationEnabled,
+          clientStatusNotifications:
+            row.clientStatusNotifications ??
+            row.client_status_notifications ??
+            DEFAULT_SETTINGS.clientStatusNotifications,
         });
       } else {
         addData(TABLES.SETTINGS, dataOwnerId, {
@@ -325,6 +361,8 @@ export default function App() {
           priceKiti: DEFAULT_SETTINGS.priceKiti,
           smsTemplate: DEFAULT_SETTINGS.smsTemplate,
           publicBookingEnabled: DEFAULT_SETTINGS.publicBookingEnabled,
+          clientSelfRegistrationEnabled: DEFAULT_SETTINGS.clientSelfRegistrationEnabled,
+          clientStatusNotifications: DEFAULT_SETTINGS.clientStatusNotifications,
         }).then((newSettings) => {
           const s = newSettings as unknown as AppSettings;
           setSettings({
@@ -385,6 +423,36 @@ export default function App() {
       unsubMemories();
     };
   }, [user, userProfile]);
+
+  useEffect(() => {
+    setClientSelfRegistrationOverride(
+      settings.clientSelfRegistrationEnabled ?? DEFAULT_SETTINGS.clientSelfRegistrationEnabled
+    );
+  }, [settings.clientSelfRegistrationEnabled]);
+
+  useEffect(() => {
+    if (isBookingPage || isResetPasswordPage) return;
+    if (requestedClientPortalRoute === null) return;
+
+    if (user && userProfile && userProfile.role !== 'client') {
+      setShowClientPortal(null);
+      syncClientPortalPath(null, 'replace');
+      return;
+    }
+
+    if (requestedClientPortalRoute === 'dashboard') {
+      if (userProfile?.role === 'client') {
+        setShowClientPortal('dashboard');
+        return;
+      }
+      setShowClientPortal('login');
+      syncClientPortalPath('login', 'replace');
+      return;
+    }
+
+    setShowLoginForm(null);
+    setShowClientPortal(requestedClientPortalRoute);
+  }, [requestedClientPortalRoute, user, userProfile, isBookingPage, isResetPasswordPage]);
 
   const handleLogin = async (e: React.FormEvent, rememberMe: boolean = false) => {
     e.preventDefault();
@@ -459,8 +527,10 @@ export default function App() {
       if (profile?.role === 'client') {
         setUserProfile(profile);
         setShowClientPortal('dashboard');
+        syncClientPortalPath('dashboard');
       } else {
         setShowClientPortal(null);
+        syncClientPortalPath(null);
         if (profile) setUserProfile(profile);
       }
     });
@@ -480,13 +550,15 @@ export default function App() {
     };
     setUserProfile(profile);
     setShowClientPortal('dashboard');
+    syncClientPortalPath('dashboard');
     showToast.success('Paskyra sukurta. Sveiki prisijungę!');
   };
 
   const handleClientLogout = () => {
     setUser(null);
     setUserProfile(null);
-    setShowClientPortal(null);
+    setShowClientPortal('login');
+    syncClientPortalPath('login');
     setActiveTab('dashboard');
   };
 
@@ -622,6 +694,7 @@ export default function App() {
                   className="mb-3"
                   onClick={() => {
                     setShowClientPortal(null);
+                    syncClientPortalPath(null);
                     setShowLoginForm('login');
                   }}
                 >
@@ -635,6 +708,7 @@ export default function App() {
                   onClick={() => {
                     setShowLoginForm(null);
                     setShowClientPortal('login');
+                    syncClientPortalPath('login');
                   }}
                 >
                   Kliento prisijungimas
@@ -646,6 +720,7 @@ export default function App() {
                   className="mt-3"
                   onClick={() => {
                     setShowClientPortal(null);
+                    syncClientPortalPath(null);
                     setShowLoginForm('register');
                   }}
                 >
@@ -659,6 +734,7 @@ export default function App() {
                   onClick={() => {
                     setShowLoginForm(null);
                     setShowClientPortal('register');
+                    syncClientPortalPath('register');
                   }}
                   disabled={!clientSelfRegistrationEnabled}
                 >
@@ -798,7 +874,10 @@ export default function App() {
                   size="md"
                   fullWidth
                   className="mt-3 text-slate-500 text-sm font-normal"
-                  onClick={() => setShowLoginForm(null)}
+                  onClick={() => {
+                    setShowLoginForm(null);
+                    syncClientPortalPath(null);
+                  }}
                 >
                   Atgal
                 </Button>
@@ -810,8 +889,14 @@ export default function App() {
           <Suspense fallback={<FullPageLoader text="Kraunama..." />}>
             <ClientLogin
               onSuccess={handleClientLogin}
-              onRegister={() => setShowClientPortal('register')}
-              onBack={() => setShowClientPortal(null)}
+              onRegister={() => {
+                setShowClientPortal('register');
+                syncClientPortalPath('register');
+              }}
+              onBack={() => {
+                setShowClientPortal(null);
+                syncClientPortalPath(null);
+              }}
               allowRegistration={clientSelfRegistrationEnabled}
             />
           </Suspense>
@@ -821,7 +906,10 @@ export default function App() {
             <ClientRegistration
               allowRegistration={clientSelfRegistrationEnabled}
               onSuccess={handleClientRegister}
-              onBack={() => setShowClientPortal('login')}
+              onBack={() => {
+                setShowClientPortal('login');
+                syncClientPortalPath('login');
+              }}
             />
           </Suspense>
         )}
@@ -928,7 +1016,12 @@ export default function App() {
         <ToastContainer toasts={toasts} onRemove={removeToast} />
 
         {showClientPortal === 'dashboard' && user && userProfile && (
-          <ClientDashboard user={user} profile={userProfile} onLogout={handleClientLogout} />
+          <ClientDashboard
+            user={user}
+            profile={userProfile}
+            settings={settings}
+            onLogout={handleClientLogout}
+          />
         )}
 
         {/* Staff CRM */}

@@ -87,6 +87,10 @@ export interface AppSettings {
   publicBookingEnabled: boolean;
   /** server.cjs bazinis URL (pvz. http://127.0.0.1:3001) – saugomas naršyklėje automatinio sąskaitų siuntimo el. paštu keliui. */
   invoiceApiBaseUrl?: string;
+  /** Ar klientai gali patys susikurti portalo paskyrą. */
+  clientSelfRegistrationEnabled?: boolean;
+  /** Ar klientui rodyti automatinius statuso/mokėjimo pranešimus portale. */
+  clientStatusNotifications?: boolean;
 }
 
 export interface Memory {
@@ -179,4 +183,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     'Sveiki {vardas}, primename apie langų valymą {data} {laikas}. Kaina: {kaina}. Iki pasimatymo!',
   publicBookingEnabled: true,
   invoiceApiBaseUrl: '',
+  clientSelfRegistrationEnabled: false,
+  clientStatusNotifications: true,
 };

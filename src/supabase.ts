@@ -12,6 +12,7 @@ export {
   isDemoMode,
   needsBackendSetup,
   isClientSelfRegistrationEnabled,
+  setClientSelfRegistrationOverride,
 } from './supabase/client';
 
 export { formatSupabaseUserError } from './supabase/logging';

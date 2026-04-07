@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-04-07 — P8.2–P8.5 pilnas uždarymas
+
+- **P8.2 UX:** `ClientDashboard` pridėtos aiškios `loading/error/retry` būsenos, neapmokėtų užsakymų CTA ir išskleidžiamos užsakymo detalės.
+- **P8.3 saviregistracija:** `SettingsView` pridėtas „Kliento saviregistracija“ toggle; būsena saugoma `settings` ir `localStorage` override (`setClientSelfRegistrationOverride`) be rankinio env perjungimo.
+- **P8.4 automatika:** klientų portale automatinis pranešimų feed (užsakymo būsenų pokyčiai + mokėjimo patvirtinimai), su local persistence ir admin valdomu įjungimu.
+- **P8.5 mokėjimai:** kliento portale integruota mokėjimų istorija (`getPaymentHistory`) su rankiniu atnaujinimu ir aiškiais būsenų tekstais.
+- **Patikra:** `npm run verify` praeina pilnai; `npm run scout:improvements` score = **100**.
+
+---
+
+## 2026-04-07 — P8.1 klientų portalas: URL maršrutai + role-gating
+
+- **Vienas planas:** po uždaryto P7 pradėtas kanoninis P8 kelias (produkto plėtra), nebe „gabalinė“ darbotvarkė.
+- **Implementacija:** `src/App.tsx` pridėtas `/client/*` maršrutų parseris (`/client/login`, `/client/register`, `/client/dashboard`) ir URL sinchronizacija per `history` (`pushState` / `replaceState`).
+- **Role-based elgsena:** klientas su role `client` lieka `/client/dashboard`; neklientas (`staff/admin`) iš `/client/*` grąžinamas į `/`; be kliento sesijos `/client/dashboard` nukreipia į `/client/login`.
+- **Testai:** `tests/smoke.spec.ts` papildytas kliento portalo maršrutų smoke testu; pilnas `npm run verify` praeina (lint, build, unit, smoke, console, invoice, offline-crm).
+- **Kitas žingsnis:** P8.2 — kliento dashboard UX užbaigimas (loading/empty/error + mokėjimo CTA).
+
+---
+
 ## 2026-04-07 — P6 uždarymas: gamybiniai vartai + produkcijos dūmai
 
 - **Cloud vartai:** `npm run check:cloud` su produkcijos `.env` — `READY` (exit 0), hard blocker'ių nėra.

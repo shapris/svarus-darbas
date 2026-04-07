@@ -12,6 +12,7 @@ import {
   usesLocalStorageBackend,
   checkOrdersSchemaHealth,
   testConnection,
+  setClientSelfRegistrationOverride,
 } from '../supabase';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
@@ -101,6 +102,7 @@ export default function SettingsView({
       } catch {
         /* */
       }
+      setClientSelfRegistrationOverride(!!formData.clientSelfRegistrationEnabled);
       if (settings.id) {
         await updateData(TABLES.SETTINGS, settings.id, dbPayload as Partial<AppSettings>);
       }
@@ -527,6 +529,46 @@ export default function SettingsView({
                 <span className="block text-xs text-slate-500 mt-0.5">
                   Išjungus — klientai nematys rezervacijos formos (nuoroda lieka, bet užklausa bus
                   atmesta serveryje, jei atnaujinta SQL funkcija).
+                </span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <input
+                type="checkbox"
+                checked={formData.clientSelfRegistrationEnabled === true}
+                onChange={(e) =>
+                  setFormData({ ...formData, clientSelfRegistrationEnabled: e.target.checked })
+                }
+                className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>
+                <span className="block text-sm font-bold text-slate-900">
+                  Kliento saviregistracija portale
+                </span>
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  Kai išjungta, klientai vis dar gali prisijungti, bet naujų paskyrų patys susikurti
+                  negalės.
+                </span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+              <input
+                type="checkbox"
+                checked={formData.clientStatusNotifications !== false}
+                onChange={(e) =>
+                  setFormData({ ...formData, clientStatusNotifications: e.target.checked })
+                }
+                className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>
+                <span className="block text-sm font-bold text-slate-900">
+                  Kliento statuso/mokėjimo pranešimai portale
+                </span>
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  Kliento portale rodysime automatinius pranešimus apie užsakymo būseną ir
+                  mokėjimus.
                 </span>
               </span>
             </label>

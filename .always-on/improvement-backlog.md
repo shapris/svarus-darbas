@@ -1,6 +1,6 @@
 ﻿# Improvement Backlog
 
-Generated: 2026-04-07 18:56:37
+Generated: 2026-04-07 19:15:49
 
 ## Health Score
 
@@ -14,7 +14,7 @@ Generated: 2026-04-07 18:56:37
 - alert(...) count: **0**
 - any usage count: **0**
 - NPM audit high/moderate: **0 / 0**
-- Largest code files: **src\components\ChatAssistant.tsx (52,9 KB); src\views\Dashboard.tsx (34,3 KB); src\App.tsx (33,9 KB); src\views\SettingsView.tsx (33,1 KB); src\views\OrdersView.tsx (32,5 KB)**
+- Largest code files: **src\components\ChatAssistant.tsx (52,9 KB); src\App.tsx (37,1 KB); src\views\SettingsView.tsx (35 KB); src\views\Dashboard.tsx (34,3 KB); src\views\OrdersView.tsx (32,5 KB)**
 
 ## Next Actions (Auto-Prioritized)
 
