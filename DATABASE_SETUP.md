@@ -84,6 +84,7 @@ ORDER BY column_name;
      SET workspace_owner_id = '<ADMINO_AUTH_UUID>'::uuid
      WHERE uid = '<DARBUOTOJO_UID_TEKSTU>';
      ```
+   - `20260407160000_profiles_uid_unique.sql` — užtikrina `public.profiles(uid)` unikalumą po saugaus dublikatų valymo; po šios migracijos patikimai veikia `ON CONFLICT (uid)`.
 6. **Auth (Dashboard):** įjunkite _Leaked password protection_ (Have I Been Pwned), kad sumažintumėte silpnų slaptažodžių riziką.
 
 ## Svarbios pastabos

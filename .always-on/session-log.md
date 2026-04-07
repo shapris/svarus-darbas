@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-04-07 — P6 cloud vartai + P7 stabilizacijos startas
+
+- **Cloud/env:** `.env` papildytas `SUPABASE_SERVICE_ROLE_KEY`; `npm run check:cloud` dabar grąžina `READY` (0).
+- **P7.1:** `src/components/chatAssistant/toolHandler.ts` pašalintas `any` cast, įvestas `AssistantToolArgs` tipas; `lint:types`, `lint:eslint`, `build`, `test:unit` — OK.
+- **P7.3:** pridėta migracija `supabase/migrations/20260407160000_profiles_uid_unique.sql` (`profiles` dublikatų valymas + `UNIQUE(uid)`), atnaujintas `DATABASE_SETUP.md`.
+- **Kitas žingsnis:** pabaigti rankinę produkcijos dūmų patikrą pagal `docs/PRODUCTION_CHECKLIST.md` §3 ir tęsti P7 `console.error` likučių mažinimą.
+
+---
+
 ## 2026-04-07 — Supabase workspace/RLS suvedimas (admin + staff)
 
 - **Migracijos:** pritaikyta `supabase/migrations/20260404200000_workspace_owner_team_access.sql`, pataisyti suderinamumo atvejai (`uid::text`, `workspace_owner_id`), papildytas `DATABASE_SETUP.md` su aiškiu SQL Editor keliu.

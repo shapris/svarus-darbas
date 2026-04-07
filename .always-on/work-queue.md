@@ -125,8 +125,16 @@
 ## P6 — Version 1.0.0 (paleidimo riba)
 
 - [x] **Repo dokumentacija ir vartai (lokalus):** `CHANGELOG.md` [1.0.0]; README „Release 1.0.0“; `LAUNCH_AND_SALES_NEXT_STEPS.md` §2.1 atnaujinta + §2.3 checklist prieš tag; `npm run verify` + `node --check server.cjs` OK. *2026-04-06*
-- [ ] **Gamybiniai vartai:** su **produkcijos** env `npm run check:cloud` → išėjimas **0**; uždaryti `PRODUCTION_CHECKLIST.md` §2–3 ir §3 dūmus. *savininkas*
+- [ ] **Gamybiniai vartai:** su **produkcijos** env `npm run check:cloud` → išėjimas **0**; uždaryti `PRODUCTION_CHECKLIST.md` §2–3 ir §3 dūmus. *2026-04-07: `check:cloud` = 0 lokaliai su service role; lieka rankinė produkcijos dūmų patikra savininkui.*
 - [x] **Git žyma (kodo bazė):** annotated tag `v1.0.0` ant commit su CHANGELOG 1.0.0; jei po deploy reikia kito commit — perkelti tag (`git tag -d v1.0.0` ir sukurti iš naujo) arba naudoti `v1.0.1`. Optional GitHub Release — savininkas. *2026-04-06*
+
+---
+
+## P7 — po paleidimo stabilizacija (kai P6 uždaryta)
+
+- [x] **Sumažinti `any` naudojimą (scout signalas = 3):** pirmiausia `src/components/chatAssistant/toolHandler.ts` ir didžiausiuose aktyviuose moduliuose įvesti tikslesnius argumentų tipus. *2026-04-07: `toolHandler` `Record<string, any>` → `AssistantToolArgs` (be `any`), `lint/build/test` OK.*
+- [ ] **Sumažinti `console.error` likučius (scout signalas = 2):** palikti tik diagnostiškai prasmingus kelius, kitur `logDevError` / `warn`.
+- [x] **Supabase `profiles.uid` stabilumas:** pridėti migraciją su `UNIQUE(uid)` po dublikatų valymo, kad `ON CONFLICT (uid)` būtų patikimas ir nebereikėtų fallback SQL. *2026-04-07: `supabase/migrations/20260407160000_profiles_uid_unique.sql` + `DATABASE_SETUP.md` atnaujinimas.*
 
 ---
 
@@ -153,5 +161,7 @@
 | 2026-04-05 | P4 masinė banga | Docs (Vercel parity, migrations, RLS, backup, Stripe, portal MVP, UX, bundle, periodic); `logDevError`; supabase `constants`/`dbTypes`; Chat debounce; Playwright offline+order; Vitest utils; CI Playwright cache; scout score 93; `verify` + `build:analyze`. Likučiai: P4-D2–D5, P4-E Calendar/Chat, P4-G CSV/SMS. |
 | 2026-04-05 | P5 OrdersView + scout | `OrderListCard` / `OrderFormModal`; scout `alert` regex; P5 uždaryta; `npm run verify` OK. |
 | 2026-04-06 | v1.0.0 repo paruošimas | `CHANGELOG.md`, README, `LAUNCH` §2.3; P6; `verify` OK; `check:cloud` lokaliai dar 2 — gamyba lieka P6 atviruose punktuose. |
+| 2026-04-07 | P6 tarpinė būsena | `npm run check:cloud:frontend` = 0 (READY). Pilnas `check:cloud` vis dar blokuotas dėl `SUPABASE_SERVICE_ROLE_KEY` (API hosto env), todėl P6 „Gamybiniai vartai“ paliekamas atviras iki hostingo suvedimo. |
+| 2026-04-07 | P6/P7 progresas | `SUPABASE_SERVICE_ROLE_KEY` suvestas `.env`; `npm run check:cloud` = 0; P7 uždaryti: `any` mažinimas `toolHandler` ir nauja migracija `20260407160000_profiles_uid_unique.sql` (+ `DATABASE_SETUP.md`). |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

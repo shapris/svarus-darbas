@@ -5,6 +5,48 @@ import type { Client, Order, Expense, AppSettings, Memory } from '../../types';
 import { logDevError } from '../../utils/devConsole';
 import type { AssistantToolCall } from './types';
 
+type AssistantToolArgs = {
+  [key: string]: unknown;
+  name?: string;
+  phone?: string;
+  address?: string;
+  buildingType?: string;
+  notes?: string;
+  city?: string;
+  placeName?: string;
+  country?: string;
+  clientId?: string;
+  clientName?: string;
+  date?: string;
+  time?: string;
+  windowCount?: number;
+  floor?: number;
+  estimatedDuration?: number;
+  totalPrice?: number;
+  orderId?: string;
+  ordersIds?: string[];
+  status?: string;
+  title?: string;
+  amount?: number;
+  category?: Expense['category'];
+  expenseId?: string;
+  memoryId?: string;
+  content?: string;
+  days?: number;
+  period?: 'week' | 'month' | 'year';
+  months?: number;
+  limit?: number;
+  by?: 'orders' | 'revenue';
+  intervalMonths?: number;
+  orderIds?: string[];
+  additionalServices?: {
+    balkonai?: boolean;
+    vitrinos?: boolean;
+    terasa?: boolean;
+    kiti?: boolean;
+  };
+};
+
 export type AssistantToolHandlerContext = {
   user: { uid: string };
   /** CRM owner_id (įmonės workspace) */
@@ -32,7 +74,7 @@ export async function runAssistantToolCall(
   }
   const args = (
     rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs) ? rawArgs : {}
-  ) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  ) as AssistantToolArgs;
 
   if (isRestrictedStaff && name.startsWith('delete_')) {
     return 'Šį veiksmą gali atlikti tik administratorius.';
