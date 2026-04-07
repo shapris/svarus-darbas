@@ -26,6 +26,7 @@ import {
 import Layout from './components/Layout';
 import BackendSetupRequired from './components/BackendSetupRequired';
 import { OrgAccessProvider } from './contexts/OrgAccessContext';
+import { CrmWorkspaceProvider } from './contexts/CrmWorkspaceContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { FullPageLoader } from './components/LoadingSpinner';
 import {
@@ -45,6 +46,7 @@ import { ToastContainer } from './components/Toast';
 import { Button } from './components/ui/Button';
 import { useToast } from './hooks/useToast';
 import { formatAuthErrorForUser, AUTH_FALLBACK, AUTH_INVITE_HELP } from './utils/authMessages';
+import { crmDataOwnerId } from './utils/crmDataScope';
 import { formatNewOrderAlert, showNewOrderBrowserNotification } from './utils/bookingNotifications';
 
 const BookingPage = lazy(() => import('./views/BookingPage'));
@@ -231,23 +233,27 @@ export default function App() {
       return;
     }
 
-    // Load user profile to determine role
-    getUserProfile(user.uid).then((profile) => {
+    let cancelled = false;
+    const uid = user.uid;
+
+    getUserProfile(uid).then((profile) => {
+      if (cancelled) return;
       if (profile) {
         setUserProfile(profile);
-        // If user is client, show client portal
         if (profile.role === 'client') {
           setShowClientPortal('dashboard');
         } else {
           setShowClientPortal(null);
         }
       } else {
-        createDefaultProfile(user.uid, user.email, 'staff')
+        createDefaultProfile(uid, user.email, 'staff')
           .then((newProfile) => {
+            if (cancelled) return;
             setUserProfile(newProfile);
             setShowClientPortal(null);
           })
           .catch((e) => {
+            if (cancelled) return;
             showToastRef.current.error(
               e instanceof Error
                 ? e.message
@@ -257,9 +263,42 @@ export default function App() {
       }
     });
 
-    // Load Settings
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) {
+      setClients([]);
+      setOrders([]);
+      setExpenses([]);
+      setEmployees([]);
+      setMemories([]);
+      setSettings(DEFAULT_SETTINGS);
+      return;
+    }
+
+    if (userProfile?.role === 'client') {
+      return;
+    }
+
+    if (userProfile && userProfile.uid !== user.uid) {
+      return;
+    }
+
+    if (!usesLocalStorageBackend && !userProfile) {
+      return;
+    }
+
+    const dataOwnerId = crmDataOwnerId({
+      usesLocalStorageBackend,
+      userProfile,
+      authUid: user.uid,
+    });
+
     type SettingsRow = AppSettings & { invoice_api_base_url?: string };
-    getData<SettingsRow>(TABLES.SETTINGS, user.uid).then((settingsData) => {
+    getData<SettingsRow>(TABLES.SETTINGS, dataOwnerId).then((settingsData) => {
       let fromLs = '';
       try {
         fromLs = localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim() ?? '';
@@ -277,7 +316,7 @@ export default function App() {
             fromLs,
         });
       } else {
-        addData(TABLES.SETTINGS, user.uid, {
+        addData(TABLES.SETTINGS, dataOwnerId, {
           pricePerWindow: DEFAULT_SETTINGS.pricePerWindow,
           pricePerFloor: DEFAULT_SETTINGS.pricePerFloor,
           priceBalkonai: DEFAULT_SETTINGS.priceBalkonai,
@@ -297,16 +336,14 @@ export default function App() {
       }
     });
 
-    // Subscribe to Clients
-    const unsubClients = subscribeToData<Client>(TABLES.CLIENTS, user.uid, (data) => {
+    const unsubClients = subscribeToData<Client>(TABLES.CLIENTS, dataOwnerId, (data) => {
       setClients(data);
     });
 
-    // Subscribe to Orders (+ perspėjimas naujai rezervacijai / užsakymui)
     const ordersHydratedRef = { current: false };
     const prevOrderIdsRef = { current: new Set<string>() };
 
-    const unsubOrders = subscribeToData<Order>(TABLES.ORDERS, user.uid, (data) => {
+    const unsubOrders = subscribeToData<Order>(TABLES.ORDERS, dataOwnerId, (data) => {
       const nextIds = new Set(data.map((o) => o.id));
 
       if (!ordersHydratedRef.current) {
@@ -328,18 +365,15 @@ export default function App() {
       }
     });
 
-    // Subscribe to Expenses
-    const unsubExpenses = subscribeToData<Expense>(TABLES.EXPENSES, user.uid, (data) => {
+    const unsubExpenses = subscribeToData<Expense>(TABLES.EXPENSES, dataOwnerId, (data) => {
       setExpenses(data);
     });
 
-    // Subscribe to Employees
-    const unsubEmployees = subscribeToData<Employee>(TABLES.EMPLOYEES, user.uid, (data) => {
+    const unsubEmployees = subscribeToData<Employee>(TABLES.EMPLOYEES, dataOwnerId, (data) => {
       setEmployees(data);
     });
 
-    // Subscribe to Memories
-    const unsubMemories = subscribeToData<Memory>('memories', user.uid, (data) => {
+    const unsubMemories = subscribeToData<Memory>('memories', dataOwnerId, (data) => {
       setMemories(data);
     });
 
@@ -350,7 +384,7 @@ export default function App() {
       unsubEmployees();
       unsubMemories();
     };
-  }, [user]);
+  }, [user, userProfile]);
 
   const handleLogin = async (e: React.FormEvent, rememberMe: boolean = false) => {
     e.preventDefault();
@@ -856,7 +890,7 @@ export default function App() {
         case 'team':
           return <TeamView employees={employees} user={user} />;
         case 'inventory':
-          return <InventoryView userId={user.uid} />;
+          return <InventoryView />;
         case 'payments':
           return <PaymentsView user={user} clients={clients} orders={orders} />;
         case 'more':
@@ -898,37 +932,48 @@ export default function App() {
         )}
 
         {/* Staff CRM */}
-        {!showClientPortal && user && (
+        {!showClientPortal && user && userProfile?.role !== 'client' && (
           <OrgAccessProvider value={{ isRestrictedStaff: userProfile?.role === 'staff' }}>
-            <Layout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2 }}
+            <CrmWorkspaceProvider
+              value={{
+                dataOwnerId: crmDataOwnerId({
+                  usesLocalStorageBackend,
+                  userProfile,
+                  authUid: user.uid,
+                }),
+                authUid: user.uid,
+              }}
+            >
+              <Layout activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout}>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {renderContent()}
+                  </motion.div>
+                </AnimatePresence>
+                <Suspense
+                  fallback={
+                    <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                    </div>
+                  }
                 >
-                  {renderContent()}
-                </motion.div>
-              </AnimatePresence>
-              <Suspense
-                fallback={
-                  <div className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  </div>
-                }
-              >
-                <ChatAssistant
-                  user={user}
-                  clients={clients}
-                  orders={orders}
-                  expenses={expenses}
-                  settings={settings}
-                  activeTab={activeTab}
-                />
-              </Suspense>
-            </Layout>
+                  <ChatAssistant
+                    user={user}
+                    clients={clients}
+                    orders={orders}
+                    expenses={expenses}
+                    settings={settings}
+                    activeTab={activeTab}
+                  />
+                </Suspense>
+              </Layout>
+            </CrmWorkspaceProvider>
           </OrgAccessProvider>
         )}
       </div>

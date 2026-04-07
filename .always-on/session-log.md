@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-07 — Supabase workspace/RLS suvedimas (admin + staff)
+
+- **Migracijos:** pritaikyta `supabase/migrations/20260404200000_workspace_owner_team_access.sql`, pataisyti suderinamumo atvejai (`uid::text`, `workspace_owner_id`), papildytas `DATABASE_SETUP.md` su aiškiu SQL Editor keliu.
+- **DB būsena:** `public.profiles` sutvarkyta pagal realius Auth UID; `shaprisc@gmail.com` = `admin`, `tenysas@gmail.com` = `staff`, abiem `workspace_owner_id = 96b1e784-cc00-445d-a5c6-d438b9f897b7`.
+- **Kitas žingsnis:** CRM prisijungti su `tenysas@gmail.com` ir patikrinti, kad mato tą patį `clients/orders` dataset kaip admin; jei ne — vykdyti RLS diagnostikos query.
+
+---
+
 ## 2026-04-06 — Version 1.0.0 repo paruošimas
 
 - **CHANGELOG.md** [1.0.0], README „Release 1.0.0“, **LAUNCH_AND_SALES_NEXT_STEPS.md** §2.1 (2026-04-06) + **§2.3** checklist prieš viešą tag.

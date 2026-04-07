@@ -26,6 +26,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import { logDevError } from '../utils/devConsole';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import ClientAddressAutocomplete, {
   googleMapsSearchUrl,
 } from '../components/ClientAddressAutocomplete';
@@ -60,7 +61,8 @@ function formatClientSaveError(err: unknown): string {
   return msg ? ` (${msg})` : '';
 }
 
-export default function ClientsView({ clients, orders, user }: ClientsViewProps) {
+export default function ClientsView({ clients, orders, user: _user }: ClientsViewProps) {
+  const { dataOwnerId } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
   const [search, setSearch] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -121,7 +123,7 @@ export default function ClientsView({ clients, orders, user }: ClientsViewProps)
         await updateData(TABLES.CLIENTS, editingClient.id, { ...formData, phone: normalizedPhone });
         showToast.success('Kliento informacija atnaujinta!');
       } else {
-        await addData(TABLES.CLIENTS, user.uid, {
+        await addData(TABLES.CLIENTS, dataOwnerId, {
           ...formData,
           phone: normalizedPhone,
           createdAt: new Date().toISOString(),

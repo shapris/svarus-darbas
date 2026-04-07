@@ -10,6 +10,7 @@ import { Users, Plus, Edit2, Trash2, X, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 
 interface LocalUser {
   uid: string;
@@ -17,7 +18,8 @@ interface LocalUser {
 
 interface TeamViewProps {
   employees: Employee[];
-  user: LocalUser;
+  /** Palikta dėl suderinamumo su App (CRM scope iš CrmWorkspaceContext). */
+  user?: LocalUser;
 }
 
 const COLORS = [
@@ -31,7 +33,8 @@ const COLORS = [
   '#14b8a6',
 ];
 
-export default function TeamView({ employees, user }: TeamViewProps) {
+export default function TeamView({ employees }: TeamViewProps) {
+  const { dataOwnerId } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
@@ -53,7 +56,7 @@ export default function TeamView({ employees, user }: TeamViewProps) {
       if (editingId) {
         await updateData(TABLES.EMPLOYEES, editingId, formData);
       } else {
-        await addData(TABLES.EMPLOYEES, user.uid, {
+        await addData(TABLES.EMPLOYEES, dataOwnerId, {
           ...formData,
         });
       }

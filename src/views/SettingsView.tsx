@@ -14,6 +14,7 @@ import {
   testConnection,
 } from '../supabase';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import { downloadData, importData } from '../localDb';
 import {
   Settings,
@@ -48,9 +49,10 @@ interface SettingsViewProps {
 export default function SettingsView({
   settings,
   setSettings,
-  user,
+  user: _user,
   memories = [],
 }: SettingsViewProps) {
+  const { dataOwnerId } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const [formData, setFormData] = useState<AppSettings>(settings);
@@ -147,7 +149,7 @@ export default function SettingsView({
     }
   };
 
-  const bookingUrl = `${window.location.origin}/booking/${user.uid}`;
+  const bookingUrl = `${window.location.origin}/booking/${dataOwnerId}`;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCopy = () => {
@@ -168,16 +170,16 @@ export default function SettingsView({
     }
     try {
       const [clients, orders, settingsRows, expenses, employees, mems] = await Promise.all([
-        getData(TABLES.CLIENTS, user.uid),
-        getData(TABLES.ORDERS, user.uid),
-        getData(TABLES.SETTINGS, user.uid),
-        getData(TABLES.EXPENSES, user.uid),
-        getData(TABLES.EMPLOYEES, user.uid),
-        getData('memories', user.uid),
+        getData(TABLES.CLIENTS, dataOwnerId),
+        getData(TABLES.ORDERS, dataOwnerId),
+        getData(TABLES.SETTINGS, dataOwnerId),
+        getData(TABLES.EXPENSES, dataOwnerId),
+        getData(TABLES.EMPLOYEES, dataOwnerId),
+        getData('memories', dataOwnerId),
       ]);
       const payload = {
         exportedAt: new Date().toISOString(),
-        ownerUid: user.uid,
+        ownerUid: dataOwnerId,
         clients,
         orders,
         settings: settingsRows,
@@ -189,7 +191,7 @@ export default function SettingsView({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `svarus-crm-export-${user.uid.slice(0, 8)}.json`;
+      a.download = `svarus-crm-export-${dataOwnerId.slice(0, 8)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       showToast.success('JSON eksportas paruoštas.');
@@ -244,7 +246,7 @@ export default function SettingsView({
   const handleCheckOrdersSchema = async () => {
     setIsCheckingSchema(true);
     try {
-      const result = await checkOrdersSchemaHealth(user.uid);
+      const result = await checkOrdersSchemaHealth(dataOwnerId);
       if (result.ok) showToast.success(result.message);
       else showToast.error(result.message);
     } catch (error: unknown) {

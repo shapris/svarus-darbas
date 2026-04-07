@@ -34,6 +34,7 @@ import { addData, subscribeToData, TABLES } from '../supabase';
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import { logDevError } from '../utils/devConsole';
 import {
   CRM_TAB_LABEL_LT,
@@ -70,6 +71,7 @@ export default function ChatAssistant({
   settings,
   activeTab,
 }: ChatAssistantProps) {
+  const { dataOwnerId, authUid } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
   const { showToast } = useToast();
   const activeViewLabel = CRM_TAB_LABEL_LT[activeTab] ?? activeTab;
@@ -210,7 +212,7 @@ export default function ChatAssistant({
   useEffect(() => {
     checkApiKey();
 
-    const unsubscribe = subscribeToData<Memory>('memories', user.uid, (data) => {
+    const unsubscribe = subscribeToData<Memory>('memories', dataOwnerId, (data) => {
       setMemories(data);
     });
 
@@ -221,7 +223,7 @@ export default function ChatAssistant({
         recognitionRef.current.stop();
       }
     };
-  }, [user.uid]);
+  }, [user.uid, dataOwnerId]);
 
   useEffect(() => {
     try {
@@ -367,6 +369,7 @@ export default function ChatAssistant({
     (call: unknown) =>
       runAssistantToolCall(call, {
         user,
+        dataOwnerId,
         clients,
         orders,
         expenses,
@@ -374,7 +377,7 @@ export default function ChatAssistant({
         isRestrictedStaff,
         setMemories,
       }),
-    [user, clients, orders, expenses, settings, isRestrictedStaff]
+    [user, dataOwnerId, clients, orders, expenses, settings, isRestrictedStaff]
   );
 
   const handleOpenKeySelector = async () => {
@@ -554,11 +557,11 @@ export default function ChatAssistant({
         if (memoryCheck.shouldRemember && memoryCheck.suggestedContent) {
           const category = detectMemoryCategory(textToSend, finalResponse);
           try {
-            const saved = (await addData('memories', user.uid, {
+            const saved = (await addData('memories', dataOwnerId, {
               content: memoryCheck.suggestedContent,
               category,
               importance: 3,
-              uid: user.uid,
+              uid: authUid,
               createdAt: new Date().toISOString(),
               isActive: true,
             } as Record<string, unknown>)) as unknown as Memory;
@@ -593,7 +596,7 @@ export default function ChatAssistant({
                 notes: `Sukurta iš pokalbio: ${textToSend.slice(0, 100)}`,
                 createdAt: new Date().toISOString(),
               };
-              await addData(TABLES.ORDERS, user.uid, newOrder);
+              await addData(TABLES.ORDERS, dataOwnerId, newOrder);
               console.log('Auto-created order from conversation');
             }
           } catch (orderError) {

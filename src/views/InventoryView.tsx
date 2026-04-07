@@ -4,12 +4,10 @@ import { addData, updateData, deleteData, subscribeToData, TABLES } from '../sup
 import { Package, Plus, Search, AlertTriangle, Edit2, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../hooks/useToast';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 
-interface InventoryViewProps {
-  userId: string;
-}
-
-export default function InventoryView({ userId }: InventoryViewProps) {
+export default function InventoryView() {
+  const { dataOwnerId } = useCrmWorkspace();
   const { showToast } = useToast();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -26,12 +24,12 @@ export default function InventoryView({ userId }: InventoryViewProps) {
   });
 
   useEffect(() => {
-    const unsubscribe = subscribeToData<InventoryItem>(TABLES.INVENTORY, userId, (data) => {
+    const unsubscribe = subscribeToData<InventoryItem>(TABLES.INVENTORY, dataOwnerId, (data) => {
       setItems(data.sort((a, b) => a.name.localeCompare(b.name)));
     });
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [dataOwnerId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +43,9 @@ export default function InventoryView({ userId }: InventoryViewProps) {
               : editingItem.lastRestocked,
         });
       } else {
-        await addData(TABLES.INVENTORY, userId, {
+        await addData(TABLES.INVENTORY, dataOwnerId, {
           ...formData,
-          uid: userId,
+          uid: dataOwnerId,
           lastRestocked: new Date().toISOString(),
         });
       }

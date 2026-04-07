@@ -41,6 +41,7 @@
     "dev:kill": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/kill-dev-ports.ps1\"",
     "dev:full": "npm run dev:kill && concurrently \"npm run server\" \"npm run dev\"",
     "deploy:vercel": "vercel deploy --prod",
+    "db:apply-sql": "node scripts/apply-sql-with-db-url.mjs",
     "check:cloud": "node scripts/cloud-readiness-check.mjs",
     "check:cloud:frontend": "node scripts/cloud-readiness-check.mjs --frontend-only",
     "check:env": "node scripts/check-vite-env.mjs",

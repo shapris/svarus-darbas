@@ -18,6 +18,7 @@ import {
 } from '../utils';
 import { useToast } from '../hooks/useToast';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import { Plus, Search, Download, HelpCircle } from 'lucide-react';
 import { OrderListCard } from './orders/OrderListCard';
 import { OrderFormModal } from './orders/OrderFormModal';
@@ -38,9 +39,10 @@ export default function OrdersView({
   orders,
   clients,
   settings,
-  user,
+  user: _user,
   employees,
 }: OrdersViewProps) {
+  const { dataOwnerId, authUid } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
@@ -223,7 +225,7 @@ export default function OrdersView({
           showToast.error('Naujam klientui būtinas vardas ir adresas');
           return;
         }
-        const createdClient = await addData(TABLES.CLIENTS, user.uid, {
+        const createdClient = await addData(TABLES.CLIENTS, dataOwnerId, {
           name,
           phone: newClientData.phone.trim(),
           email: newClientData.email.trim() || undefined,
@@ -247,14 +249,14 @@ export default function OrdersView({
         estimatedDuration: Math.max(15, Number(formData.estimatedDuration) || 60),
         totalPrice: effectiveTotalPrice,
         status: 'suplanuota' as OrderStatus,
-        uid: user.uid,
+        uid: authUid,
         createdAt: new Date().toISOString(),
       };
 
       if (editingOrder) {
         await updateData(TABLES.ORDERS, editingOrder.id, orderData as Record<string, unknown>);
       } else {
-        await addData(TABLES.ORDERS, user.uid, orderData as Record<string, unknown>);
+        await addData(TABLES.ORDERS, dataOwnerId, orderData as Record<string, unknown>);
       }
       setIsAdding(false);
       setEditingOrder(null);
@@ -296,11 +298,11 @@ export default function OrdersView({
           isRecurring: true,
           recurringInterval: order.recurringInterval,
           notes: order.notes || '',
-          uid: user.uid,
+          uid: authUid,
           createdAt: new Date().toISOString(),
         };
 
-        await addData(TABLES.ORDERS, user.uid, newOrderData as Record<string, unknown>);
+        await addData(TABLES.ORDERS, dataOwnerId, newOrderData as Record<string, unknown>);
         showToast.success(
           `Užsakymas baigtas. Sukurtas naujas periodinis užsakymas: ${newOrderData.date}`
         );

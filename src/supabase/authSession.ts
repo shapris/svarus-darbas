@@ -34,8 +34,20 @@ type ProfileRow = {
   phone?: string | null;
   role: UserProfile['role'];
   client_id?: string | null;
+  workspace_owner_id?: string | null;
   created_at?: string | null;
 };
+
+const PROFILE_SELECT_WITH_WORKSPACE =
+  'id,uid,email,name,phone,role,client_id,workspace_owner_id,created_at';
+const PROFILE_SELECT_LEGACY = 'id,uid,email,name,phone,role,client_id,created_at';
+
+/** Senesnė DB be migracijos — PostgREST meta klaidą apie nežinomą stulpelį. */
+function isWorkspaceOwnerColumnMissingError(err: { message?: string } | null | undefined): boolean {
+  if (!err?.message) return false;
+  const m = err.message.toLowerCase();
+  return m.includes('workspace_owner_id') || m.includes('schema cache');
+}
 
 function mapProfileRowToUserProfile(data: ProfileRow): UserProfile {
   return {
@@ -43,6 +55,7 @@ function mapProfileRowToUserProfile(data: ProfileRow): UserProfile {
     uid: data.uid,
     email: data.email ?? '',
     role: data.role,
+    workspaceOwnerId: data.workspace_owner_id ?? undefined,
     name: data.name ?? undefined,
     phone: data.phone ?? undefined,
     clientId: data.client_id ?? undefined,
@@ -285,13 +298,22 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   }
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('profiles')
-      .select('id,uid,email,name,phone,role,client_id,created_at')
+      .select(PROFILE_SELECT_WITH_WORKSPACE)
       .eq('uid', uid)
       .maybeSingle();
 
+    if (error && isWorkspaceOwnerColumnMissingError(error)) {
+      ({ data, error } = await supabase
+        .from('profiles')
+        .select(PROFILE_SELECT_LEGACY)
+        .eq('uid', uid)
+        .maybeSingle());
+    }
+
     if (error) {
+      logSupabaseDevError('getUserProfile', error);
       return null;
     }
     if (!data) {
@@ -326,20 +348,30 @@ export async function createDefaultProfile(
     );
   }
 
-  const { data, error } = await supabase
+  const insertBase = {
+    id: profile.id,
+    uid: profile.uid,
+    email: profile.email || '',
+    role: profile.role,
+    name: profile.name ?? null,
+    phone: profile.phone ?? null,
+    client_id: profile.clientId ?? null,
+    created_at: profile.createdAt,
+  };
+
+  let { data, error } = await supabase
     .from('profiles')
-    .insert({
-      id: profile.id,
-      uid: profile.uid,
-      email: profile.email || '',
-      role: profile.role,
-      name: profile.name ?? null,
-      phone: profile.phone ?? null,
-      client_id: profile.clientId ?? null,
-      created_at: profile.createdAt,
-    })
-    .select('id,uid,email,name,phone,role,client_id,created_at')
+    .insert({ ...insertBase, workspace_owner_id: profile.uid })
+    .select(PROFILE_SELECT_WITH_WORKSPACE)
     .single();
+
+  if (error && isWorkspaceOwnerColumnMissingError(error)) {
+    ({ data, error } = await supabase
+      .from('profiles')
+      .insert(insertBase)
+      .select(PROFILE_SELECT_LEGACY)
+      .single());
+  }
 
   if (error) throw error;
   return mapProfileRowToUserProfile(data as ProfileRow);
@@ -367,12 +399,21 @@ export async function updateUserProfile(
     if (Object.keys(snake).length === 0) {
       return getUserProfile(uid);
     }
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('profiles')
       .update(snake)
       .eq('uid', uid)
-      .select('id,uid,email,name,phone,role,client_id,created_at')
+      .select(PROFILE_SELECT_WITH_WORKSPACE)
       .single();
+
+    if (error && isWorkspaceOwnerColumnMissingError(error)) {
+      ({ data, error } = await supabase
+        .from('profiles')
+        .update(snake)
+        .eq('uid', uid)
+        .select(PROFILE_SELECT_LEGACY)
+        .single());
+    }
 
     if (error) throw error;
     return mapProfileRowToUserProfile(data as ProfileRow);

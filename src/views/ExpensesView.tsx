@@ -10,6 +10,7 @@ import { Plus, Trash2, Wallet, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatCurrency, formatDate } from '../utils';
 import { useToast } from '../hooks/useToast';
+import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 
 interface LocalUser {
   uid: string;
@@ -17,10 +18,12 @@ interface LocalUser {
 
 interface ExpensesViewProps {
   expenses: Expense[];
-  user: LocalUser;
+  /** Palikta dėl suderinamumo su App (CRM scope iš CrmWorkspaceContext). */
+  user?: LocalUser;
 }
 
-export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
+export default function ExpensesView({ expenses }: ExpensesViewProps) {
+  const { dataOwnerId } = useCrmWorkspace();
   const { showToast } = useToast();
   const [isAdding, setIsAdding] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -37,7 +40,7 @@ export default function ExpensesView({ expenses, user }: ExpensesViewProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addData(TABLES.EXPENSES, user.uid, {
+      await addData(TABLES.EXPENSES, dataOwnerId, {
         ...formData,
         amount: parseFloat(formData.amount),
       });

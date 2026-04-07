@@ -7,6 +7,8 @@ import type { AssistantToolCall } from './types';
 
 export type AssistantToolHandlerContext = {
   user: { uid: string };
+  /** CRM owner_id (įmonės workspace) */
+  dataOwnerId: string;
   clients: Client[];
   orders: Order[];
   expenses: Expense[];
@@ -19,7 +21,7 @@ export async function runAssistantToolCall(
   call: unknown,
   ctx: AssistantToolHandlerContext
 ): Promise<string> {
-  const { user, clients, orders, expenses, settings, isRestrictedStaff, setMemories } = ctx;
+  const { dataOwnerId, clients, orders, expenses, settings, isRestrictedStaff, setMemories } = ctx;
 
   if (!call || typeof call !== 'object' || !('name' in call)) {
     return 'Neteisingas įrankio kvietimas.';
@@ -38,7 +40,7 @@ export async function runAssistantToolCall(
 
   try {
     if (name === 'add_client') {
-      await addData(TABLES.CLIENTS, user.uid, {
+      await addData(TABLES.CLIENTS, dataOwnerId, {
         name: args.name || 'Naujas klientas',
         phone: args.phone || 'nesutarta',
         address: args.address || 'nesutarta',
@@ -106,7 +108,7 @@ export async function runAssistantToolCall(
         settings
       );
 
-      await addData(TABLES.ORDERS, user.uid, {
+      await addData(TABLES.ORDERS, dataOwnerId, {
         clientId: client.id,
         clientName: client.name,
         address: args.address || client.address || 'nesutarta',
@@ -162,7 +164,7 @@ export async function runAssistantToolCall(
     }
 
     if (name === 'add_expense') {
-      await addData('expenses', user.uid, {
+      await addData('expenses', dataOwnerId, {
         title: args.title || 'nesutarta',
         amount: args.amount || 0,
         date: args.date || 'nesutarta',
@@ -185,11 +187,11 @@ export async function runAssistantToolCall(
     }
 
     if (name === 'add_memory') {
-      await addData('memories', user.uid, {
+      await addData('memories', dataOwnerId, {
         ...args,
         createdAt: new Date().toISOString(),
       });
-      const freshMemories = await getData<Memory>('memories', user.uid);
+      const freshMemories = await getData<Memory>('memories', dataOwnerId);
       setMemories(freshMemories);
       return `Informacija įsiminta: "${args.content}"`;
     }
@@ -197,14 +199,14 @@ export async function runAssistantToolCall(
     if (name === 'update_memory') {
       const { memoryId, ...updates } = args;
       await updateData('memories', memoryId, updates);
-      const freshMemories = await getData<Memory>('memories', user.uid);
+      const freshMemories = await getData<Memory>('memories', dataOwnerId);
       setMemories(freshMemories);
       return `Atmintis atnaujinta.`;
     }
 
     if (name === 'delete_memory') {
       await deleteData('memories', args.memoryId);
-      const freshMemories = await getData<Memory>('memories', user.uid);
+      const freshMemories = await getData<Memory>('memories', dataOwnerId);
       setMemories(freshMemories);
       return `Atmintis ištrinta.`;
     }
@@ -323,7 +325,7 @@ export async function runAssistantToolCall(
         settings
       );
 
-      await addData(TABLES.ORDERS, user.uid, {
+      await addData(TABLES.ORDERS, dataOwnerId, {
         clientId: client.id,
         clientName: client.name,
         address: args.address,

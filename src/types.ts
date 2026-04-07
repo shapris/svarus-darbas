@@ -120,6 +120,8 @@ export interface UserProfile {
   uid: string;
   email: string;
   role: UserRole;
+  /** Supabase: auth.users id įmonės savininko; staff mato tą patį CRM. Jei tuščia — naudojamas uid. */
+  workspaceOwnerId?: string;
   name?: string;
   phone?: string;
   clientId?: string;

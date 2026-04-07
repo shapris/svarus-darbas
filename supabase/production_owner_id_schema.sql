@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone text,
   role text NOT NULL DEFAULT 'staff' CHECK (role IN ('admin', 'staff', 'client')),
   client_id text,
+  workspace_owner_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -195,6 +196,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 CREATE INDEX IF NOT EXISTS idx_profiles_uid ON public.profiles(uid);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
 CREATE INDEX IF NOT EXISTS idx_profiles_client_id ON public.profiles(client_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_workspace_owner_id ON public.profiles(workspace_owner_id);
 
 CREATE INDEX IF NOT EXISTS idx_clients_owner_id ON public.clients(owner_id);
 CREATE INDEX IF NOT EXISTS idx_clients_owner_phone ON public.clients(owner_id, phone);
@@ -244,7 +246,7 @@ SET search_path = public
 AS $$
   SELECT p.role
   FROM public.profiles p
-  WHERE p.uid = auth.uid()::text
+  WHERE p.uid::text = (SELECT auth.uid())::text
   LIMIT 1;
 $$;
 
@@ -257,7 +259,7 @@ SET search_path = public
 AS $$
   SELECT p.client_id
   FROM public.profiles p
-  WHERE p.uid = auth.uid()::text
+  WHERE p.uid::text = (SELECT auth.uid())::text
   LIMIT 1;
 $$;
 
@@ -269,6 +271,24 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT COALESCE(public.current_user_role() IN ('admin', 'staff'), false);
+$$;
+
+CREATE OR REPLACE FUNCTION public.effective_workspace_owner_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT w.workspace_owner_id
+      FROM public.profiles w
+      WHERE w.uid::text = (SELECT auth.uid())::text
+      LIMIT 1
+    ),
+    auth.uid()
+  );
 $$;
 
 DROP TRIGGER IF EXISTS trg_profiles_updated_at ON public.profiles;
@@ -333,16 +353,16 @@ DROP POLICY IF EXISTS profiles_update_own ON public.profiles;
 
 CREATE POLICY profiles_select_own ON public.profiles
   FOR SELECT TO authenticated
-  USING (uid = auth.uid()::text);
+  USING (uid::text = (SELECT auth.uid())::text);
 
 CREATE POLICY profiles_insert_own ON public.profiles
   FOR INSERT TO authenticated
-  WITH CHECK (uid = auth.uid()::text);
+  WITH CHECK (uid::text = (SELECT auth.uid())::text);
 
 CREATE POLICY profiles_update_own ON public.profiles
   FOR UPDATE TO authenticated
-  USING (uid = auth.uid()::text)
-  WITH CHECK (uid = auth.uid()::text);
+  USING (uid::text = (SELECT auth.uid())::text)
+  WITH CHECK (uid::text = (SELECT auth.uid())::text);
 
 DO $$
 DECLARE
@@ -352,9 +372,46 @@ BEGIN
     SELECT unnest(ARRAY['clients','orders','expenses','employees','inventory','memories','settings'])
   LOOP
     EXECUTE format('DROP POLICY IF EXISTS %I_owner_all ON public.%I', t, t);
+    EXECUTE format('DROP POLICY IF EXISTS %I_staff_org_all ON public.%I', t, t);
+  END LOOP;
+END $$;
+
+DROP POLICY IF EXISTS clients_staff_org_all ON public.clients;
+DROP POLICY IF EXISTS clients_client_own_all ON public.clients;
+
+CREATE POLICY clients_staff_org_all ON public.clients
+  FOR ALL TO authenticated
+  USING (
+    public.is_staff_or_admin()
+    AND owner_id = public.effective_workspace_owner_id()
+  )
+  WITH CHECK (
+    public.is_staff_or_admin()
+    AND owner_id = public.effective_workspace_owner_id()
+  );
+
+CREATE POLICY clients_client_own_all ON public.clients
+  FOR ALL TO authenticated
+  USING (
+    public.current_user_role() = 'client'
+    AND owner_id = auth.uid()
+  )
+  WITH CHECK (
+    public.current_user_role() = 'client'
+    AND owner_id = auth.uid()
+  );
+
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOR t IN
+    SELECT unnest(ARRAY['orders','expenses','employees','inventory','memories','settings'])
+  LOOP
     EXECUTE format(
-      'CREATE POLICY %I_owner_all ON public.%I FOR ALL TO authenticated USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid())',
-      t, t
+      'CREATE POLICY %I_staff_org_all ON public.%I FOR ALL TO authenticated USING (public.is_staff_or_admin() AND owner_id = public.effective_workspace_owner_id()) WITH CHECK (public.is_staff_or_admin() AND owner_id = public.effective_workspace_owner_id())',
+      t,
+      t
     );
   END LOOP;
 END $$;

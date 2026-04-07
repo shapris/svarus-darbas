@@ -2,6 +2,16 @@
 
 Šiame repo yra dvi istorines Supabase schemos kryptys. Prieš vykdydami SQL, pasirinkite vieną aiškų kelią ir nemaišykite jų tame pačiame projekte.
 
+## Paprasčiausias būdas (komandų eilutės nereikia)
+
+**Svarbu:** į SQL Editor **nekopijuokite** šio `DATABASE_SETUP.md` failo (tai dokumentacija, ne SQL — klaida `syntax error at or near "#"`). Kopijuokite tik **`.sql` failą** žemiau nurodytu keliu.
+
+1. [Supabase Dashboard](https://supabase.com/dashboard) → jūsų projektas → **SQL Editor** → **New query**.
+2. Atverkite repo faile **`supabase/migrations/20260404200000_workspace_owner_team_access.sql`** (ne `.md`!), nukopijuokite **visą** jo turinį į editorių (**nuo pirmos eilutės** — pradžioje yra `ALTER TABLE` ir stulpelis `workspace_owner_id`; vien tik `CREATE FUNCTION` iš pokalbio nepakanka).
+3. **Run**.
+
+`npm run db:apply-sql` ir `SUPABASE_DATABASE_URL` — tik jei norite tą patį daryti iš terminalo su `psql`; kasdieniam naudojimui užtenka SQL Editor.
+
 ## Schema track pasirinkimas
 
 ### Track A — dabartinis app runtime
@@ -25,6 +35,24 @@ Tai sena, bet repo vis dar esanti schema iš `supabase/migrations/20250322120000
 - `supabase/public_booking_rpcs.sql` ant šios schemos vykdyti nereikia
 
 Naudokite šį kelią tik jei jūsų DB jau sukurta iš šios migracijos ir nenorite jos konvertuoti.
+
+## Migracija iš terminalo (psql, ne SQL Editor)
+
+Jei turite **Postgres slaptažodį** (Dashboard → Database → Database password) ir į `.env` įrašote pilną URI:
+
+```env
+SUPABASE_DATABASE_URL=postgresql://postgres:JUSU_SLAPT@db.<project-ref>.supabase.co:5432/postgres
+```
+
+(tik **lokaliai**; `.env` jau gitignore’intas.)
+
+Tada su įdiegtu **`psql`** terminale:
+
+```bash
+npm run db:apply-sql -- supabase/migrations/20260404200000_workspace_owner_team_access.sql
+```
+
+Jei `psql` nerandamas — įdiekite [PostgreSQL CLI](https://www.postgresql.org/download/windows/) arba naudokite SQL Editor.
 
 ## Greitas patikrinimas SQL Editor
 
@@ -50,6 +78,12 @@ ORDER BY column_name;
    - `20260404135000_inventory_owner_id.sql` — jei `inventory` dar turi seną `uid` (text), pirmiausia suvienodina į `owner_id`
    - `20260404140000_crm_core_rls.sql` — CRM lentelių RLS + kliento portalo skaitymas
    - `20260404180000_rls_auth_uid_initplan.sql` — workspace / quotes / mokėjimų RLS našumas (`(select auth.uid())`)
+   - `20260404200000_workspace_owner_team_access.sql` — **komanda:** `profiles.workspace_owner_id` + RLS pagal `effective_workspace_owner_id()` (admin/staff dalijasi vienu CRM). Po šito darbuotojo profilis prijungiamas prie admino, pvz.:
+     ```sql
+     UPDATE public.profiles
+     SET workspace_owner_id = '<ADMINO_AUTH_UUID>'::uuid
+     WHERE uid = '<DARBUOTOJO_UID_TEKSTU>';
+     ```
 6. **Auth (Dashboard):** įjunkite _Leaked password protection_ (Have I Been Pwned), kad sumažintumėte silpnų slaptažodžių riziką.
 
 ## Svarbios pastabos
