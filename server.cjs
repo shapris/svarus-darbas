@@ -107,6 +107,84 @@ function mapPaymentIntentRow(row) {
   };
 }
 
+const inMemoryNotificationEvents = [];
+
+function orderStatusLabel(status) {
+  if (status === 'suplanuota') return 'Suplanuota';
+  if (status === 'vykdoma') return 'Vykdoma';
+  if (status === 'atlikta') return 'Atlikta';
+  return String(status || 'Atnaujinta');
+}
+
+function parseOrderDateTime(orderDate, orderTime) {
+  const d = String(orderDate || '').trim();
+  const t = String(orderTime || '').trim() || '10:00';
+  if (!d) return null;
+  const isoLike = d.includes('T') ? d : `${d}T${t.length === 5 ? `${t}:00` : t}`;
+  const parsed = new Date(isoLike);
+  if (Number.isNaN(parsed.valueOf())) return null;
+  return parsed;
+}
+
+function formatReminderScheduledFor(date) {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  return rounded.toISOString();
+}
+
+async function insertNotificationEvent(row) {
+  if (paymentsDbAvailable()) {
+    const { data, error } = await paymentsDb
+      .from('notification_events')
+      .insert(row)
+      .select()
+      .single();
+    if (!error) return data;
+    if (error.code !== '23505') {
+      throw error;
+    }
+    return null;
+  }
+  inMemoryNotificationEvents.push({ ...row, id: `local_${Date.now()}_${Math.random()}` });
+  return row;
+}
+
+async function updateNotificationEventById(id, patch) {
+  if (!id) return;
+  if (paymentsDbAvailable()) {
+    const { error } = await paymentsDb.from('notification_events').update(patch).eq('id', id);
+    if (error) throw error;
+    return;
+  }
+  const idx = inMemoryNotificationEvents.findIndex((e) => String(e.id) === String(id));
+  if (idx >= 0) inMemoryNotificationEvents[idx] = { ...inMemoryNotificationEvents[idx], ...patch };
+}
+
+async function hasNotificationEvent(orderId, type, recipient, scheduledForIso) {
+  if (paymentsDbAvailable()) {
+    const { data, error } = await paymentsDb
+      .from('notification_events')
+      .select('id')
+      .eq('order_id', String(orderId))
+      .eq('type', String(type))
+      .eq('channel', 'email')
+      .eq('recipient', String(recipient))
+      .eq('scheduled_for', scheduledForIso)
+      .limit(1)
+      .maybeSingle();
+    if (error && error.code !== 'PGRST116') throw error;
+    return !!data;
+  }
+  return inMemoryNotificationEvents.some(
+    (e) =>
+      String(e.order_id) === String(orderId) &&
+      String(e.type) === String(type) &&
+      String(e.channel) === 'email' &&
+      String(e.recipient) === String(recipient) &&
+      String(e.scheduled_for) === scheduledForIso
+  );
+}
+
 async function selectSingleByEq(table, column, value) {
   if (!paymentsDb) return { data: null, error: { message: 'Payments DB not configured' } };
   return await paymentsDb.from(table).select('*').eq(column, value).maybeSingle();
@@ -350,6 +428,160 @@ async function canAccessPayment(payment, authHeader, profile) {
   return false;
 }
 
+async function sendTransactionalEmail({ to, subject, text }) {
+  const resendKey = (process.env.RESEND_API_KEY || '').trim();
+  if (!resendKey) {
+    throw new Error('El. pašto siuntimas nesukonfigūruotas (RESEND_API_KEY).');
+  }
+  const resend = new Resend(resendKey);
+  const { data, error } = await resend.emails.send({
+    from: buildResendFromHeader(),
+    to: String(to).trim(),
+    subject: String(subject).slice(0, 200),
+    text: String(text).slice(0, 12000),
+  });
+  if (error) throw new Error(String(error.message || 'Resend klaida'));
+  return data?.id || null;
+}
+
+async function processReminderQueue({ dryRun = false } = {}) {
+  if (!paymentsDbAvailable()) {
+    return {
+      processed: 0,
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+      dryRun,
+      reason: 'paymentsDb unavailable',
+    };
+  }
+
+  const now = new Date();
+  const horizonStart = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+  const horizonEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  const { data: ordersRows, error: ordersError } = await paymentsDb
+    .from('orders')
+    .select('id,client_id,clientId,date,time,status,owner_id,address,client_name')
+    .in('status', ['suplanuota', 'vykdoma']);
+
+  if (ordersError) throw ordersError;
+
+  let processed = 0;
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const order of ordersRows || []) {
+    const orderAt = parseOrderDateTime(order.date, order.time);
+    if (!orderAt) {
+      skipped++;
+      continue;
+    }
+    if (orderAt < horizonStart || orderAt > horizonEnd) continue;
+
+    const reminderCandidates = [
+      { type: 'reminder_24h', at: new Date(orderAt.getTime() - 24 * 60 * 60 * 1000) },
+      { type: 'reminder_1h', at: new Date(orderAt.getTime() - 60 * 60 * 1000) },
+    ];
+
+    const clientId = normalizeId(order.client_id ?? order.clientId);
+    if (!clientId) {
+      skipped++;
+      continue;
+    }
+
+    const clientLookup = await paymentsDb
+      .from('clients')
+      .select('id,name,email')
+      .eq('id', clientId)
+      .maybeSingle();
+    if (clientLookup.error || !clientLookup.data) {
+      skipped++;
+      continue;
+    }
+    const email = String(clientLookup.data.email || '').trim();
+    if (!looksLikeEmail(email)) {
+      skipped++;
+      continue;
+    }
+
+    for (const reminder of reminderCandidates) {
+      if (reminder.at > now) continue;
+      if (reminder.at < horizonStart) continue;
+      const scheduledForIso = formatReminderScheduledFor(reminder.at);
+      const already = await hasNotificationEvent(order.id, reminder.type, email, scheduledForIso);
+      if (already) {
+        skipped++;
+        continue;
+      }
+
+      processed++;
+      const eventRow = {
+        order_id: String(order.id),
+        client_id: clientId,
+        owner_id: normalizeId(order.owner_id),
+        type: reminder.type,
+        channel: 'email',
+        recipient: email,
+        scheduled_for: scheduledForIso,
+        status: dryRun ? 'dry_run' : 'pending',
+      };
+      let createdEvent = null;
+      try {
+        createdEvent = await insertNotificationEvent(eventRow);
+      } catch {
+        failed++;
+        continue;
+      }
+
+      if (dryRun) {
+        skipped++;
+        continue;
+      }
+
+      const whenLabel = reminder.type === 'reminder_24h' ? 'po 24 valandų' : 'po 1 valandos';
+      const dateLabel = String(order.date || '').slice(0, 10);
+      const timeLabel = String(order.time || '');
+      const addressLabel = String(order.address || '').trim();
+      const clientName = String(clientLookup.data.name || order.client_name || 'kliente').trim();
+
+      const subject = `Priminimas: užsakymas ${whenLabel}`;
+      const text = [
+        `Sveiki, ${clientName}!`,
+        '',
+        `Primename apie suplanuotą vizitą ${whenLabel}.`,
+        dateLabel ? `Data: ${dateLabel}${timeLabel ? ` ${timeLabel}` : ''}` : '',
+        addressLabel ? `Adresas: ${addressLabel}` : '',
+        '',
+        'Jei reikia pakeisti laiką, atsakykite į šį laišką.',
+        '',
+        'Pagarbiai,',
+        'Švarus darbas',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      try {
+        await sendTransactionalEmail({ to: email, subject, text });
+        sent++;
+        await updateNotificationEventById(createdEvent?.id, {
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+        });
+      } catch (sendError) {
+        failed++;
+        await updateNotificationEventById(createdEvent?.id, {
+          status: 'failed',
+          error: sendError instanceof Error ? sendError.message : 'Siuntimo klaida',
+        });
+      }
+    }
+  }
+
+  return { processed, sent, skipped, failed, dryRun };
+}
+
 function looksLikeEmail(s) {
   return typeof s === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
 }
@@ -420,13 +652,6 @@ function buildResendFromHeader() {
     .replace(/[\r\n<>]/g, '')
     .slice(0, 100);
   return `${displayName} <${raw}>`;
-}
-
-function orderStatusLabelLt(status) {
-  if (status === 'suplanuota') return 'Suplanuota';
-  if (status === 'vykdoma') return 'Vykdoma';
-  if (status === 'atlikta') return 'Atlikta';
-  return String(status || 'Atnaujinta');
 }
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
@@ -644,7 +869,7 @@ app.post('/api/send-order-status-email', async (req, res) => {
       return res.status(match.status || 400).json({ error: match.message });
     }
 
-    const statusLt = orderStatusLabelLt(status);
+    const statusLt = orderStatusLabel(status);
     const safeClientName = String(clientName || 'kliente').trim() || 'kliente';
     const safeAddress = String(address || '').trim();
     const safeDate = String(date || '').trim();
@@ -678,6 +903,61 @@ app.post('/api/send-order-status-email', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Serverio klaida' });
   }
+});
+
+function authorizeCron(req) {
+  const configured = (process.env.CRON_SECRET || '').trim();
+  if (!configured) {
+    return { ok: false, status: 503, message: 'CRON_SECRET nesukonfigūruotas.' };
+  }
+  const headerSecret =
+    (req.headers['x-cron-secret'] && String(req.headers['x-cron-secret']).trim()) || '';
+  const authHeader = String(req.headers.authorization || '');
+  const bearer = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '';
+  if (headerSecret !== configured && bearer !== configured) {
+    return { ok: false, status: 401, message: 'Neteisingas cron raktas.' };
+  }
+  return { ok: true };
+}
+
+app.post('/api/cron/process-reminders', async (req, res) => {
+  const auth = authorizeCron(req);
+  if (!auth.ok) {
+    return res.status(auth.status || 401).json({ error: auth.message });
+  }
+  try {
+    const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
+    const result = await processReminderQueue({ dryRun });
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Nepavyko apdoroti priminimų.' });
+  }
+});
+
+app.get('/api/notification-events', async (req, res) => {
+  const context = await getRequestContext(req, res);
+  if (!context) return;
+  if (!paymentsDbAvailable()) {
+    return res.json(inMemoryNotificationEvents.slice(-200).reverse());
+  }
+
+  let query = paymentsDb
+    .from('notification_events')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  const profileRole = String(context.profile?.role || '');
+  const profileClientId = normalizeId(context.profile?.client_id);
+  if (profileRole === 'client' && profileClientId) {
+    query = query.eq('client_id', profileClientId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    return res.status(500).json({ error: error.message || 'Nepavyko gauti pranešimų audito.' });
+  }
+  return res.json(data || []);
 });
 
 // Create payment intent
@@ -1049,7 +1329,23 @@ app.get('/health', (req, res) => {
   });
 });
 
+const reminderWorkerEnabled = String(process.env.ENABLE_REMINDER_WORKER || '').trim() === 'true';
+const reminderWorkerIntervalMs = Math.max(
+  60_000,
+  Number(process.env.REMINDER_WORKER_INTERVAL_MS || 300_000) || 300_000
+);
+if (reminderWorkerEnabled) {
+  setInterval(() => {
+    processReminderQueue().catch((e) => {
+      console.error('[reminder-worker] failed:', e);
+    });
+  }, reminderWorkerIntervalMs);
+}
+
 app.listen(PORT, () => {
   console.log(`Payment server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  if (reminderWorkerEnabled) {
+    console.log(`[reminder-worker] enabled interval=${reminderWorkerIntervalMs}ms`);
+  }
 });

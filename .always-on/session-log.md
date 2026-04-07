@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-04-07 — P9.2/P9.3 reminder queue + notifų auditas
+
+- **Reminder queue:** `server.cjs` įdėta `processReminderQueue` logika (24h ir 1h priminimai), kuri siunčia el. paštą serverio pusėje be `sms:` URI.
+- **Cron endpoint:** pridėtas `POST /api/cron/process-reminders` su `CRON_SECRET` autentifikacija (`x-cron-secret` arba `Bearer`), palaiko `dryRun`.
+- **Worker režimas:** optional background procesas per env (`ENABLE_REMINDER_WORKER=true`, `REMINDER_WORKER_INTERVAL_MS`), kad priminimai būtų apdorojami periodiškai.
+- **Audit trail:** pridėta migracija `supabase/migrations/20260407210000_notification_events.sql`; įrašomas kiekvienas bandymas (`pending/sent/failed`, `recipient`, `scheduled_for`, `sent_at`, `error`), su dedupe unique indeksu.
+- **Audito API:** `GET /api/notification-events` (pagal auth; klientui filtruojama pagal jo `client_id`).
+- **Patikra:** `npm run verify` pilnai žalias.
+
+---
+
 ## 2026-04-07 — P9.1 statuso el. laiškai po užsakymo būsenos keitimo
 
 - **Serveris:** pridėtas `POST /api/send-order-status-email` (`server.cjs`) su `verifySupabaseUserJwt` ir gavėjo validacija per `verifyInvoiceRecipientMatchesOrder` (laiškas siunčiamas tik jei el. paštas sutampa su kliento kortele užsakyme).
