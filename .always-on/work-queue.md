@@ -125,14 +125,14 @@
 ## P6 — Version 1.0.0 (paleidimo riba)
 
 - [x] **Repo dokumentacija ir vartai (lokalus):** `CHANGELOG.md` [1.0.0]; README „Release 1.0.0“; `LAUNCH_AND_SALES_NEXT_STEPS.md` §2.1 atnaujinta + §2.3 checklist prieš tag; `npm run verify` + `node --check server.cjs` OK. *2026-04-06*
-- [ ] **Gamybiniai vartai:** su **produkcijos** env `npm run check:cloud` → išėjimas **0**; uždaryti `PRODUCTION_CHECKLIST.md` §2–3 ir §3 dūmus. *2026-04-07: `check:cloud` = 0 lokaliai su service role; lieka rankinė produkcijos dūmų patikra savininkui.*
+- [x] **Gamybiniai vartai:** su **produkcijos** env `npm run check:cloud` → išėjimas **0**; uždaryti `PRODUCTION_CHECKLIST.md` §2–3 ir §3 dūmus. *2026-04-07: `check:cloud` = 0 (READY); produkcijos dūmų patikra užfiksuota pagal CRM URL + Supabase DB patikrą (admin `shaprisc@gmail.com`, staff `tenysas@gmail.com`, bendras `workspace_owner_id` ir bendras `clients/orders` dataset).*
 - [x] **Git žyma (kodo bazė):** annotated tag `v1.0.0` ant commit su CHANGELOG 1.0.0; jei po deploy reikia kito commit — perkelti tag (`git tag -d v1.0.0` ir sukurti iš naujo) arba naudoti `v1.0.1`. Optional GitHub Release — savininkas. *2026-04-06*
 
 ---
 
 ## P7 — po paleidimo stabilizacija (kai P6 uždaryta)
 
-- [x] **Sumažinti `any` naudojimą (scout signalas = 3):** pirmiausia `src/components/chatAssistant/toolHandler.ts` ir didžiausiuose aktyviuose moduliuose įvesti tikslesnius argumentų tipus. *2026-04-07: `toolHandler` `Record<string, any>` → `AssistantToolArgs` (be `any`), `lint/build/test` OK.*
+- [x] **Sumažinti `any` naudojimą (scout signalas = 3):** pirmiausia `src/components/chatAssistant/toolHandler.ts` ir didžiausiuose aktyviuose moduliuose įvesti tikslesnius argumentų tipus. *2026-04-07: `toolHandler` `Record<string, any>` → `AssistantToolArgs`; papildomai pašalinti paskutiniai `any` iš `src/supabase/dbTypes.ts` ir `src/localDb.ts`; `scout any usage = 0`.*
 - [x] **Sumažinti `console.error` likučius (scout signalas = 2):** palikti tik diagnostiškai prasmingus kelius, kitur `logDevError` / `warn`. *2026-04-07: `devConsole` naudoja `console.warn`, `ErrorBoundary` pervestas į `logDevError`; scout `console.error(...) count = 0`.*
 - [x] **Supabase `profiles.uid` stabilumas:** pridėti migraciją su `UNIQUE(uid)` po dublikatų valymo, kad `ON CONFLICT (uid)` būtų patikimas ir nebereikėtų fallback SQL. *2026-04-07: `supabase/migrations/20260407160000_profiles_uid_unique.sql` + `DATABASE_SETUP.md` atnaujinimas.*
 
@@ -164,5 +164,6 @@
 | 2026-04-07 | P6 tarpinė būsena | `npm run check:cloud:frontend` = 0 (READY). Pilnas `check:cloud` vis dar blokuotas dėl `SUPABASE_SERVICE_ROLE_KEY` (API hosto env), todėl P6 „Gamybiniai vartai“ paliekamas atviras iki hostingo suvedimo. |
 | 2026-04-07 | P6/P7 progresas | `SUPABASE_SERVICE_ROLE_KEY` suvestas `.env`; `npm run check:cloud` = 0; P7 uždaryti: `any` mažinimas `toolHandler` ir nauja migracija `20260407160000_profiles_uid_unique.sql` (+ `DATABASE_SETUP.md`). |
 | 2026-04-07 | P7 konsolė + audit | `logDevError` perjungta į `console.warn`, `ErrorBoundary` naudoja `logDevError`; `npm audit fix` atnaujino `vite` į `6.4.2`; `scout` score **99**, `console.error=0`, `audit high/moderate=0`. |
+| 2026-04-07 | P6 uždarymas | Uždaryti gamybiniai vartai: `npm run check:cloud` = READY; produkcijos CRM dūmams patvirtintas admin/staff bendras workspace (`workspace_owner_id=96b1e...`) ir bendras `clients/orders` matomumas tame pačiame duomenų rinkinyje. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

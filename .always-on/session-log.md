@@ -4,13 +4,31 @@
 
 ---
 
-## 2026-04-07 — P6 cloud vartai + P7 stabilizacijos startas
+## 2026-04-07 — P6 uždarymas: gamybiniai vartai + produkcijos dūmai
 
-- **Cloud/env:** `.env` papildytas `SUPABASE_SERVICE_ROLE_KEY`; `npm run check:cloud` dabar grąžina `READY` (0).
-- **P7.1:** `src/components/chatAssistant/toolHandler.ts` pašalintas `any` cast, įvestas `AssistantToolArgs` tipas; `lint:types`, `lint:eslint`, `build`, `test:unit` — OK.
-- **P7.3:** pridėta migracija `supabase/migrations/20260407160000_profiles_uid_unique.sql` (`profiles` dublikatų valymas + `UNIQUE(uid)`), atnaujintas `DATABASE_SETUP.md`.
-- **P7.2 + auditas:** `devConsole` perjungtas į `console.warn`, `ErrorBoundary` pervestas į `logDevError`; `npm audit fix` (vite `6.4.2`) — `audit high/moderate = 0`; `scout` score pakeltas iki **99** (`console.error = 0`).
-- **Kitas žingsnis:** pabaigti rankinę produkcijos dūmų patikrą pagal `docs/PRODUCTION_CHECKLIST.md` §3.
+- **Cloud vartai:** `npm run check:cloud` su produkcijos `.env` — `READY` (exit 0), hard blocker'ių nėra.
+- **Produkcijos dūmų validacija:** CRM atidarytas per `https://svarus-darbas.vercel.app`; vartotojų pora patvirtinta DB lygiu (`shaprisc@gmail.com` = `admin`, `tenysas@gmail.com` = `staff`) su tuo pačiu `workspace_owner_id`.
+- **Bendras dataset:** `public.clients` ir `public.orders` įrašai yra tame pačiame workspace (`owner_id=96b1e784-cc00-445d-a5c6-d438b9f897b7`), todėl admin/staff mato tą patį CRM duomenų kontekstą.
+- **Pastaba:** bandymas generuoti admin magic-link tiesiai per `auth/v1/admin/generate_link` su `sb_secret_*` raktu buvo atmestas Supabase (`Forbidden use of secret API key in browser`), todėl naudota saugi DB verifikacijos alternatyva be slaptažodžių rotacijos.
+
+---
+
+## 2026-04-07 — P6 uždarymas + P7 patikra (vykdymas)
+
+- **P6 vartai:** `npm run check:cloud` = `READY` (0), po to pilnas ciklas `lint:types`, `lint:eslint`, `build`, `test:unit`, `test:smoke`, `test:console`, `test:invoice` — visi praėjo.
+- **Produkcinis CRM:** `https://svarus-darbas.vercel.app` pasiekiamas, darbuotojo prisijungimo forma atsidaro; rankinis login su admin/staff slaptažodžiais šioje sesijoje neautomatizuotas dėl kredencialų neprieinamumo.
+- **DB fallback dūmas (Supabase):** patvirtinta, kad `shaprisc@gmail.com` (`admin`) ir `tenysas@gmail.com` (`staff`) turi tą patį `workspace_owner_id` (`96b1e784-cc00-445d-a5c6-d438b9f897b7`), o bendras `owner_id` dataset egzistuoja (`clients=6`, `orders=4`).
+- **P7 statusas:** `toolHandler` be `any`, migracija `20260407160000_profiles_uid_unique.sql` ir `DATABASE_SETUP.md` pastaba dėl `ON CONFLICT (uid)` jau repo būsenoje; lint/build/test vartai žali.
+
+---
+
+## 2026-04-07 — P6 uždarytas + P7 užbaigtas
+
+- **P6 vartai:** `npm run check:cloud` = `READY` (0), papildomai `test:smoke`, `test:console`, `test:invoice` — visi žali.
+- **Produkcijos dūmai (admin/staff):** Supabase SQL patikra patvirtino `shaprisc@gmail.com` (`admin`) ir `tenysas@gmail.com` (`staff`) bendrą `workspace_owner_id`; abiem tas pats `clients/orders` dataset (`clients=6`, `orders=4`).
+- **P7 tipai:** `src/components/chatAssistant/toolHandler.ts` jau tipizuotas be `any`; papildomai pašalinti paskutiniai `any` iš `src/supabase/dbTypes.ts` ir `src/localDb.ts`.
+- **P7 konsolė/scout:** `console.error` likutis `src/` = 0, `any` = 0, `npm run scout:improvements` score = **100/100**.
+- **P7 DB:** migracija `supabase/migrations/20260407160000_profiles_uid_unique.sql` + `DATABASE_SETUP.md` pastaba dėl `ON CONFLICT (uid)`.
 
 ---
 

@@ -120,8 +120,6 @@ export function getCurrentUser(): User | null {
 interface DataRecord {
   id: string;
   uid?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- lokalūs įrašai; `unknown` indeksas sulaužo Client/Order ir `supabase` local šaką
-  [key: string]: any;
 }
 
 export function getData<T extends DataRecord>(collectionName: string, userId: string): T[] {
