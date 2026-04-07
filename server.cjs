@@ -108,6 +108,19 @@ function mapPaymentIntentRow(row) {
 }
 
 const inMemoryNotificationEvents = [];
+const cronSecretConfigured = !!String(process.env.CRON_SECRET || '').trim();
+/** El. šablonų semantikos versija (kelkite kartu su COPY pakeitimais). Žr. docs/NOTIFICATION_TEMPLATES_VERSIONING.md */
+const NOTIFICATION_TEMPLATE_VERSION = '2026-04-08';
+let reminderQueueLastRun = null;
+
+function markReminderQueueRun(source, ok, payload = {}) {
+  reminderQueueLastRun = {
+    at: new Date().toISOString(),
+    source: String(source || 'unknown'),
+    ok: !!ok,
+    ...payload,
+  };
+}
 
 function orderStatusLabel(status) {
   if (status === 'suplanuota') return 'Suplanuota';
@@ -289,7 +302,7 @@ async function verifySupabaseUserJwt(authHeader) {
     const user = await r.json();
     return { ok: true, user };
   } catch (e) {
-    console.error('[send-invoice-email] Supabase auth check failed:', e);
+    console.warn('[send-invoice-email] Supabase auth check failed:', e);
     return { ok: false, status: 502, message: 'Nepavyko patikrinti prisijungimo.' };
   }
 }
@@ -433,15 +446,49 @@ async function sendTransactionalEmail({ to, subject, text }) {
   if (!resendKey) {
     throw new Error('El. pašto siuntimas nesukonfigūruotas (RESEND_API_KEY).');
   }
+  const appendFooter =
+    String(process.env.NOTIFICATION_TEMPLATE_FOOTER || 'true').trim() !== 'false';
+  const raw = String(text);
+  const body = appendFooter
+    ? `${raw.slice(0, 11_900)}\n\n---\nTemplate: ${NOTIFICATION_TEMPLATE_VERSION}`.slice(0, 12000)
+    : raw.slice(0, 12000);
   const resend = new Resend(resendKey);
   const { data, error } = await resend.emails.send({
     from: buildResendFromHeader(),
     to: String(to).trim(),
     subject: String(subject).slice(0, 200),
-    text: String(text).slice(0, 12000),
+    text: body,
   });
   if (error) throw new Error(String(error.message || 'Resend klaida'));
   return data?.id || null;
+}
+
+async function getNotificationEventStats7d() {
+  if (!paymentsDbAvailable()) return null;
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await paymentsDb
+    .from('notification_events')
+    .select('status')
+    .gte('created_at', since);
+  if (error) throw error;
+  const counts = {
+    sent: 0,
+    failed: 0,
+    pending: 0,
+    logged: 0,
+    other: 0,
+    total: 0,
+  };
+  for (const row of data || []) {
+    counts.total += 1;
+    const s = String(row.status || '');
+    if (s === 'sent') counts.sent += 1;
+    else if (s === 'failed') counts.failed += 1;
+    else if (s === 'pending') counts.pending += 1;
+    else if (s === 'logged') counts.logged += 1;
+    else counts.other += 1;
+  }
+  return counts;
 }
 
 async function processReminderQueue({ dryRun = false } = {}) {
@@ -920,6 +967,20 @@ function authorizeCron(req) {
   return { ok: true };
 }
 
+async function runReminderQueueWithTracking(source, { dryRun = false } = {}) {
+  try {
+    const result = await processReminderQueue({ dryRun });
+    markReminderQueueRun(source, true, result);
+    return result;
+  } catch (error) {
+    markReminderQueueRun(source, false, {
+      dryRun,
+      error: error instanceof Error ? error.message : 'Reminder queue error',
+    });
+    throw error;
+  }
+}
+
 app.post('/api/cron/process-reminders', async (req, res) => {
   const auth = authorizeCron(req);
   if (!auth.ok) {
@@ -927,7 +988,7 @@ app.post('/api/cron/process-reminders', async (req, res) => {
   }
   try {
     const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
-    const result = await processReminderQueue({ dryRun });
+    const result = await runReminderQueueWithTracking('cron', { dryRun });
     return res.json({ ok: true, ...result });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Nepavyko apdoroti priminimų.' });
@@ -958,6 +1019,128 @@ app.get('/api/notification-events', async (req, res) => {
     return res.status(500).json({ error: error.message || 'Nepavyko gauti pranešimų audito.' });
   }
   return res.json(data || []);
+});
+
+app.post('/api/client-update-phone', async (req, res) => {
+  const context = await getRequestContext(req, res);
+  if (!context) return;
+  const role = String(context.profile?.role || '');
+  if (role !== 'client') {
+    return res.status(403).json({ error: 'Prieinama tik klientų portalo paskyroms.' });
+  }
+  const clientId = normalizeId(context.profile?.client_id);
+  if (!clientId) {
+    return res.status(400).json({ error: 'Profilis nesusietas su kliento kortele.' });
+  }
+  const phone = String(req.body?.phone ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (phone.length < 5 || phone.length > 40) {
+    return res.status(400).json({ error: 'Įveskite teisingą telefono numerį.' });
+  }
+  if (!paymentsDbAvailable()) {
+    return res.status(503).json({ error: 'Duomenų bazė nepasiekiama.' });
+  }
+  const { error } = await paymentsDb.from('clients').update({ phone }).eq('id', clientId);
+  if (error) {
+    return res.status(500).json({ error: error.message || 'Nepavyko atnaujinti telefono.' });
+  }
+  return res.json({ ok: true });
+});
+
+app.post('/api/client-service-request', async (req, res) => {
+  const context = await getRequestContext(req, res);
+  if (!context) return;
+  const role = String(context.profile?.role || '');
+  if (role !== 'client') {
+    return res.status(403).json({ error: 'Prieinama tik klientų portalo paskyroms.' });
+  }
+  const clientId = normalizeId(context.profile?.client_id);
+  if (!clientId) {
+    return res.status(400).json({ error: 'Profilis nesusietas su kliento kortele.' });
+  }
+  const category =
+    String(req.body?.category || 'other')
+      .trim()
+      .slice(0, 32)
+      .replace(/[^a-zA-Z0-9_]/g, '_') || 'other';
+  const message = String(req.body?.message || '')
+    .trim()
+    .slice(0, 4000);
+  if (!message) {
+    return res.status(400).json({ error: 'Įveskite prašymo tekstą.' });
+  }
+  const orderId = normalizeId(req.body?.order_id);
+  if (orderId) {
+    const orderAccess = await ensureAccessibleOrder(orderId, req.headers.authorization);
+    if (!orderAccess.ok) {
+      return res.status(orderAccess.status || 400).json({ error: orderAccess.message });
+    }
+    const oc = normalizeId(orderAccess.row.client_id ?? orderAccess.row.clientId);
+    if (oc !== clientId) {
+      return res.status(403).json({ error: 'Užsakymas nepriklauso šiai paskyrai.' });
+    }
+  }
+
+  let ownerId = '';
+  if (paymentsDbAvailable()) {
+    const { data: crow, error: cErr } = await paymentsDb
+      .from('clients')
+      .select('owner_id')
+      .eq('id', clientId)
+      .maybeSingle();
+    if (cErr) {
+      return res.status(500).json({ error: cErr.message || 'Nepavyko nuskaityti kliento.' });
+    }
+    if (!crow) {
+      return res.status(404).json({ error: 'Kliento kortelė nerasta.' });
+    }
+    ownerId = normalizeId(crow.owner_id);
+  }
+
+  const scheduledFor = new Date().toISOString();
+  const typeTag = `client_portal_${category}`;
+  const eventRow = {
+    order_id: orderId || null,
+    client_id: clientId,
+    owner_id: ownerId || null,
+    type: typeTag,
+    channel: 'portal',
+    recipient: String(context.user?.email || '').slice(0, 320),
+    scheduled_for: scheduledFor,
+    status: 'logged',
+    sent_at: null,
+    error: null,
+  };
+
+  try {
+    await insertNotificationEvent(eventRow);
+  } catch {
+    return res.status(500).json({ error: 'Nepavyko įrašyti prašymo.' });
+  }
+
+  const adminEmail = (process.env.ADMIN_NOTIFY_EMAIL || '').trim();
+  if (adminEmail && looksLikeEmail(adminEmail)) {
+    try {
+      await sendTransactionalEmail({
+        to: adminEmail,
+        subject: `Portalo prašymas (${category})`,
+        text: [
+          `Klientas: ${context.user?.email || ''}`,
+          `client_id: ${clientId}`,
+          orderId ? `order_id: ${orderId}` : '',
+          '',
+          message,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      });
+    } catch {
+      /* laiškas nepavyko — auditas vis tiek įrašytas */
+    }
+  }
+
+  return res.json({ ok: true });
 });
 
 // Create payment intent
@@ -1320,12 +1503,27 @@ app.get('/favicon.ico', (_req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  const notificationMetrics = { templateVersion: NOTIFICATION_TEMPLATE_VERSION, last7Days: null };
+  if (paymentsDbAvailable()) {
+    try {
+      notificationMetrics.last7Days = await getNotificationEventStats7d();
+    } catch (e) {
+      notificationMetrics.statsError = e instanceof Error ? e.message : 'stats failed';
+    }
+  }
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     invoiceEmail: !!(process.env.RESEND_API_KEY || '').trim(),
     paymentsDb: paymentsDbAvailable(),
+    reminders: {
+      cronSecretConfigured,
+      workerEnabled: reminderWorkerEnabled,
+      workerIntervalMs: reminderWorkerIntervalMs,
+      lastRun: reminderQueueLastRun,
+      notificationMetrics,
+    },
   });
 });
 
@@ -1336,8 +1534,8 @@ const reminderWorkerIntervalMs = Math.max(
 );
 if (reminderWorkerEnabled) {
   setInterval(() => {
-    processReminderQueue().catch((e) => {
-      console.error('[reminder-worker] failed:', e);
+    runReminderQueueWithTracking('worker').catch((e) => {
+      console.warn('[reminder-worker] failed:', e);
     });
   }, reminderWorkerIntervalMs);
 }

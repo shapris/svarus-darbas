@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-04-08 — P12–P14: GTM, runbook, KPI, notif metrika, portalo savitarna
+
+- **Dokumentacija:** `docs/GTM_COMMERCIAL_ONBOARDING.md`, `docs/RUNBOOK_INCIDENTS.md`, `docs/NOTIFICATION_TEMPLATES_VERSIONING.md`; nuorodos `DEPLOY.md`, `LAUNCH_AND_SALES_NEXT_STEPS.md` §3, `CLIENT_PORTAL_MVP.md` papildymas.
+- **KPI:** `src/utils/dashboardKpis.ts` + „Verslo KPI“ UI `Dashboard.tsx`; testai `tests/dashboard-kpis.test.ts`.
+- **Serveris:** `NOTIFICATION_TEMPLATE_VERSION`, optional footer per `NOTIFICATION_TEMPLATE_FOOTER`, `getNotificationEventStats7d()` ir `reminders.notificationMetrics` į `/health`; `POST /api/client-update-phone`, `POST /api/client-service-request`; `ADMIN_NOTIFY_EMAIL`.
+- **Portalas:** `clientPortalApi.ts`, ClientDashboard skirtukas „Savitarna“, telefono įvedimas + `onProfileRefresh` iš `App.tsx`.
+- **Patikra:** `npm run verify`.
+
+---
+
+## 2026-04-07 — P11 `/health` observability reminder queue
+
+- **Serveris:** `server.cjs` pridėtas `reminderQueueLastRun` tracking ir helperis `runReminderQueueWithTracking(...)`.
+- **Health diagnostika:** `/health` dabar grąžina `reminders` objektą: `cronSecretConfigured`, `workerEnabled`, `workerIntervalMs`, `lastRun`.
+- **Vykdymo grandinė:** tiek `POST /api/cron/process-reminders`, tiek background worker naudoja tą patį tracking kelią; klaidos worker'yje log'inamos kaip `warn`.
+- **Testai:** `tests/invoice-health.spec.ts` papildytas reminders patikra, paliktas fallback kai backend nepasiekiamas (`backend: unavailable`).
+- **Patikra:** `npm run verify` pilnai žalias.
+
+---
+
 ## 2026-04-07 — P10 `notification_events` RLS + cron env dokumentacija
 
 - **RLS:** migracija `supabase/migrations/20260407220000_notification_events_rls.sql` — įjungtas RLS, SELECT politikos staff/org (`effective_workspace_owner_id`) ir portaliniam klientui (`current_client_id`); įrašai / atnaujinimai lieka per `SUPABASE_SERVICE_ROLE_KEY` serveryje.

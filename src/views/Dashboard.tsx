@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Send,
   Bell,
+  Target,
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateSpeech, getSpeechAudio, stopAllAudio } from '../services/ttsService';
@@ -33,6 +34,7 @@ import {
   getBusinessInsights,
   type DashboardInsight,
 } from '../services/insightsService';
+import { computeDashboardKpis } from '../utils/dashboardKpis';
 import { smsService } from '../services/smsService';
 import { Volume2, VolumeX } from 'lucide-react';
 
@@ -338,6 +340,8 @@ export default function Dashboard({
     .filter((o) => o.status !== 'atlikta')
     .sort((a, b) => a.time.localeCompare(b.time))[0];
 
+  const businessKpis = computeDashboardKpis(orders);
+
   const handleSpeak = async (text: string, index: number) => {
     if (isSpeaking === index) {
       stopAllAudio();
@@ -413,6 +417,84 @@ export default function Dashboard({
           </section>
         )}
       </div>
+
+      <section
+        className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-lg border border-slate-800"
+        aria-labelledby="kpi-heading"
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <Target className="w-5 h-5 text-emerald-400 shrink-0" aria-hidden />
+          <h2 id="kpi-heading" className="text-lg font-bold">
+            Verslo KPI
+          </h2>
+          <span className="text-xs opacity-60 ml-auto capitalize">{businessKpis.periodLabel}</span>
+        </div>
+        <p className="text-xs text-slate-400 mb-4">
+          Rodikliai perskaičiuojami iš užsakymų sąrašo kiekvieną kartą atidarius šį skydelį (CRM
+          duomenys dabartiniame workspace). Matavimo ciklas — kas atidarymą; periodinė agregacija DB
+          nebūtina MVP lygmenyje.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 text-sm">
+          <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Užbaigimo dalis
+            </p>
+            <p className="text-2xl font-black text-emerald-300 mt-1">
+              {businessKpis.completionRatePercent}%
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">atlikta / aktyvūs</p>
+          </div>
+          <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Apmok. disciplina
+            </p>
+            <p className="text-2xl font-black text-sky-300 mt-1">
+              {businessKpis.paidShareAmongCompletedPercent}%
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">apmokėta / atlikta</p>
+          </div>
+          <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Neapm. atlikti
+            </p>
+            <p className="text-2xl font-black text-amber-300 mt-1">
+              {businessKpis.unpaidCompletedCount}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">reikia sąskaitos / apmokėjimo</p>
+          </div>
+          <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Vid. užsakymas
+            </p>
+            <p className="text-2xl font-black text-white mt-1">
+              {formatCurrency(businessKpis.avgCompletedOrderValue)}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">tik atlikti</p>
+          </div>
+          <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Pajamos (mėn.)
+            </p>
+            <p className="text-2xl font-black text-white mt-1">
+              {formatCurrency(businessKpis.revenueCompletedThisMonth)}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">atlikti šį kalendorinį mėn.</p>
+          </div>
+          <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              Pipeline
+            </p>
+            <p className="text-lg font-bold text-slate-200 mt-1 leading-tight">
+              {businessKpis.plannedOrdersCount} plan.
+              <span className="text-slate-500"> · </span>
+              {businessKpis.inProgressOrdersCount} vykdo.
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">
+              {businessKpis.completedOrdersCount} atlikta viso
+            </p>
+          </div>
+        </div>
+      </section>
 
       {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length > 0 && (
         <section className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl">

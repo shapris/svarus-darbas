@@ -17,6 +17,8 @@ import {
   X,
   CreditCard,
   RefreshCcw,
+  MessageSquarePlus,
+  Send,
 } from 'lucide-react';
 import { getClientOrders, signOut, type AuthUser } from '../../supabase';
 import { AppSettings, Order, UserProfile } from '../../types';
@@ -28,12 +30,18 @@ import {
   type PaymentIntent,
 } from '../../services/paymentService';
 import { useToast } from '../../hooks/useToast';
+import {
+  submitClientPortalRequest,
+  updateClientPortalPhone,
+  type ClientPortalRequestCategory,
+} from '../../services/clientPortalApi';
 
 interface ClientDashboardProps {
   user: AuthUser;
   profile: UserProfile;
   settings?: AppSettings;
   onLogout: () => void;
+  onProfileRefresh?: () => void | Promise<void>;
 }
 
 export default function ClientDashboard({
@@ -41,6 +49,7 @@ export default function ClientDashboard({
   profile,
   settings,
   onLogout,
+  onProfileRefresh,
 }: ClientDashboardProps) {
   const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -50,7 +59,15 @@ export default function ClientDashboard({
   const [paymentsError, setPaymentsError] = useState('');
   const [payments, setPayments] = useState<PaymentIntent[]>([]);
   const [notifications, setNotifications] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'orders' | 'profile' | 'payment'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'profile' | 'payment' | 'requests'>(
+    'orders'
+  );
+  const [phoneEdit, setPhoneEdit] = useState(profile.phone || '');
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [requestCategory, setRequestCategory] = useState<ClientPortalRequestCategory>('reschedule');
+  const [requestOrderId, setRequestOrderId] = useState('');
+  const [requestMessage, setRequestMessage] = useState('');
+  const [submittingRequest, setSubmittingRequest] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -89,6 +106,10 @@ export default function ClientDashboard({
     void loadOrders();
     void loadPayments();
   }, [loadOrders, loadPayments]);
+
+  useEffect(() => {
+    setPhoneEdit(profile.phone || '');
+  }, [profile.phone]);
 
   useEffect(() => {
     const key = `client_portal_notifications_${profile.uid}`;
@@ -297,6 +318,19 @@ export default function ClientDashboard({
               <div className="flex items-center space-x-2">
                 <User className="w-4 h-4" />
                 <span>Mano Profilis</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('requests')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'requests'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <MessageSquarePlus className="w-4 h-4" />
+                <span>Savitarna</span>
               </div>
             </button>
           </nav>
@@ -626,7 +660,40 @@ export default function ClientDashboard({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Telefonas</label>
-                  <p className="text-gray-900">{profile.phone || 'Nenustatyta'}</p>
+                  <input
+                    type="tel"
+                    value={phoneEdit}
+                    onChange={(e) => setPhoneEdit(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus-visible:outline-none"
+                    placeholder="+370..."
+                    autoComplete="tel"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Atnaujinta reikšmė išsaugoma jūsų kliento kortelėje (CRM).
+                  </p>
+                  <button
+                    type="button"
+                    disabled={savingPhone || !phoneEdit.trim()}
+                    onClick={() => {
+                      void (async () => {
+                        setSavingPhone(true);
+                        try {
+                          await updateClientPortalPhone(phoneEdit.trim());
+                          await onProfileRefresh?.();
+                          showToast.success('Telefonas išsaugotas.');
+                        } catch (e) {
+                          showToast.error(
+                            e instanceof Error ? e.message : 'Nepavyko išsaugoti telefono.'
+                          );
+                        } finally {
+                          setSavingPhone(false);
+                        }
+                      })();
+                    }}
+                    className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    {savingPhone ? 'Saugoma…' : 'Išsaugoti telefoną'}
+                  </button>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Adresas</label>
@@ -644,6 +711,96 @@ export default function ClientDashboard({
                   </label>
                   <p className="text-gray-900">{formatDate(profile.createdAt)}</p>
                 </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'requests' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-2xl mx-auto"
+          >
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-medium text-gray-900">Prašymai ir savitarna</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Parašykite užklausą dėl laiko keitimo ar kitos informacijos — pranešimas bus
+                  užfiksuotas sistemoje; jei sukonfigūruota, administratorius gaus el. laišką.
+                </p>
+              </div>
+              <div className="px-6 py-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipas</label>
+                  <select
+                    value={requestCategory}
+                    onChange={(e) =>
+                      setRequestCategory(e.target.value as ClientPortalRequestCategory)
+                    }
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="reschedule">Laiko / datos pakeitimas</option>
+                    <option value="cancel">Atšaukimas / klaida užsakyme</option>
+                    <option value="other">Kita</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Susijęs užsakymas (neprivaloma)
+                  </label>
+                  <select
+                    value={requestOrderId}
+                    onChange={(e) => setRequestOrderId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">— nenurodyti —</option>
+                    {orders.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.date} {o.time?.slice(0, 5)} · {o.address?.slice(0, 40)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Žinutė</label>
+                  <textarea
+                    value={requestMessage}
+                    onChange={(e) => setRequestMessage(e.target.value)}
+                    rows={5}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    placeholder="Aprašykite, kokio pokyčio reikia..."
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={submittingRequest || !requestMessage.trim()}
+                  onClick={() => {
+                    void (async () => {
+                      setSubmittingRequest(true);
+                      try {
+                        await submitClientPortalRequest({
+                          message: requestMessage.trim(),
+                          category: requestCategory,
+                          order_id: requestOrderId || undefined,
+                        });
+                        setRequestMessage('');
+                        setRequestOrderId('');
+                        showToast.success('Prašymas išsiųstas. Atsakysime artimiausiu metu.');
+                      } catch (e) {
+                        showToast.error(
+                          e instanceof Error ? e.message : 'Nepavyko išsiųsti prašymo.'
+                        );
+                      } finally {
+                        setSubmittingRequest(false);
+                      }
+                    })();
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  <Send className="w-4 h-4" aria-hidden />
+                  {submittingRequest ? 'Siunčiama…' : 'Siųsti prašymą'}
+                </button>
               </div>
             </div>
           </motion.div>

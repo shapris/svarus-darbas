@@ -58,7 +58,8 @@ Repo paruošimas žemiau; **git tag** dėti tik kai žemiau uždaryta **gamybin�
 
 ## 3. Komercinis paketas (pardavimui kitiems — šablonas)
 
-Užpildykite prieš siūlymą klientui; teisinius punktus peržiūri juristas (repo čia tik struktūra).
+**Užpildyta apimtis ir onboarding eilė:** [GTM_COMMERCIAL_ONBOARDING.md](GTM_COMMERCIAL_ONBOARDING.md).  
+Žemiau — trumpas „juodraščio“ karkasas; teisinius punktus peržiūri juristas (repo čia tik struktūra).
 
 ### 3.1 Kas įeina į produktą
 

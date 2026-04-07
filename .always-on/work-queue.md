@@ -164,6 +164,22 @@
 
 ---
 
+## P11 — backend observability (po P10)
+
+- [x] **Reminder queue būsena `/health`:** pridėti cron/worker diagnostiką (`cronSecretConfigured`, `workerEnabled`, `workerIntervalMs`, `lastRun`) ir centralizuotą run tracking cron + worker keliams; papildyti `test:invoice` patikrą. *2026-04-07: `server.cjs`, `tests/invoice-health.spec.ts`, `npm run verify` OK.*
+
+---
+
+## P12–P14 — produktas, ops, KPI (planas „CRM būklė ir ateitis“)
+
+- [x] **P12 GTM + onboarding:** kanoninis paketas [docs/GTM_COMMERCIAL_ONBOARDING.md](docs/GTM_COMMERCIAL_ONBOARDING.md); LAUNCH §3 nuoroda. *2026-04-08*
+- [x] **P12 Ops runbook:** [docs/RUNBOOK_INCIDENTS.md](docs/RUNBOOK_INCIDENTS.md). *2026-04-08*
+- [x] **P13 KPI dashboard:** `src/utils/dashboardKpis.ts`, „Verslo KPI“ blokas [src/views/Dashboard.tsx](src/views/Dashboard.tsx), testai `tests/dashboard-kpis.test.ts`. *2026-04-08*
+- [x] **P13 Notifų metrika + šablonų versija:** `NOTIFICATION_TEMPLATE_VERSION`, `/health` → `reminders.notificationMetrics`, el. laiško footer env, [docs/NOTIFICATION_TEMPLATES_VERSIONING.md](docs/NOTIFICATION_TEMPLATES_VERSIONING.md). *2026-04-08*
+- [x] **P14 Portal self-service:** `POST /api/client-update-phone`, `POST /api/client-service-request`, [src/services/clientPortalApi.ts](src/services/clientPortalApi.ts), ClientDashboard „Savitarna“ + telefono redagavimas, `ADMIN_NOTIFY_EMAIL`. *2026-04-08*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -196,5 +212,7 @@
 | 2026-04-07 | P9.1 statuso el. paštas | Įdėtas backend endpoint `POST /api/send-order-status-email` su auth + gavėjo validacija per užsakymo klientą; frontend integruota į `OrdersView` po statuso keitimo (`sendOrderStatusEmail`), nesustabdo statuso išsaugojimo jei laiškas nepavyksta; `npm run verify` OK. |
 | 2026-04-07 | P9.2–P9.3 reminder queue + auditas | `server.cjs` pridėtas `processReminderQueue`, `POST /api/cron/process-reminders` (x-cron-secret/Bearer), optional worker (`ENABLE_REMINDER_WORKER`), ir notifų audito API `GET /api/notification-events`; DB migracija `notification_events`; `npm run verify` OK. |
 | 2026-04-07 | P10 notification_events RLS | Nauja migracija `20260407220000_notification_events_rls.sql`; `docs/RLS_SUMMARY.md`, `docs/env-matrix.md` (CRON/worker), `.env.example`; `npm run verify` OK. |
+| 2026-04-07 | P11 health observability reminder queue | `/health` papildytas `reminders` būsena + `lastRun`; cron/worker vykdymai centralizuotai žymi rezultatą; `tests/invoice-health.spec.ts` papildytas diagnostikos tikrinimas su backend-unavailable fallback; `npm run verify` OK. |
+| 2026-04-08 | P12–P14 planas (GTM, runbook, KPI, notif metrika, portalas) | Dokumentai `GTM_COMMERCIAL_ONBOARDING`, `RUNBOOK_INCIDENTS`, `NOTIFICATION_TEMPLATES_VERSIONING`; Dashboard KPI; serveris: šablonų versija, 7d notif statistika `/health`, portalo API; ClientDashboard savitarna; `npm run verify` OK. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

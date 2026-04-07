@@ -1021,6 +1021,10 @@ export default function App() {
             profile={userProfile}
             settings={settings}
             onLogout={handleClientLogout}
+            onProfileRefresh={async () => {
+              const p = await getUserProfile(user.uid);
+              if (p) setUserProfile(p);
+            }}
           />
         )}
 

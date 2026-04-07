@@ -36,13 +36,16 @@ CI: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — po Prettier vy
 
 ## 5. Kita dokumentacija (P4)
 
-| Failas                                               | Turinys                                       |
-| ---------------------------------------------------- | --------------------------------------------- |
-| [`MIGRATIONS_POLICY.md`](MIGRATIONS_POLICY.md)       | Migracijos vs SQL Editor, breaking pakeitimai |
-| [`RLS_SUMMARY.md`](RLS_SUMMARY.md)                   | Lentelės → RLS esmė                           |
-| [`BACKUP_AND_OPS.md`](BACKUP_AND_OPS.md)             | Supabase backup / PITR nuorodos               |
-| [`PERIODIC_MAINTENANCE.md`](PERIODIC_MAINTENANCE.md) | Mėnesio / ketvirčio procesas                  |
-| [`STRIPE_TESTING.md`](STRIPE_TESTING.md)             | Stripe rankinė QA                             |
-| [`CLIENT_PORTAL_MVP.md`](CLIENT_PORTAL_MVP.md)       | Portalo MVP apimtis                           |
-| [`BUNDLE_ANALYSIS.md`](BUNDLE_ANALYSIS.md)           | `npm run build:analyze`                       |
-| [`UX_EMPTY_STATES.md`](UX_EMPTY_STATES.md)           | Tuščių būsenų šablonas                        |
+| Failas                                                                         | Turinys                                       |
+| ------------------------------------------------------------------------------ | --------------------------------------------- |
+| [`MIGRATIONS_POLICY.md`](MIGRATIONS_POLICY.md)                                 | Migracijos vs SQL Editor, breaking pakeitimai |
+| [`RLS_SUMMARY.md`](RLS_SUMMARY.md)                                             | Lentelės → RLS esmė                           |
+| [`BACKUP_AND_OPS.md`](BACKUP_AND_OPS.md)                                       | Supabase backup / PITR nuorodos               |
+| [`PERIODIC_MAINTENANCE.md`](PERIODIC_MAINTENANCE.md)                           | Mėnesio / ketvirčio procesas                  |
+| [`STRIPE_TESTING.md`](STRIPE_TESTING.md)                                       | Stripe rankinė QA                             |
+| [`CLIENT_PORTAL_MVP.md`](CLIENT_PORTAL_MVP.md)                                 | Portalo MVP apimtis                           |
+| [`GTM_COMMERCIAL_ONBOARDING.md`](GTM_COMMERCIAL_ONBOARDING.md)                 | Go-to-market, onboarding, komercinis šablonas |
+| [`RUNBOOK_INCIDENTS.md`](RUNBOOK_INCIDENTS.md)                                 | Incidentai: Supabase, Stripe, pranešimai      |
+| [`NOTIFICATION_TEMPLATES_VERSIONING.md`](NOTIFICATION_TEMPLATES_VERSIONING.md) | Šablonų versija / metrika                     |
+| [`BUNDLE_ANALYSIS.md`](BUNDLE_ANALYSIS.md)                                     | `npm run build:analyze`                       |
+| [`UX_EMPTY_STATES.md`](UX_EMPTY_STATES.md)                                     | Tuščių būsenų šablonas                        |
