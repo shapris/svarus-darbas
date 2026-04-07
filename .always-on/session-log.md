@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-07 — P10 `notification_events` RLS + cron env dokumentacija
+
+- **RLS:** migracija `supabase/migrations/20260407220000_notification_events_rls.sql` — įjungtas RLS, SELECT politikos staff/org (`effective_workspace_owner_id`) ir portaliniam klientui (`current_client_id`); įrašai / atnaujinimai lieka per `SUPABASE_SERVICE_ROLE_KEY` serveryje.
+- **Dokumentacija:** `docs/RLS_SUMMARY.md`, `docs/env-matrix.md` (`CRON_SECRET`, `ENABLE_REMINDER_WORKER`, `REMINDER_WORKER_INTERVAL_MS`), `.env.example` komentarai.
+- **Patikra:** `npm run verify`.
+
+---
+
 ## 2026-04-07 — P9.2/P9.3 reminder queue + notifų auditas
 
 - **Reminder queue:** `server.cjs` įdėta `processReminderQueue` logika (24h ir 1h priminimai), kuri siunčia el. paštą serverio pusėje be `sms:` URI.

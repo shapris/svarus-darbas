@@ -158,6 +158,12 @@
 
 ---
 
+## P10 — sauga ir dokumentacija (po P9)
+
+- [x] **`notification_events` RLS + env cron/worker:** įjungti RLS su staff/org ir client SELECT politikos (įrašai lieka tik per service role); atnaujinti `RLS_SUMMARY`, `env-matrix`, `.env.example`. *2026-04-07: migracija `20260407220000_notification_events_rls.sql`.*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -189,5 +195,6 @@
 | 2026-04-07 | P8.2–P8.5 klientų portalo užbaigimas | `ClientDashboard` UX (loading/error/retry + order details), mokėjimų istorija (`getPaymentHistory`), automatinis statuso/mokėjimų feed su persistencija, `SettingsView` toggle kliento saviregistracijai ir kliento notifų įjungimui; `npm run verify` + `scout:improvements` (score 100). |
 | 2026-04-07 | P9.1 statuso el. paštas | Įdėtas backend endpoint `POST /api/send-order-status-email` su auth + gavėjo validacija per užsakymo klientą; frontend integruota į `OrdersView` po statuso keitimo (`sendOrderStatusEmail`), nesustabdo statuso išsaugojimo jei laiškas nepavyksta; `npm run verify` OK. |
 | 2026-04-07 | P9.2–P9.3 reminder queue + auditas | `server.cjs` pridėtas `processReminderQueue`, `POST /api/cron/process-reminders` (x-cron-secret/Bearer), optional worker (`ENABLE_REMINDER_WORKER`), ir notifų audito API `GET /api/notification-events`; DB migracija `notification_events`; `npm run verify` OK. |
+| 2026-04-07 | P10 notification_events RLS | Nauja migracija `20260407220000_notification_events_rls.sql`; `docs/RLS_SUMMARY.md`, `docs/env-matrix.md` (CRON/worker), `.env.example`; `npm run verify` OK. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

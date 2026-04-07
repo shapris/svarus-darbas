@@ -23,20 +23,23 @@ Legenda: **B** = būtina tam kontekste · **N** = neprivaloma · **T** = tik kū
 
 ## Backend (`server.cjs` — Node, Render / VPS)
 
-| Kintamasis                  | B / N            | Kur naudojama                               |
-| --------------------------- | ---------------- | ------------------------------------------- |
-| `PORT`                      | N (default 3001) | HTTP portas                                 |
-| `NODE_ENV`                  | N                | `production` įspėjimai (Stripe placeholder) |
-| `SUPABASE_URL`              | B\*              | JWT / DB (`server.cjs`)                     |
-| `SUPABASE_ANON_KEY`         | B\*              | JWT tikrinimas                              |
-| `SUPABASE_SERVICE_ROLE_KEY` | B gamyboje       | Invoices / mokėjimai DB (ne in-memory)      |
-| `RESEND_API_KEY`            | B el. paštui     | Sąskaitų siuntimas, `/health.invoiceEmail`  |
-| `RESEND_FROM_EMAIL`         | B el. paštui     | Siuntėjas                                   |
-| `RESEND_FROM_NAME`          | N                | Rodomas vardas                              |
-| `FRONTEND_URL`              | B\*\*            | CORS (alternatyva žemiau)                   |
-| `CORS_ORIGINS`              | B\*\*            | Leidžiami origin'ai (kableliais)            |
-| `STRIPE_SECRET_KEY`         | N Stripe         | Mokėjimų API                                |
-| `STRIPE_WEBHOOK_SECRET`     | N Stripe webhook | `constructEvent`                            |
+| Kintamasis                    | B / N                    | Kur naudojama                                                                                                  |
+| ----------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `PORT`                        | N (default 3001)         | HTTP portas                                                                                                    |
+| `NODE_ENV`                    | N                        | `production` įspėjimai (Stripe placeholder)                                                                    |
+| `SUPABASE_URL`                | B\*                      | JWT / DB (`server.cjs`)                                                                                        |
+| `SUPABASE_ANON_KEY`           | B\*                      | JWT tikrinimas                                                                                                 |
+| `SUPABASE_SERVICE_ROLE_KEY`   | B gamyboje               | Invoices / mokėjimai DB (ne in-memory)                                                                         |
+| `RESEND_API_KEY`              | B el. paštui             | Sąskaitų siuntimas, `/health.invoiceEmail`                                                                     |
+| `RESEND_FROM_EMAIL`           | B el. paštui             | Siuntėjas                                                                                                      |
+| `RESEND_FROM_NAME`            | N                        | Rodomas vardas                                                                                                 |
+| `FRONTEND_URL`                | B\*\*                    | CORS (alternatyva žemiau)                                                                                      |
+| `CORS_ORIGINS`                | B\*\*                    | Leidžiami origin'ai (kableliais)                                                                               |
+| `STRIPE_SECRET_KEY`           | N Stripe                 | Mokėjimų API                                                                                                   |
+| `STRIPE_WEBHOOK_SECRET`       | N Stripe webhook         | `constructEvent`                                                                                               |
+| `CRON_SECRET`                 | N (B jei naudojate cron) | `POST /api/cron/process-reminders` — `x-cron-secret` arba `Authorization: Bearer`; be jo endpoint grąžina 503. |
+| `ENABLE_REMINDER_WORKER`      | N                        | `true` — fone kelias `processReminderQueue` (serveryje)                                                        |
+| `REMINDER_WORKER_INTERVAL_MS` | N (default serveryje)    | Priminimų workerio intervalas ms (`server.cjs`)                                                                |
 
 \*Galima naudoti `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` kaip fallback tą patį reikšmę API hoste (žr. `server.cjs`).  
 \*\* Bent vienas iš `FRONTEND_URL` arba `CORS_ORIGINS` (`check:cloud`).
