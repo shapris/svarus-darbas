@@ -45,7 +45,11 @@ import {
   type Message,
   type LocalUser,
 } from './chatAssistant/types';
-import { getAiStudio, getSpeechRecognitionCtor, type BrowserSpeechRecognition } from './chatAssistant/browserMedia';
+import {
+  getAiStudio,
+  getSpeechRecognitionCtor,
+  type BrowserSpeechRecognition,
+} from './chatAssistant/browserMedia';
 import {
   sanitizeHistoryForGemini,
   detectMemoryCategory,

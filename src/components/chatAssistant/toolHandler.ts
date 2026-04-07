@@ -144,12 +144,7 @@ export async function runAssistantToolCall(
         };
 
         if (updates.totalPrice === undefined) {
-          updates.totalPrice = calculateOrderPrice(
-            newWindowCount,
-            newFloor,
-            newServices,
-            settings
-          );
+          updates.totalPrice = calculateOrderPrice(newWindowCount, newFloor, newServices, settings);
         }
         updates.additionalServices = newServices;
       }

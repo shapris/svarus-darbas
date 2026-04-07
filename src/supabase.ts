@@ -24,7 +24,10 @@ export {
   type FetchPaymentsWorkspaceResult,
 } from './supabase/normalize';
 
-export { fetchPaymentsWorkspaceData, updateInvoiceStatusInSupabase } from './supabase/paymentsWorkspace';
+export {
+  fetchPaymentsWorkspaceData,
+  updateInvoiceStatusInSupabase,
+} from './supabase/paymentsWorkspace';
 
 export { checkOrdersSchemaHealth } from './supabase/ordersSchema';
 

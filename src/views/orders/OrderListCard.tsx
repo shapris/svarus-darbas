@@ -206,7 +206,9 @@ export function OrderListCard({
             <p className="text-xl font-black text-slate-900">
               {isRestrictedStaff ? '—' : formatCurrency(order.totalPrice)}
             </p>
-            <p className="text-[10px] text-slate-400 font-bold uppercase">{order.windowCount} langai</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">
+              {order.windowCount} langai
+            </p>
           </div>
         </div>
 
@@ -243,7 +245,9 @@ export function OrderListCard({
                     ? 'Pažymėti užsakymą kaip vykdomą'
                     : 'Pažymėti užsakymą kaip atliktą'
                 }
-                aria-label={order.status === 'suplanuota' ? 'Pradėti užsakymą' : 'Užbaigti užsakymą'}
+                aria-label={
+                  order.status === 'suplanuota' ? 'Pradėti užsakymą' : 'Užbaigti užsakymą'
+                }
                 className="min-w-[6.5rem] shrink-0 bg-blue-600 text-white py-2.5 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed min-h-[44px]"
               >
                 {statusUpdatingOrderId === order.id ? (

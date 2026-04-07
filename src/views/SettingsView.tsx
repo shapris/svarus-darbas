@@ -635,7 +635,9 @@ export default function SettingsView({
                 <span className="font-mono bg-slate-100 px-1 rounded">{'{laikas}'}</span>,{' '}
                 <span className="font-mono bg-slate-100 px-1 rounded">{'{kaina}'}</span>. LT gairės
                 ir pavyzdžiai: repo faile{' '}
-                <span className="font-mono bg-slate-100 px-1 rounded">docs/sms-templates-lt.md</span>
+                <span className="font-mono bg-slate-100 px-1 rounded">
+                  docs/sms-templates-lt.md
+                </span>
               </p>
               <textarea
                 rows={3}

@@ -6,14 +6,7 @@
 import React, { useMemo, useState } from 'react';
 import { Order, Employee, Client, OrderStatus } from '../types';
 import { formatCurrency } from '../utils';
-import {
-  Calendar as CalendarIcon,
-  MapPin,
-  Clock,
-  Users,
-  Save,
-  Trash2,
-} from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Clock, Users, Save, Trash2 } from 'lucide-react';
 import { formatSupabaseUserError, updateData, deleteData, TABLES } from '../supabase';
 import { useToast } from '../hooks/useToast';
 import { logDevError } from '../utils/devConsole';

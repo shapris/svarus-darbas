@@ -33,9 +33,11 @@ export interface DayDetailsModalProps {
   saveEdit: (order: Order) => void;
   removeOrder: (orderId: string) => void;
   updateOrderStatus: (order: Order, status: OrderStatus) => void;
-  getPrimaryStatusAction: (
-    status: OrderStatus
-  ) => { next: OrderStatus | null; label: string; className: string };
+  getPrimaryStatusAction: (status: OrderStatus) => {
+    next: OrderStatus | null;
+    label: string;
+    className: string;
+  };
   isSaving: boolean;
   isDeleting: string | null;
   draggedOrderId: string | null;

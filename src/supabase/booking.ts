@@ -1,6 +1,4 @@
-import {
-  getData as localGetData,
-} from '../localDb';
+import { getData as localGetData } from '../localDb';
 import { DEFAULT_SETTINGS, type AppSettings } from '../types';
 import { TABLES } from './constants';
 import { supabase, usesLocalStorageBackend, needsBackendSetup } from './client';

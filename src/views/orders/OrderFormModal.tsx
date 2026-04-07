@@ -287,9 +287,7 @@ export function OrderFormModal({
                     required
                     type="number"
                     value={formData.floor}
-                    onChange={(e) =>
-                      setFormData({ ...formData, floor: parseInt(e.target.value) })
-                    }
+                    onChange={(e) => setFormData({ ...formData, floor: parseInt(e.target.value) })}
                     title="Aukštas"
                     className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
@@ -394,9 +392,7 @@ export function OrderFormModal({
                     type="button"
                     title="Perjungti periodinį užsakymą"
                     aria-label="Perjungti periodinį užsakymą"
-                    onClick={() =>
-                      setFormData({ ...formData, isRecurring: !formData.isRecurring })
-                    }
+                    onClick={() => setFormData({ ...formData, isRecurring: !formData.isRecurring })}
                     className={`w-12 h-6 rounded-full transition-colors relative ${
                       formData.isRecurring ? 'bg-blue-500' : 'bg-slate-300'
                     }`}

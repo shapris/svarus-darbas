@@ -62,20 +62,20 @@ Užpildykite prieš siūlymą klientui; teisinius punktus peržiūri juristas (r
 
 ### 3.1 Kas įeina į produktą
 
-- Funkcijos (CRM moduliai): ****************\_****************
-- Klientų portalas: taip / ne — apimtis: ************\_************
+- Funkcijos (CRM moduliai): [įrašykite funkcijų sąrašą]
+- Klientų portalas: taip / ne — apimtis: [įrašykite apimtį]
 - Mokėjimai (Stripe): taip / ne — kas valdo rakto webhook: **\_\_\_**
 
 ### 3.2 Kaina ir terminas
 
-- Modelis (vienkartinė / mėnesinis / metinis): ********\_\_\_********
-- Suma ir valiuta: **********************\_**********************
-- Pilotas (trukmė, kaina): ******************\_\_******************
+- Modelis (vienkartinė / mėnesinis / metinis): [įrašykite modelį]
+- Suma ir valiuta: [įrašykite sumą ir valiutą]
+- Pilotas (trukmė, kaina): [įrašykite piloto sąlygas]
 
 ### 3.3 Palaikymas
 
-- Atsakymo laikas (pvz. darbo dienomis 24 h): ********\_\_\_********
-- Kas neįeina (ribos): ********************\_\_********************
+- Atsakymo laikas (pvz. darbo dienomis 24 h): [įrašykite SLA]
+- Kas neįeina (ribos): [įrašykite ribas]
 
 ### 3.4 Sutarties juodraščio punktai (ne teisinis tekstas)
 

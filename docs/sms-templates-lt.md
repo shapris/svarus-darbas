@@ -10,12 +10,12 @@
 
 Programa keičia šiuos fragmentus į faktinius duomenis (žr. `DEFAULT_SETTINGS.smsTemplate` ir `SettingsView` žymes):
 
-| Placeholder  | Reikšmė (pavyzdys)        |
-|-------------|----------------------------|
-| `{vardas}`  | Kliento vardas             |
-| `{data}`    | Užsakymo data              |
-| `{laikas}`  | Užsakymo laikas            |
-| `{kaina}`   | Kaina (tekstas su € žyme)  |
+| Placeholder | Reikšmė (pavyzdys)        |
+| ----------- | ------------------------- |
+| `{vardas}`  | Kliento vardas            |
+| `{data}`    | Užsakymo data             |
+| `{laikas}`  | Užsakymo laikas           |
+| `{kaina}`   | Kaina (tekstas su € žyme) |
 
 **Svarbu:** placeholderių vardus rašykite tiksliai — su riestiniais skliaustais, be tarpų (`{vardas}`, ne `{ vardas }`).
 
