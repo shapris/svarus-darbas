@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-08 — E2E: tylus numatytas Vite proxy į :3001
+
+- **Taikymas:** Playwright `webServer` → `VITE_SILENT_EXPECTED_PROXY_ERRORS=true`; `vite.config.ts` `customLogger` filtruoja `http proxy error` `/health|/api` ir `ECONNREFUSED` `:3001`, kai API sąmoningai neišpaleistas (sintetinis `/health` vis tiek iš error handlerio).
+- **Patikra:** `npm run verify`.
+
+---
+
 ## 2026-04-08 — Autonominė patikra (work-queue uždaryta)
 
 - **Eilė:** P0–P14 be atvirų `- [ ]`.

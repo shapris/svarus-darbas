@@ -3,7 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { defineConfig } from 'vite';
+import { createLogger, defineConfig } from 'vite';
 import { visualizer } from 'rollup-plugin-visualizer';
 
 const __dirnameVite = path.dirname(fileURLToPath(import.meta.url));
@@ -50,9 +50,36 @@ function apiProxyOnError(proxy: { on: (ev: string, fn: (...args: unknown[]) => v
   });
 }
 
+/** E2E (preview be server.cjs): numatytas Vite proxy triukšmas į 3001 — slopiname tik aiškiai identifikuojamus pranešimus. */
+function quietExpectedApiDownProxyLogger(): ReturnType<typeof createLogger> {
+  const logger = createLogger();
+  const drop = (msg: string) =>
+    (msg.includes('http proxy error') && (msg.includes('/health') || msg.includes('/api'))) ||
+    (msg.includes('ECONNREFUSED') && msg.includes('3001'));
+
+  return {
+    ...logger,
+    warn(msg, options) {
+      if (drop(msg)) return;
+      logger.warn(msg, options);
+    },
+    warnOnce(msg, options) {
+      if (drop(msg)) return;
+      logger.warnOnce(msg, options);
+    },
+    error(msg, options) {
+      if (drop(msg)) return;
+      logger.error(msg, options);
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const analyze = mode === 'analyze';
   return {
+    ...(process.env.VITE_SILENT_EXPECTED_PROXY_ERRORS === 'true'
+      ? { customLogger: quietExpectedApiDownProxyLogger() }
+      : {}),
     // Visada krauname .env iš projekto šaknies (kur vite.config.ts)
     envDir: __dirnameVite,
     plugins: [

@@ -20,6 +20,7 @@ export default defineConfig({
     env: {
       CI: 'true',
       VITE_OPEN_BROWSER: 'false',
+      VITE_SILENT_EXPECTED_PROXY_ERRORS: 'true',
     },
   },
   projects: [
