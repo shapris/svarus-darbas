@@ -11,6 +11,9 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 const gemini = process.env.VITE_GEMINI_API_KEY?.trim() || process.env.GEMINI_API_KEY?.trim() || '';
 const openrouter = process.env.VITE_OPENROUTER_API_KEY?.trim() || '';
+const opencode = process.env.VITE_OPENCODE_API_KEY?.trim() || '';
+const opencodeVariant = (process.env.VITE_OPENCODE_VARIANT || 'go').trim().toLowerCase();
+const opencodeModel = (process.env.VITE_OPENCODE_MODEL || 'glm-5').trim();
 
 const GEMINI_MODELS_TRY = [
   'gemini-2.5-flash',
@@ -105,7 +108,47 @@ async function testOpenRouter() {
   return { name: 'OpenRouter', ok: false, detail: 'Visi bandyti modeliai nepavyko' };
 }
 
-const results = await Promise.all([testGemini(), testOpenRouter()]);
+async function testOpenCode() {
+  if (!opencode) return { name: 'OpenCode', ok: false, detail: 'Nėra VITE_OPENCODE_API_KEY' };
+  const endpoint =
+    opencodeVariant === 'zen'
+      ? 'https://opencode.ai/zen/v1/chat/completions'
+      : 'https://opencode.ai/zen/go/v1/chat/completions';
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${opencode}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: opencodeModel,
+        messages: [{ role: 'user', content: 'Reply with OK only.' }],
+        max_tokens: 8,
+      }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      let msg = res.statusText;
+      try {
+        const j = JSON.parse(text);
+        msg = j.error?.message || j.error || msg;
+      } catch {
+        /* ignore */
+      }
+      return { name: 'OpenCode', ok: false, detail: `HTTP ${res.status}: ${msg}` };
+    }
+    return {
+      name: 'OpenCode',
+      ok: true,
+      detail: `chat/completions OK (${opencodeVariant}/${opencodeModel})`,
+    };
+  } catch (e) {
+    return { name: 'OpenCode', ok: false, detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+const results = await Promise.all([testGemini(), testOpenRouter(), testOpenCode()]);
 for (const r of results) {
   const status = r.ok ? 'VEIKIA' : 'NEVEIKIA';
   console.log(`[${status}] ${r.name}: ${r.detail}`);

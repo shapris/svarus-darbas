@@ -125,9 +125,9 @@ export default function ChatAssistant({
   const [customApiKey, setCustomApiKey] = useState<string>(
     localStorage.getItem('custom_api_key') || ''
   );
-  const [apiKeyProvider, setApiKeyProvider] = useState<'google' | 'openrouter' | 'default'>(
-    'default'
-  );
+  const [apiKeyProvider, setApiKeyProvider] = useState<
+    'google' | 'openrouter' | 'opencode' | 'default'
+  >('default');
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string>(
     localStorage.getItem('selected_voice') || 'Zephyr'
@@ -171,7 +171,13 @@ export default function ChatAssistant({
     }
     const storedKey = localStorage.getItem('custom_api_key');
     if (storedKey) {
-      setApiKeyProvider(storedKey.startsWith('sk-or-v1-') ? 'openrouter' : 'google');
+      setApiKeyProvider(
+        storedKey.startsWith('sk-or-v1-')
+          ? 'openrouter'
+          : storedKey.startsWith('sk-')
+            ? 'opencode'
+            : 'google'
+      );
       return;
     }
 
@@ -183,6 +189,8 @@ export default function ChatAssistant({
         const key = aiStudio.getApiKey();
         if (key.startsWith('sk-or-v1-')) {
           setApiKeyProvider('openrouter');
+        } else if (key.startsWith('sk-')) {
+          setApiKeyProvider('opencode');
         } else {
           setApiKeyProvider('google');
         }
@@ -396,7 +404,13 @@ export default function ChatAssistant({
   const handleSaveCustomKey = () => {
     if (customApiKey.trim()) {
       localStorage.setItem('custom_api_key', customApiKey.trim());
-      setApiKeyProvider(customApiKey.trim().startsWith('sk-or-v1-') ? 'openrouter' : 'google');
+      setApiKeyProvider(
+        customApiKey.trim().startsWith('sk-or-v1-')
+          ? 'openrouter'
+          : customApiKey.trim().startsWith('sk-')
+            ? 'opencode'
+            : 'google'
+      );
       setShowApiSettings(false);
     } else {
       localStorage.removeItem('custom_api_key');
@@ -690,20 +704,24 @@ export default function ChatAssistant({
                       className={`text-[9px] px-2 py-0.5 rounded-md font-medium ${
                         isAiOffline
                           ? 'bg-amber-500/25 text-amber-100'
-                          : apiKeyProvider === 'openrouter'
+                          : apiKeyProvider === 'opencode'
                             ? 'bg-white/15 text-white'
-                            : apiKeyProvider === 'google'
+                            : apiKeyProvider === 'openrouter'
                               ? 'bg-white/15 text-white'
-                              : 'bg-white/10 text-white/70'
+                              : apiKeyProvider === 'google'
+                                ? 'bg-white/15 text-white'
+                                : 'bg-white/10 text-white/70'
                       }`}
                     >
                       {isAiOffline
                         ? 'Neprijungta'
-                        : apiKeyProvider === 'openrouter'
-                          ? 'OpenRouter'
-                          : apiKeyProvider === 'google'
-                            ? 'Google API'
-                            : 'Numatytasis'}
+                        : apiKeyProvider === 'opencode'
+                          ? 'OpenCode'
+                          : apiKeyProvider === 'openrouter'
+                            ? 'OpenRouter'
+                            : apiKeyProvider === 'google'
+                              ? 'Google API'
+                              : 'Numatytasis'}
                     </span>
                   </div>
                   <p className="text-[9px] opacity-85 mt-1.5 leading-snug pr-2">

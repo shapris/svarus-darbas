@@ -7,6 +7,7 @@ import { GoogleGenAI, FunctionDeclaration } from '@google/genai';
 import { Order, Client, Expense, Memory } from '../types.js';
 import { prioritizeMemories, formatMemoriesForContext } from './memoryPriority.js';
 import { isOpenRouterKey, callOpenRouter, getOpenRouterKey } from './openRouterService.js';
+import { callOpenCodeChatCompletions, getOpenCodeKey, isOpenCodeKey } from './opencodeService.js';
 import { ALL_TOOLS } from './toolDefinitions.js';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
 import { logDevError } from '../utils/devConsole.js';
@@ -358,6 +359,97 @@ type OpenRouterMessageRow = {
   name?: string;
 };
 
+type OpenCodeChoiceMessage = {
+  content?: string;
+  tool_calls?: Array<{
+    id: string;
+    type: string;
+    function: { name: string; arguments: string };
+  }>;
+};
+
+async function runOpenCodeAssistantChat(
+  message: string,
+  history: ChatHistoryTurn[],
+  systemInstruction: string,
+  tools: FunctionDeclaration[]
+): Promise<{
+  text: string;
+  functionCalls?: AssistantFunctionCall[];
+  history: ChatHistoryTurn[];
+}> {
+  const messages: Array<{
+    role: 'system' | 'user' | 'assistant' | 'tool';
+    content?: string;
+    tool_calls?: Array<{
+      id: string;
+      type: 'function';
+      function: { name: string; arguments: string };
+    }>;
+    tool_call_id?: string;
+    name?: string;
+  }> = [{ role: 'system', content: systemInstruction }];
+
+  for (const h of history) {
+    const part = h.parts?.[0];
+    if (!part) continue;
+    if (part.text) {
+      messages.push({
+        role: h.role === 'model' ? 'assistant' : h.role === 'function' ? 'tool' : 'user',
+        content: part.text,
+      });
+    } else if (part.functionCall) {
+      messages.push({
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: part.functionCall.id || 'call_' + Math.random().toString(36).substring(7),
+            type: 'function',
+            function: {
+              name: part.functionCall.name ?? 'unknown_tool',
+              arguments: toolArgumentsAsJsonString(part.functionCall.args),
+            },
+          },
+        ],
+      });
+    } else if (part.functionResponse) {
+      messages.push({
+        role: 'tool',
+        tool_call_id: part.functionResponse.id || 'unknown_call_id',
+        name: part.functionResponse.name,
+        content: JSON.stringify(part.functionResponse.response),
+      });
+    }
+  }
+
+  if (message) messages.push({ role: 'user', content: message });
+
+  const raw = await callOpenCodeChatCompletions({ messages, tools });
+  const result = raw as { choices?: Array<{ message?: OpenCodeChoiceMessage }> };
+  const choice = result.choices?.[0]?.message;
+  if (!choice) throw new Error('Tuščias atsakymas iš OpenCode');
+
+  let functionCalls: AssistantFunctionCall[] = [];
+  if (choice.tool_calls) {
+    functionCalls = choice.tool_calls.map((tc) => ({
+      name: tc.function?.name || 'unknown_tool',
+      args: parseToolArgumentsToObject(tc.function?.arguments),
+      id: tc.id,
+    }));
+  }
+
+  return {
+    text: choice.content || 'Atsiprašau, nepavyko gauti atsakymo.',
+    functionCalls,
+    history: [
+      ...history,
+      { role: 'user', parts: [{ text: message }] },
+      { role: 'model', parts: [{ text: choice.content || '' }] },
+    ],
+  };
+}
+
 /** OpenRouter pokalbis (įrankiai perduodami į callOpenRouter). */
 async function runOpenRouterAssistantChat(
   message: string,
@@ -499,6 +591,23 @@ export async function chatWithAssistant(
     });
 
     const tools = ALL_TOOLS;
+
+    // Jei įvestas OpenCode (Zen/Go) raktas — pirmiausia OpenCode endpoint'as (OpenAI-compatible).
+    // Prioritetas: dedicated VITE_OPENCODE_API_KEY arba custom_api_key `sk-...` (ne OpenRouter).
+    const openCodeKey = getOpenCodeKey();
+    if (openCodeKey || isOpenCodeKey(apiKey)) {
+      try {
+        return await runOpenCodeAssistantChat(message, history, systemInstruction, tools);
+      } catch (openCodeError: unknown) {
+        const ocMsg =
+          openCodeError instanceof Error
+            ? openCodeError.message
+            : typeof openCodeError === 'string'
+              ? openCodeError
+              : JSON.stringify(openCodeError);
+        console.warn('OpenCode failed, falling back to other providers:', ocMsg);
+      }
+    }
 
     // Jei įvestas tik OpenRouter raktas — pirmiausia OpenRouter
     if (!preferredGeminiKey && isOpenRouterKey(apiKey)) {
