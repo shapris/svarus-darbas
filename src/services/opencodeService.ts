@@ -69,11 +69,10 @@ export async function callOpenCodeChatCompletions(args: {
   model?: string;
   timeoutMs?: number;
 }): Promise<unknown> {
-  const apiKey = getOpenCodeKey();
-  // Jei nėra rakto kliente, bandome per serverio proxy (bendras raktas visiems vartotojams).
-  // Tai saugu: raktas lieka serverio env (OPENCODE_API_KEY), o klientas gauna tik atsakymą.
-  if (!apiKey) {
-    const base = getApiBaseUrl();
+  const base = getApiBaseUrl();
+  // If API base is configured (Vercel -> Render), always use server proxy.
+  // Prevents browser CORS failures and keeps shared key server-side.
+  if (base) {
     const controller = new AbortController();
     const timeoutMs = Math.max(5_000, args.timeoutMs ?? 60_000);
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -100,6 +99,15 @@ export async function callOpenCodeChatCompletions(args: {
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  const apiKey = getOpenCodeKey();
+  // Dev/local fallback: if no server base configured, allow direct key usage.
+  if (!apiKey) {
+    throw new Error(
+      'OpenCode API raktas nerastas kliente, o serverio API bazė nesukonfigūruota. ' +
+        'Nustatykite VITE_INVOICE_API_BASE_URL (produkcinis kelias) arba įveskite raktą lokaliai.'
+    );
   }
 
   const variant = getOpenCodeVariant();
