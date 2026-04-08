@@ -1,0 +1,42 @@
+name: Feature request
+description: Nauja funkcija su aiškiu scope ir acceptance kriterijais
+title: '[FEAT] '
+labels: ['feature']
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Tikslas
+      description: Vienu sakiniu – ką turiu matyti/galėti padaryti.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope (kas įeina / kas ne)
+      placeholder: 'Įeina: ... / Neįeina: ...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance kriterijai
+      placeholder: "- [ ] ...\n- [ ] ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Rizikos / priklausomybės
+      placeholder: 'Supabase, Stripe, role-gating, env, ...'
+
+  - type: checkboxes
+    id: tests
+    attributes:
+      label: Test plan
+      options:
+        - label: '`npm run lint` + `npm test` (min)'
+        - label: '`npm run verify` (jei liečia core srautus arba prieš release)'

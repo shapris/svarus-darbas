@@ -1,0 +1,58 @@
+name: Bug report (stabilumas)
+description: Incidentas / bug'as su reprodukcija ir testu
+title: '[BUG] '
+labels: ['bug', 'stability']
+body:
+  - type: textarea
+    id: symptoms
+    attributes:
+      label: Simptomai
+      description: Kas nutinka? Kokį poveikį daro vartotojui?
+      placeholder: "Pvz. 502 siunčiant sąskaitą; UI rodo 'Nepavyko'."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Atkūrimas (reproduction)
+      description: Žingsniai, kaip atkartoti problemą.
+      placeholder: '1) ... 2) ... 3) ...'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Poveikis
+      options:
+        - P0 (gamyba / duomenys)
+        - P1 (kritinis flow)
+        - P2 (trukdo darbui)
+        - P3 (smulkmena / kosmetika)
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Tikėtinas elgesys
+      placeholder: 'Kas turėjo įvykti?'
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logai / įrodymai
+      description: Console/Network/Server log ištraukos (be paslapčių).
+      placeholder: 'Stacktrace, request id, /health, ...'
+
+  - type: checkboxes
+    id: memory_and_test
+    attributes:
+      label: Incident → atmintis → testas
+      options:
+        - label: Papildysiu `.always-on/known-issues.md` (arba pažymėsiu, kad jau yra)
+        - label: Jei reikia, pridėsiu runbook `.always-on/runbooks/*`
+        - label: Pridėsiu minimalų testą / check, kad regresija nebegrįžtų

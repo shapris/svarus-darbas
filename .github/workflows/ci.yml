@@ -7,9 +7,33 @@ on:
   pull_request:
 
 jobs:
-  verify:
+  fast:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prettier (check)
+        run: npm run format:check
+
+      - name: Fast gate (lint + unit)
+        run: npm run lint && npm test
+
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -36,5 +60,5 @@ jobs:
       - name: Prettier (check)
         run: npm run format:check
 
-      - name: Verify (lint, types, build, unit, smoke, console, invoice E2E)
+      - name: Full gate (verify)
         run: npm run verify

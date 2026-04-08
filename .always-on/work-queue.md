@@ -42,6 +42,40 @@
 
 ---
 
+## P1.5 — stabilumo „paketai“ (greitas paralelizavimas)
+
+*Tikslas:* stabilumo darbus skaidyti į 1–3 val. gabalus, kuriuos gali vykdyti keli agentai lygiagrečiai be konfliktų. Kiekvienas paketas turi acceptance kriterijus, rollback ir minimalų test planą.
+
+- [ ] **S1: API klaidų klasifikacija ir standartinis JSON (server)**  
+  - **Apimtis:** `server.cjs` klaidoms suvienodinti `{ ok:false, code, message, requestId? }` (nekeisti sėkmingų atsakymų)  
+  - **Acceptance:** bent 3 kritiniai endpoint’ai grąžina vienodą formatą klaidos atveju  
+  - **Rollback:** revert vienas commit  
+  - **Test plan:** `npm run lint` + `npm test`
+
+- [ ] **S2: `/health` praplėtimas minimaliai (signalai)**  
+  - **Apimtis:** papildyti `/health` rodikliais apie backend priklausomybes (pvz. supabase reachable, email enabled) be paslapčių  
+  - **Acceptance:** `tests/invoice-health.spec.ts` vis dar praeina, o diagnostika yra stabiliai parsable JSON  
+  - **Rollback:** revert vienas commit  
+  - **Test plan:** `npm run test:invoice`
+
+- [ ] **S3: Timeout’ai ir retry taisyklės išoriniams kvietimams (server)**  
+  - **Apimtis:** `fetch`/SDK kvietimams uždėti aiškų timeout ir vieną retry tik idempotent’ams  
+  - **Acceptance:** nelieka „pakibusių“ request’ų; klaidos grąžinamos per <N sekundžių  
+  - **Rollback:** revert vienas commit  
+  - **Test plan:** `npm run lint` + `npm test`
+
+- [ ] **S4: Frontend klaidų UX (toast + retry)**  
+  - **Apimtis:** 2–3 kritiniuose view suvienodinti network klaidų rodymą (be console.error prod)  
+  - **Acceptance:** `test:console` be netikėtų klaidų; vartotojas mato aiškų pranešimą + retry  
+  - **Rollback:** revert vienas commit  
+  - **Test plan:** `npm run test:console` + `npm run test:smoke`
+
+- [ ] **S5: Incident → testas šablonas (QA)**  
+  - **Apimtis:** šabloninis testas/skriptas (pvz. kontraktinis `/health`) + instrukcija kaip pridėti naują  
+  - **Acceptance:** naujo incidento registravimo procesas užtrunka <5 min  
+  - **Rollback:** revert vienas commit  
+  - **Test plan:** `npm test`
+
 ## P4 — ilgalaikis planas (žingsniai į priekį)
 
 *Pradėta: 2026-04-05. Vykdyti iš eilės arba pagal riziką: A → B → … Kiekvienam žingsniui: implementacija → `npm run verify` (arba bent `lint`+`build`+`test`) → pažymėti `[x]` + data + žurnalas.*

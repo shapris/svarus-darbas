@@ -21,6 +21,17 @@
 3. **Sprendimas „daugiau nebekeisime be priežasties“:** įrašyti į [`decisions.md`](decisions.md).
 4. **Be konkrečios užduoties:** vykdyti [`work-queue.md`](work-queue.md) pagal `.cursor/rules/always-on-workflow.mdc` ir `AGENT_PROTOCOL.md`.
 
+## Incident → atmintis → testas (privaloma taisyklė)
+
+Kai atsiranda realus incidentas ar gamybinė problema:
+
+1. Įrašyti į [`known-issues.md`](known-issues.md) (naujas KI-xxx arba atnaujinti esamą).
+2. Jei incidentas turi operacinę eigą (pvz. Supabase/Render/Stripe), pridėti runbook į [`runbooks/`](runbooks/).
+3. Pridėti **saugiklį**: vieną minimalų testą arba `check:*` skriptą, kad regresija nebegrįžtų tyliai.
+4. Užfiksuoti santrauką [`session-log.md`](session-log.md) (naujausia viršuje).
+
+Minimalus testų rinkinys kasdieniams pataisymams: `npm run lint` + `npm test`. Pilna regresija prieš release: `npm run verify`.
+
 ## Kas lieka ne faile
 
 - **Cursor Memories / taisyklės** — trumpi priminimai; šaltinis tiesa čia + Git.

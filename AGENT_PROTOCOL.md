@@ -118,6 +118,20 @@ Before substantial execution:
 After major actions:
 
 - Update **`TASK_MEMORY.md`** (progress, next steps, known issues).
+
+---
+
+## 11. MULTI-AGENT ROLES (PARALLEL EXECUTION)
+
+Kai reikia greičio be kokybės praradimo, darbą skaidyti ir vykdyti paraleliai per roles:
+
+- **QA/Debugger**: randa reprodukciją, sukuria minimalų testą/check, ir sukuria/atnaujina `known-issues.md`.
+- **Backend Stability**: tvarko API patikimumą (timeout/retry, error format, `/health`, cron/worker), prideda diagnostiką.
+- **Frontend Stability**: tvarko UX klaidoms, state edge-case’us, mažina konsolės triukšmą, prideda E2E smoke/console testus.
+- **DevOps**: CI pakopos, cache, greitos patikros PR’e, pilna regresija prieš release.
+
+**Užduočių ėmimas:** jei nėra aiškios vartotojo užduoties, imti pirmą `- [ ]` iš `.always-on/work-queue.md` ir pažymėti, kuri role vykdo. Jei yra keli agentai, jie ima skirtingus paketus (pvz. S1/S2/S3), kad nesidubliuotų.
+
 - Append a short block (newest first) to **`.always-on/session-log.md`** when the session changes project direction, deploy, or closes a multi-step item.
 - Record **durable decisions** in **`.always-on/decisions.md`** (not every bugfix — only “we chose X and stick to it”).
 - Add **dated events / deadlines** to **`.always-on/milestones.md`** when the user or production schedule requires tracking.
