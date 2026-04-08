@@ -19,6 +19,8 @@ import {
   RefreshCcw,
   MessageSquarePlus,
   Send,
+  CalendarPlus,
+  ExternalLink,
 } from 'lucide-react';
 import { getClientOrders, signOut, type AuthUser } from '../../supabase';
 import { AppSettings, Order, UserProfile } from '../../types';
@@ -74,7 +76,12 @@ export default function ClientDashboard({
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
-    if (!profile.clientId) return;
+    if (!profile.clientId) {
+      setOrders([]);
+      setLoadingOrders(false);
+      setOrdersError('');
+      return;
+    }
     setLoadingOrders(true);
     setOrdersError('');
     try {
@@ -90,7 +97,12 @@ export default function ClientDashboard({
   }, [profile.clientId, showToast]);
 
   const loadPayments = useCallback(async () => {
-    if (!profile.clientId) return;
+    if (!profile.clientId) {
+      setPayments([]);
+      setLoadingPayments(false);
+      setPaymentsError('');
+      return;
+    }
     setLoadingPayments(true);
     setPaymentsError('');
     try {
@@ -252,6 +264,13 @@ export default function ClientDashboard({
 
   const unpaidOrders = orders.filter((order) => !order.isPaid);
 
+  const bookingOwnerId = (profile.workspaceOwnerId || profile.uid || '').trim();
+  const publicBookingOpen = settings?.publicBookingEnabled !== false;
+  const clientBookingUrl =
+    bookingOwnerId && typeof window !== 'undefined'
+      ? `${window.location.origin}/booking/${bookingOwnerId}`
+      : '';
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -358,67 +377,69 @@ export default function ClientDashboard({
               </motion.div>
             )}
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-lg shadow p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Viso užsakymų</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+            {/* Stats Cards — tik kai paskyra pririšta prie kliento */}
+            {profile.clientId ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white rounded-lg shadow p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Viso užsakymų</p>
+                      <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+                    </div>
+                    <FileText className="w-8 h-8 text-blue-600" />
                   </div>
-                  <FileText className="w-8 h-8 text-blue-600" />
-                </div>
-              </motion.div>
+                </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white rounded-lg shadow p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Suplanuota</p>
-                    <p className="text-2xl font-semibold text-blue-600">{stats.planned}</p>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-white rounded-lg shadow p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Suplanuota</p>
+                      <p className="text-2xl font-semibold text-blue-600">{stats.planned}</p>
+                    </div>
+                    <Calendar className="w-8 h-8 text-blue-600" />
                   </div>
-                  <Calendar className="w-8 h-8 text-blue-600" />
-                </div>
-              </motion.div>
+                </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white rounded-lg shadow p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Atlikta</p>
-                    <p className="text-2xl font-semibold text-green-600">{stats.completed}</p>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-white rounded-lg shadow p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Atlikta</p>
+                      <p className="text-2xl font-semibold text-green-600">{stats.completed}</p>
+                    </div>
+                    <CheckCircle className="w-8 h-8 text-green-600" />
                   </div>
-                  <CheckCircle className="w-8 h-8 text-green-600" />
-                </div>
-              </motion.div>
+                </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white rounded-lg shadow p-6"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Išleista</p>
-                    <p className="text-2xl font-semibold text-gray-900">€{stats.totalSpent}</p>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white rounded-lg shadow p-6"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Išleista</p>
+                      <p className="text-2xl font-semibold text-gray-900">€{stats.totalSpent}</p>
+                    </div>
+                    <DollarSign className="w-8 h-8 text-green-600" />
                   </div>
-                  <DollarSign className="w-8 h-8 text-green-600" />
-                </div>
-              </motion.div>
-            </div>
+                </motion.div>
+              </div>
+            ) : null}
 
             {/* Orders List */}
             <motion.div
@@ -448,10 +469,49 @@ export default function ClientDashboard({
                       Bandyti dar kartą
                     </button>
                   </div>
+                ) : !profile.clientId ? (
+                  <div className="px-6 py-12 text-center max-w-md mx-auto">
+                    <AlertCircle className="w-14 h-14 text-amber-400 mx-auto mb-4" />
+                    <p className="text-gray-900 font-medium">
+                      Paskyra dar nepririšta prie kliento duomenų
+                    </p>
+                    <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+                      Administratorius turi susieti jūsų prisijungimą su kliento kortele CRM. Jei
+                      tai klaida — parašykite savitarnos skiltyje.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('requests')}
+                      className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <MessageSquarePlus className="w-4 h-4" />
+                      Eiti į Savitarną
+                    </button>
+                  </div>
                 ) : orders.length === 0 ? (
-                  <div className="px-6 py-8 text-center">
-                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">Jūs dar neturite užsakymų</p>
+                  <div className="px-6 py-12 text-center max-w-md mx-auto">
+                    <CalendarPlus className="w-14 h-14 text-slate-300 mx-auto mb-4" />
+                    <p className="text-gray-900 font-medium">Dar nėra užsakymų</p>
+                    <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+                      Kai administratorius sukurs užsakymą arba užsiregistruosite per rezervaciją —
+                      jis čia pasirodys.
+                    </p>
+                    {publicBookingOpen && clientBookingUrl ? (
+                      <a
+                        href={clientBookingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Rezervuoti laiką
+                      </a>
+                    ) : (
+                      <p className="mt-4 text-xs text-gray-400">
+                        Vieša rezervacija šiuo metu išjungta — kreipkitės tiesiogiai į paslaugų
+                        tiekėją.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   orders.map((order, index) => (
@@ -553,98 +613,111 @@ export default function ClientDashboard({
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-medium text-gray-900 mb-4">
-                  Pasirinkite Užsakymą Apmokėjimui
-                </h2>
-                {paymentsError && (
-                  <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    <p>{paymentsError}</p>
-                    <button
-                      type="button"
-                      onClick={() => void loadPayments()}
-                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-200"
-                    >
-                      <RefreshCcw className="w-3 h-3" />
-                      Bandyti dar kartą
-                    </button>
+                {!profile.clientId ? (
+                  <div className="py-10 text-center max-w-md mx-auto">
+                    <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+                    <p className="text-gray-900 font-medium">Mokėjimai nepasiekiami</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Paskyra dar nepririšta prie kliento kortelės — apmokėjimų sąrašo čia
+                      nerodysime, kol administratorius užbaigs susiejimą.
+                    </p>
                   </div>
-                )}
-                <div className="space-y-3">
-                  {loadingOrders ? (
-                    <div className="text-center py-8">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                      <p className="mt-2 text-gray-500">Kraunami užsakymai...</p>
-                    </div>
-                  ) : unpaidOrders.length === 0 ? (
-                    <div className="text-center py-8">
-                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">Nėra užsakymų apmokėjimui</p>
-                    </div>
-                  ) : (
-                    unpaidOrders.map((order) => (
-                      <div
-                        key={order.id}
-                        onClick={() => setSelectedOrder(order)}
-                        className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              Langų valymas - {order.address}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              {new Date(order.date).toLocaleDateString('lt-LT')} {order.time}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Langai: {order.windowCount} | Aukštas: {order.floor}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-lg font-semibold text-gray-900">
-                              €{order.totalPrice}
-                            </p>
-                            <p className="text-sm text-orange-600">Laukiama apmokėjimo</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="mt-6 pt-6 border-t border-gray-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-gray-900">Mokėjimų istorija</h3>
-                    <button
-                      type="button"
-                      onClick={() => void loadPayments()}
-                      className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
-                    >
-                      <RefreshCcw className="w-3 h-3" />
-                      Atnaujinti
-                    </button>
-                  </div>
-                  {loadingPayments ? (
-                    <p className="text-sm text-gray-500">Kraunama...</p>
-                  ) : payments.length === 0 ? (
-                    <p className="text-sm text-gray-500">Mokėjimų istorijos dar nėra.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {payments.slice(0, 5).map((payment) => (
-                        <div
-                          key={payment.id}
-                          className="rounded-lg border border-gray-200 px-3 py-2 text-sm flex items-center justify-between"
+                ) : (
+                  <>
+                    <h2 className="text-lg font-medium text-gray-900 mb-4">
+                      Pasirinkite Užsakymą Apmokėjimui
+                    </h2>
+                    {paymentsError && (
+                      <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                        <p>{paymentsError}</p>
+                        <button
+                          type="button"
+                          onClick={() => void loadPayments()}
+                          className="mt-2 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-200"
                         >
-                          <span className="text-gray-600">
-                            #{payment.id.slice(-8)} · {getPaymentStatusText(payment.status)}
-                          </span>
-                          <span className="font-semibold text-gray-900">
-                            €{(payment.amount / 100).toFixed(2)}
-                          </span>
+                          <RefreshCcw className="w-3 h-3" />
+                          Bandyti dar kartą
+                        </button>
+                      </div>
+                    )}
+                    <div className="space-y-3">
+                      {loadingOrders ? (
+                        <div className="text-center py-8">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                          <p className="mt-2 text-gray-500">Kraunami užsakymai...</p>
                         </div>
-                      ))}
+                      ) : unpaidOrders.length === 0 ? (
+                        <div className="text-center py-8">
+                          <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                          <p className="text-gray-500">Nėra užsakymų apmokėjimui</p>
+                        </div>
+                      ) : (
+                        unpaidOrders.map((order) => (
+                          <div
+                            key={order.id}
+                            onClick={() => setSelectedOrder(order)}
+                            className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  Langų valymas - {order.address}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {new Date(order.date).toLocaleDateString('lt-LT')} {order.time}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  Langai: {order.windowCount} | Aukštas: {order.floor}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-lg font-semibold text-gray-900">
+                                  €{order.totalPrice}
+                                </p>
+                                <p className="text-sm text-orange-600">Laukiama apmokėjimo</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
-                  )}
-                </div>
+
+                    <div className="mt-6 pt-6 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-medium text-gray-900">Mokėjimų istorija</h3>
+                        <button
+                          type="button"
+                          onClick={() => void loadPayments()}
+                          className="text-xs text-blue-600 hover:text-blue-800 inline-flex items-center gap-1"
+                        >
+                          <RefreshCcw className="w-3 h-3" />
+                          Atnaujinti
+                        </button>
+                      </div>
+                      {loadingPayments ? (
+                        <p className="text-sm text-gray-500">Kraunama...</p>
+                      ) : payments.length === 0 ? (
+                        <p className="text-sm text-gray-500">Mokėjimų istorijos dar nėra.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {payments.slice(0, 5).map((payment) => (
+                            <div
+                              key={payment.id}
+                              className="rounded-lg border border-gray-200 px-3 py-2 text-sm flex items-center justify-between"
+                            >
+                              <span className="text-gray-600">
+                                #{payment.id.slice(-8)} · {getPaymentStatusText(payment.status)}
+                              </span>
+                              <span className="font-semibold text-gray-900">
+                                €{(payment.amount / 100).toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </motion.div>
