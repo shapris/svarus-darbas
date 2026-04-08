@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { getAiBudgetStatus } from '../services/aiService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useToast } from '../hooks/useToast';
 
 interface LocalUser {
@@ -142,12 +143,14 @@ export default function SettingsView({
           : 'Serveris atsako, bet serveryje trūksta RESEND_API_KEY (.env) — automatinis el. paštas neveiks, kol jį pridėsite.'
       );
       showToast.success('Ryšys su serveriu patikrintas');
-    } catch {
+    } catch (error: unknown) {
       setInvoiceServerCheck('fail');
-      setInvoiceServerHint(
+      const msg = formatNetworkErrorForUser(
+        error,
         'Nepavyko pasiekti serverio. Paleiskite `npm run server` ir patikrinkite adresą.'
       );
-      showToast.error('Serveris nepasiekiamas');
+      setInvoiceServerHint(msg);
+      showToast.error(msg);
     }
   };
 

@@ -64,7 +64,7 @@
   - **Rollback:** revert vienas commit  
   - **Test plan:** `npm run lint` + `npm test`
 
-- [ ] **S4: Frontend klaidų UX (toast + retry)**  
+- [x] **S4: Frontend klaidų UX (toast + retry)**  *2026-04-08*  
   - **Apimtis:** 2–3 kritiniuose view suvienodinti network klaidų rodymą (be console.error prod)  
   - **Acceptance:** `test:console` be netikėtų klaidų; vartotojas mato aiškų pranešimą + retry  
   - **Rollback:** revert vienas commit  
@@ -252,5 +252,6 @@
 | 2026-04-08 | E2E Vite proxy log | `VITE_SILENT_EXPECTED_PROXY_ERRORS` + `customLogger` — mažiau klaidinančio `[vite] http proxy error` output, kai preview veikia be `server.cjs`. |
 | 2026-04-08 | Hotfix: Supabase orders `select` schema | `server.cjs`: `ensureAccessibleOrder` ir priminimų eilės užklausa be neegzistuojančių stulpelių (`clientId`/`uid`), kad neliktų PostgREST 400 ir Render 502 sąskaitų keliuose. |
 | 2026-04-08 | S3 timeout/retry server fetch | `server.cjs` pridėtas `fetchWithTimeoutAndRetry` (`EXTERNAL_FETCH_TIMEOUT_MS`, retry tik `GET/HEAD`), pritaikyta Supabase auth/profile REST kvietimams; pakibę request'ai apriboti timeout'u. |
+| 2026-04-08 | S4 frontend network UX + retry | `ClientDashboard`, `PaymentsView`, `SettingsView` suvienodinti network klaidų pranešimai per `formatNetworkErrorForUser`, pridėti aiškūs retry mygtukai klaidų blokuose; `npm run verify` žalia. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

@@ -35,6 +35,7 @@ import {
   updateClientPortalPhone,
   type ClientPortalRequestCategory,
 } from '../../services/clientPortalApi';
+import { formatNetworkErrorForUser } from '../../utils/networkErrors';
 
 interface ClientDashboardProps {
   user: AuthUser;
@@ -80,11 +81,13 @@ export default function ClientDashboard({
       const clientOrders = await getClientOrders(profile.clientId);
       setOrders(clientOrders);
     } catch (error: unknown) {
-      setOrdersError(error instanceof Error ? error.message : 'Nepavyko gauti užsakymų.');
+      const msg = formatNetworkErrorForUser(error, 'Nepavyko gauti užsakymų.');
+      setOrdersError(msg);
+      showToast.error(msg);
     } finally {
       setLoadingOrders(false);
     }
-  }, [profile.clientId]);
+  }, [profile.clientId, showToast]);
 
   const loadPayments = useCallback(async () => {
     if (!profile.clientId) return;
@@ -94,13 +97,13 @@ export default function ClientDashboard({
       const rows = await getPaymentHistory(profile.clientId);
       setPayments(rows);
     } catch (error: unknown) {
-      setPaymentsError(
-        error instanceof Error ? error.message : 'Nepavyko gauti mokėjimų istorijos.'
-      );
+      const msg = formatNetworkErrorForUser(error, 'Nepavyko gauti mokėjimų istorijos.');
+      setPaymentsError(msg);
+      showToast.error(msg);
     } finally {
       setLoadingPayments(false);
     }
-  }, [profile.clientId]);
+  }, [profile.clientId, showToast]);
 
   useEffect(() => {
     void loadOrders();
@@ -555,7 +558,15 @@ export default function ClientDashboard({
                 </h2>
                 {paymentsError && (
                   <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    {paymentsError}
+                    <p>{paymentsError}</p>
+                    <button
+                      type="button"
+                      onClick={() => void loadPayments()}
+                      className="mt-2 inline-flex items-center gap-1 rounded-lg bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-200"
+                    >
+                      <RefreshCcw className="w-3 h-3" />
+                      Bandyti dar kartą
+                    </button>
                   </div>
                 )}
                 <div className="space-y-3">

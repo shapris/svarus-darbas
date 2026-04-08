@@ -25,6 +25,7 @@ import { fetchPaymentsWorkspaceData, updateInvoiceStatusInSupabase } from '../su
 import { motion } from 'motion/react';
 import { useToast } from '../hooks/useToast';
 import { generateInvoicePDF } from '../utils';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 
 interface PaymentsViewProps {
   user: { uid: string };
@@ -74,11 +75,8 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
       setInvoices(result.invoices);
       setTransactions(result.transactions);
     } catch (err) {
-      const msg =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : '';
-      showToast.error(msg ? `Nepavyko įkelti mokėjimų: ${msg}` : 'Nepavyko įkelti mokėjimų');
+      const msg = formatNetworkErrorForUser(err, 'Nepavyko įkelti mokėjimų.');
+      showToast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -177,7 +175,15 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
           role="alert"
         >
-          {workspaceError}
+          <p>{workspaceError}</p>
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-800 hover:bg-red-200 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden />
+            Bandyti dar kartą
+          </button>
         </div>
       )}
 

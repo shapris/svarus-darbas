@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-08 — S4: frontend network klaidų UX + retry
+
+- **Implementacija:** naujas helperis `src/utils/networkErrors.ts` (`formatNetworkErrorForUser`, `isLikelyNetworkError`) suvienodino tinklo klaidų tekstą.
+- **Pritaikymas:** `ClientDashboard` (užsakymai + mokėjimų istorija) dabar rodo aiškų toast ir retry mygtuką; `PaymentsView` workspace klaidų bloke pridėtas retry mygtukas; `SettingsView` serverio health check catch grąžina aiškų network-pranešimą.
+- **Patikra:** `npm run verify` (įskaitant `test:smoke` ir `test:console`) — žalia.
+
+---
+
 ## 2026-04-08 — S3: timeout + retry taisyklės išoriniams server fetch
 
 - **Implementacija:** `server.cjs` pridėtas `fetchWithTimeoutAndRetry` su aiškiu timeout (`EXTERNAL_FETCH_TIMEOUT_MS`, default 12s), vienu retry tik idempotentiniams metodams (`GET/HEAD`) ir transient statusų (`408/425/429/5xx`) / network klaidų atvejais.
