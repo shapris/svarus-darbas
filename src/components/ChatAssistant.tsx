@@ -162,6 +162,7 @@ export default function ChatAssistant({
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const tempTranscriptRef = useRef('');
+  const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   const checkApiKey = async () => {
     const hasServerApiBase = !!(
@@ -269,7 +270,9 @@ export default function ChatAssistant({
 
     if (!SpeechRecognition) {
       showToast.error(
-        'Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.'
+        isLikelyMobile
+          ? 'Ši mobilioji naršyklė nepalaiko balso atpažinimo. Rekomenduojama Chrome (Android) arba Safari su įjungtu mikrofono leidimu.'
+          : 'Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.'
       );
       return;
     }
@@ -345,7 +348,12 @@ export default function ChatAssistant({
             event.error === 'not-allowed' ||
             event.error === 'service-not-allowed'
           ) {
-            // Silent for transient errors to avoid noisy dev console.
+            // Mobile users often need explicit hint instead of silent fail.
+            if (isLikelyMobile && event.error !== 'aborted') {
+              showToast.error(
+                'Mikrofonas nepasiekiamas telefone. Patikrinkite svetainės mikrofono leidimą ir bandykite dar kartą.'
+              );
+            }
             lastSpeechErrorAlertAtRef.current = Date.now();
             return;
           }

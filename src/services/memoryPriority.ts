@@ -361,8 +361,10 @@ export function getMemoryStatistics(memories: PrioritizedMemory[]): {
 export function shouldSuggestMemory(
   query: string,
   response: string,
-  _existingMemories: Memory[]
+  existingMemories: Memory[]
 ): { shouldRemember: boolean; suggestedContent: string; reason: string } {
+  const combined = `${query} ${response}`.toLowerCase();
+
   // Check if query contains memory-worthy patterns
   const memoryPatterns = [
     { pattern: /prisimink|įsimink|atsimink|memory/i, reason: 'Explicit memory request' },
@@ -382,14 +384,43 @@ export function shouldSuggestMemory(
     }
   }
 
+  // Business situation changes: KPI / trend / status updates should become memory automatically.
+  const hasKpiKeyword =
+    /\b(kpi|apyvarta|peln|pelnas|marža|pajam|išlaid|užsakym|klient|skola|įplauk|balans|konvers|vėlav|termin|grafik)\b/i.test(
+      combined
+    );
+  const hasChangeSignal =
+    /\b(padid|sumaž|aug|krito|pager|blog|pasikeit|pokyt|šiandien|šį mėn|šia savaite|šį ketvirt|praeit|dabar)\b/i.test(
+      combined
+    );
+  const hasNumericSignal = /(?:€|\b\d+[.,]?\d*\b|%)/.test(combined);
+  if (hasKpiKeyword && (hasChangeSignal || hasNumericSignal)) {
+    const suggested = summarizeForMemory(query, response);
+    if (!isNearDuplicateMemory(suggested, existingMemories)) {
+      return {
+        shouldRemember: true,
+        suggestedContent: suggested,
+        reason: 'Business status/KPI change detected',
+      };
+    }
+  }
+
   // Check if response contains data worth remembering
   if (
     response.length > 100 &&
     (response.toLowerCase().includes('svarbu') || response.toLowerCase().includes('reikia'))
   ) {
+    const suggested = summarizeForMemory(query, response);
+    if (isNearDuplicateMemory(suggested, existingMemories)) {
+      return {
+        shouldRemember: false,
+        suggestedContent: '',
+        reason: 'Near-duplicate memory',
+      };
+    }
     return {
       shouldRemember: true,
-      suggestedContent: summarizeForMemory(query, response),
+      suggestedContent: suggested,
       reason: 'Response contains important information',
     };
   }
@@ -414,6 +445,19 @@ function extractMemoryContent(query: string, _response: string): string {
  * Summarize for memory storage
  */
 function summarizeForMemory(query: string, response: string): string {
+  const full = `${query} ${response}`.trim();
+  const kpiLine = full
+    .split(/[.!?]/)
+    .map((s) => s.trim())
+    .find(
+      (s) =>
+        /\b(kpi|apyvarta|peln|pajam|išlaid|užsakym|klient|skola|balans|konvers)\b/i.test(s) &&
+        /(?:€|\b\d+[.,]?\d*\b|%)/.test(s)
+    );
+  if (kpiLine && kpiLine.length > 10) {
+    return kpiLine.slice(0, 220);
+  }
+
   // Extract key points from response
   const keyPhrases = response
     .split(/[.!?]/)
@@ -428,6 +472,25 @@ function summarizeForMemory(query: string, response: string): string {
     .map((s) => s.trim());
 
   return keyPhrases.join('. ') || response.slice(0, 200);
+}
+
+function isNearDuplicateMemory(content: string, existingMemories: Memory[]): boolean {
+  const normalized = normalizeForComparison(content);
+  if (!normalized || normalized.length < 8) return false;
+  return existingMemories.some((m) => {
+    const compared = normalizeForComparison(m.content);
+    if (!compared) return false;
+    if (compared === normalized) return true;
+    return compared.includes(normalized) || normalized.includes(compared);
+  });
+}
+
+function normalizeForComparison(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\sąčęėįšųūž€%]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Export default configuration
