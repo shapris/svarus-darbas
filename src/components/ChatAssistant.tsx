@@ -164,6 +164,14 @@ export default function ChatAssistant({
   const tempTranscriptRef = useRef('');
 
   const checkApiKey = async () => {
+    const hasServerApiBase = !!(
+      import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
+    )?.trim();
+    if (hasServerApiBase) {
+      setApiKeyProvider('opencode');
+      return;
+    }
+
     const envGem = getGeminiKeyFromEnv();
     if (envGem) {
       setApiKeyProvider('google');
@@ -887,18 +895,22 @@ export default function ChatAssistant({
                         <span className="text-slate-400">Dabartinis tiekėjas:</span>
                         <span
                           className={`font-bold uppercase tracking-widest ${
-                            apiKeyProvider === 'openrouter'
-                              ? 'text-purple-600'
-                              : apiKeyProvider === 'google'
-                                ? 'text-emerald-600'
-                                : 'text-slate-400'
+                            apiKeyProvider === 'opencode'
+                              ? 'text-blue-600'
+                              : apiKeyProvider === 'openrouter'
+                                ? 'text-purple-600'
+                                : apiKeyProvider === 'google'
+                                  ? 'text-emerald-600'
+                                  : 'text-slate-400'
                           }`}
                         >
-                          {apiKeyProvider === 'openrouter'
-                            ? 'OpenRouter'
-                            : apiKeyProvider === 'google'
-                              ? 'Gemini (Mano API)'
-                              : 'Standartinis / .env'}
+                          {apiKeyProvider === 'opencode'
+                            ? 'OpenCode (server)'
+                            : apiKeyProvider === 'openrouter'
+                              ? 'OpenRouter'
+                              : apiKeyProvider === 'google'
+                                ? 'Gemini (Mano API)'
+                                : 'Standartinis / .env'}
                         </span>
                       </div>
                       {getGeminiKeyFromEnv() && !localStorage.getItem('custom_api_key') && (
@@ -1095,11 +1107,13 @@ export default function ChatAssistant({
                                     Tiekėjas
                                   </label>
                                   <p className="text-xs font-medium text-slate-900 mt-1">
-                                    {apiKeyProvider === 'openrouter'
-                                      ? 'OpenRouter (nemokamas)'
-                                      : apiKeyProvider === 'google'
-                                        ? 'Google Gemini'
-                                        : 'Numatytasis (Google)'}
+                                    {apiKeyProvider === 'opencode'
+                                      ? 'OpenCode (serverio raktas)'
+                                      : apiKeyProvider === 'openrouter'
+                                        ? 'OpenRouter (nemokamas)'
+                                        : apiKeyProvider === 'google'
+                                          ? 'Google Gemini'
+                                          : 'Numatytasis (Google)'}
                                   </p>
                                 </div>
                                 <div>
