@@ -11,6 +11,9 @@ export function isBenignConsoleText(text: string): boolean {
   if (/sw\.js|service worker|workbox/i.test(t) && /warn|error/i.test(t)) return true;
   // Išoriniai žemėlapiai / tiekėjai kartais grąžina 429 (rate limit) — ne CRM regresija.
   if (/failed to load resource/i.test(t) && /\b429\b/.test(t)) return true;
+  // E2E build režime preview proxy gali grąžinti 503, kai server.cjs sąmoningai nepaleistas (:3001).
+  // Naršyklė tai kartais išveda kaip konsolės triukšmą „Failed to load resource ... 503 ()“.
+  if (/failed to load resource/i.test(t) && /\b503\b/.test(t) && /\(\s*\)\s*$/.test(t)) return true;
   return false;
 }
 
