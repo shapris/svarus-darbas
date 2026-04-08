@@ -58,7 +58,7 @@
   - **Rollback:** revert vienas commit  
   - **Test plan:** `npm run test:invoice`
 
-- [ ] **S3: Timeout’ai ir retry taisyklės išoriniams kvietimams (server)**  
+- [x] **S3: Timeout’ai ir retry taisyklės išoriniams kvietimams (server)**  *2026-04-08*  
   - **Apimtis:** `fetch`/SDK kvietimams uždėti aiškų timeout ir vieną retry tik idempotent’ams  
   - **Acceptance:** nelieka „pakibusių“ request’ų; klaidos grąžinamos per <N sekundžių  
   - **Rollback:** revert vienas commit  
@@ -251,5 +251,6 @@
 | 2026-04-08 | Projekto atmintis (ADR/known-issues/runbooks) | `.always-on/decisions.md`, `.always-on/known-issues.md`, `.always-on/runbooks/*` — šablonai + pirmi įrašai iš realių incidentų. |
 | 2026-04-08 | E2E Vite proxy log | `VITE_SILENT_EXPECTED_PROXY_ERRORS` + `customLogger` — mažiau klaidinančio `[vite] http proxy error` output, kai preview veikia be `server.cjs`. |
 | 2026-04-08 | Hotfix: Supabase orders `select` schema | `server.cjs`: `ensureAccessibleOrder` ir priminimų eilės užklausa be neegzistuojančių stulpelių (`clientId`/`uid`), kad neliktų PostgREST 400 ir Render 502 sąskaitų keliuose. |
+| 2026-04-08 | S3 timeout/retry server fetch | `server.cjs` pridėtas `fetchWithTimeoutAndRetry` (`EXTERNAL_FETCH_TIMEOUT_MS`, retry tik `GET/HEAD`), pritaikyta Supabase auth/profile REST kvietimams; pakibę request'ai apriboti timeout'u. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

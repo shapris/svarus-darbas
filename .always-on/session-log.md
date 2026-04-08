@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-08 — S3: timeout + retry taisyklės išoriniams server fetch
+
+- **Implementacija:** `server.cjs` pridėtas `fetchWithTimeoutAndRetry` su aiškiu timeout (`EXTERNAL_FETCH_TIMEOUT_MS`, default 12s), vienu retry tik idempotentiniams metodams (`GET/HEAD`) ir transient statusų (`408/425/429/5xx`) / network klaidų atvejais.
+- **Pritaikymas:** helperis įjungtas Supabase išoriniams kvietimams (`/auth/v1/user`, `rest/v1/*`) per `verifySupabaseUserJwt` ir `fetchSupabaseRows`; taip pašalinti potencialiai „pakibę“ request’ai.
+- **Patikra:** `npm run lint`, `npm test`, `npm run build`.
+
+---
+
 ## 2026-04-08 — E2E: tylus numatytas Vite proxy į :3001
 
 - **Taikymas:** Playwright `webServer` → `VITE_SILENT_EXPECTED_PROXY_ERRORS=true`; `vite.config.ts` `customLogger` filtruoja `http proxy error` `/health|/api` ir `ECONNREFUSED` `:3001`, kai API sąmoningai neišpaleistas (sintetinis `/health` vis tiek iš error handlerio).

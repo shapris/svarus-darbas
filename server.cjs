@@ -42,6 +42,71 @@ function apiError(res, status, code, message, extra = {}) {
   });
 }
 
+const EXTERNAL_FETCH_TIMEOUT_MS = Math.max(
+  1_000,
+  Number(process.env.EXTERNAL_FETCH_TIMEOUT_MS || 12_000)
+);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isIdempotentMethod(method) {
+  const m = String(method || 'GET')
+    .trim()
+    .toUpperCase();
+  return m === 'GET' || m === 'HEAD';
+}
+
+function shouldRetryStatus(status) {
+  return status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 504);
+}
+
+function shouldRetryError(error) {
+  if (!error) return false;
+  const name = String(error.name || '').toLowerCase();
+  const msg = String(error.message || '').toLowerCase();
+  if (name === 'aborterror') return true;
+  return (
+    msg.includes('fetch failed') ||
+    msg.includes('network') ||
+    msg.includes('econnreset') ||
+    msg.includes('timed out')
+  );
+}
+
+async function fetchWithTimeoutAndRetry(url, init = {}, opts = {}) {
+  const method = String(init.method || 'GET').toUpperCase();
+  const timeoutMs = Math.max(1_000, Number(opts.timeoutMs || EXTERNAL_FETCH_TIMEOUT_MS));
+  const canRetryOnce = opts.retryOnceIdempotent !== false && isIdempotentMethod(method);
+  const attempts = canRetryOnce ? 2 : 1;
+  let lastErr;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      if (attempt < attempts && shouldRetryStatus(response.status)) {
+        await sleep(200);
+        continue;
+      }
+      return response;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < attempts && shouldRetryError(err)) {
+        await sleep(200);
+        continue;
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw lastErr || new Error('External fetch failed');
+}
+
 function buildCorsOrigin() {
   const raw = (process.env.CORS_ORIGINS || '').trim();
   if (raw === '*') return true;
@@ -320,7 +385,7 @@ async function verifySupabaseUserJwt(authHeader) {
     };
   }
   try {
-    const r = await fetch(`${SUPABASE_URL_RAW}/auth/v1/user`, {
+    const r = await fetchWithTimeoutAndRetry(`${SUPABASE_URL_RAW}/auth/v1/user`, {
       headers: { Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON_KEY },
     });
     if (!r.ok) {
@@ -358,7 +423,7 @@ async function fetchSupabaseRows(table, filters, select, authHeader) {
     return { ok: false, status: 503, message: 'Serveris neprijungtas prie Supabase.' };
   }
   try {
-    const response = await fetch(buildSupabaseRestUrl(table, filters, select), {
+    const response = await fetchWithTimeoutAndRetry(buildSupabaseRestUrl(table, filters, select), {
       headers: buildSupabaseHeaders(authHeader),
     });
     if (!response.ok) {
