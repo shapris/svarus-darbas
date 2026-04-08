@@ -46,7 +46,7 @@
 
 *Tikslas:* stabilumo darbus skaidyti į 1–3 val. gabalus, kuriuos gali vykdyti keli agentai lygiagrečiai be konfliktų. Kiekvienas paketas turi acceptance kriterijus, rollback ir minimalų test planą.
 
-- [ ] **S1: API klaidų klasifikacija ir standartinis JSON (server)**  
+- [x] **S1: API klaidų klasifikacija ir standartinis JSON (server)**  *2026-04-08*  
   - **Apimtis:** `server.cjs` klaidoms suvienodinti `{ ok:false, code, message, requestId? }` (nekeisti sėkmingų atsakymų)  
   - **Acceptance:** bent 3 kritiniai endpoint’ai grąžina vienodą formatą klaidos atveju  
   - **Rollback:** revert vienas commit  

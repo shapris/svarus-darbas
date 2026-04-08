@@ -4,6 +4,7 @@
  */
 
 const path = require('path');
+const nodeCrypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const { jsPDF } = require('jspdf');
@@ -18,6 +19,28 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 let invoices = [];
 let paymentIntents = [];
+
+function getOrCreateRequestId(req, res) {
+  const incoming = String(req.headers['x-request-id'] || '').trim();
+  const id =
+    incoming ||
+    (nodeCrypto.randomUUID
+      ? nodeCrypto.randomUUID()
+      : `req_${Date.now()}_${Math.random().toString(16).slice(2)}`);
+  res.setHeader('x-request-id', id);
+  return id;
+}
+
+function apiError(res, status, code, message, extra = {}) {
+  const requestId = String(res.getHeader('x-request-id') || '').trim() || undefined;
+  return res.status(status).json({
+    ok: false,
+    error: String(message || 'Serverio klaida'),
+    code: String(code || 'error'),
+    requestId,
+    ...extra,
+  });
+}
 
 function buildCorsOrigin() {
   const raw = (process.env.CORS_ORIGINS || '').trim();
@@ -53,6 +76,10 @@ if (stripeIsPlaceholder && process.env.NODE_ENV === 'production') {
 
 // Middleware (didelis limitas PDF base64 inline siuntimui)
 app.use(cors({ origin: buildCorsOrigin() }));
+app.use((req, res, next) => {
+  getOrCreateRequestId(req, res);
+  next();
+});
 
 const SUPABASE_URL_RAW = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '')
   .trim()
@@ -356,7 +383,7 @@ function normalizeId(value) {
 async function getRequestContext(req, res) {
   const auth = await verifySupabaseUserJwt(req.headers.authorization);
   if (!auth.ok) {
-    res.status(auth.status || 401).json({ error: auth.message });
+    apiError(res, auth.status || 401, 'auth_failed', auth.message);
     return null;
   }
   const profileLookup = await fetchSupabaseRows(
@@ -808,33 +835,40 @@ app.post('/api/send-invoice-email', async (req, res) => {
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
     const fromHeader = buildResendFromHeader();
     if (!resendKey) {
-      return res.status(503).json({
-        error:
-          'El. pašto siuntimas nesukonfigūruotas. Nustatykite RESEND_API_KEY ir paleiskite server.cjs (žr. .env.example).',
-      });
+      return apiError(
+        res,
+        503,
+        'email_not_configured',
+        'El. pašto siuntimas nesukonfigūruotas. Nustatykite RESEND_API_KEY ir paleiskite server.cjs (žr. .env.example).'
+      );
     }
 
     const auth = await verifySupabaseUserJwt(req.headers.authorization);
     if (!auth.ok) {
-      return res.status(auth.status || 401).json({ error: auth.message });
+      return apiError(res, auth.status || 401, 'auth_failed', auth.message);
     }
 
     const { to, subject, text, pdfBase64, filename, orderId } = req.body || {};
 
     const match = await verifyInvoiceRecipientMatchesOrder(orderId, to, req.headers.authorization);
     if (!match.ok) {
-      return res.status(match.status || 400).json({ error: match.message });
+      return apiError(res, match.status || 400, 'recipient_mismatch', match.message);
     }
 
     if (!looksLikeEmail(to)) {
-      return res.status(400).json({ error: 'Nenurodytas arba neteisingas gavėjo el. paštas.' });
+      return apiError(
+        res,
+        400,
+        'validation_failed',
+        'Nenurodytas arba neteisingas gavėjo el. paštas.'
+      );
     }
     if (typeof pdfBase64 !== 'string' || pdfBase64.length < 100) {
-      return res.status(400).json({ error: 'Trūksta PDF duomenų.' });
+      return apiError(res, 400, 'validation_failed', 'Trūksta PDF duomenų.');
     }
     const rawB64 = pdfBase64.includes(',') ? pdfBase64.split(',').pop() : pdfBase64;
     if (!rawB64 || rawB64.length < 100) {
-      return res.status(400).json({ error: 'Netinkamas PDF (base64).' });
+      return apiError(res, 400, 'validation_failed', 'Netinkamas PDF (base64).');
     }
 
     const safeName =
@@ -845,7 +879,7 @@ app.post('/api/send-invoice-email', async (req, res) => {
             .slice(0, 180)
         : 'saskaita.pdf';
     if (!safeName.toLowerCase().endsWith('.pdf')) {
-      return res.status(400).json({ error: 'Failo vardas turi baigtis .pdf' });
+      return apiError(res, 400, 'validation_failed', 'Failo vardas turi baigtis .pdf');
     }
 
     const subj =
@@ -875,14 +909,14 @@ app.post('/api/send-invoice-email', async (req, res) => {
       console.error('[send-invoice-email] Resend error:', sendErr);
       const msg = sendErr.message || 'Resend klaida';
       // 422 = siuntimo taisyklė / domenas (ne „proxy down“ kaip 502)
-      return res.status(422).json({ error: String(msg), code: 'resend_rejected' });
+      return apiError(res, 422, 'resend_rejected', String(msg));
     }
 
     console.log('[send-invoice-email] Resend accepted', sent?.id || '(no id)');
     return res.json({ ok: true, id: sent?.id });
   } catch (error) {
     console.error('[send-invoice-email]', error);
-    return res.status(500).json({ error: error.message || 'Serverio klaida' });
+    return apiError(res, 500, 'server_error', error?.message || 'Serverio klaida');
   }
 });
 
@@ -895,27 +929,35 @@ app.post('/api/send-order-status-email', async (req, res) => {
     const resendKey = (process.env.RESEND_API_KEY || '').trim();
     const fromHeader = buildResendFromHeader();
     if (!resendKey) {
-      return res.status(503).json({
-        error: 'El. pašto siuntimas nesukonfigūruotas (trūksta RESEND_API_KEY).',
-      });
+      return apiError(
+        res,
+        503,
+        'email_not_configured',
+        'El. pašto siuntimas nesukonfigūruotas (trūksta RESEND_API_KEY).'
+      );
     }
 
     const auth = await verifySupabaseUserJwt(req.headers.authorization);
     if (!auth.ok) {
-      return res.status(auth.status || 401).json({ error: auth.message });
+      return apiError(res, auth.status || 401, 'auth_failed', auth.message);
     }
 
     const { orderId, to, status, clientName, address, date, time } = req.body || {};
     if (!orderId || !to || !status) {
-      return res.status(400).json({ error: 'Trūksta privalomų laukų (orderId, to, status).' });
+      return apiError(
+        res,
+        400,
+        'validation_failed',
+        'Trūksta privalomų laukų (orderId, to, status).'
+      );
     }
     if (!looksLikeEmail(to)) {
-      return res.status(400).json({ error: 'Neteisingas gavėjo el. paštas.' });
+      return apiError(res, 400, 'validation_failed', 'Neteisingas gavėjo el. paštas.');
     }
 
     const match = await verifyInvoiceRecipientMatchesOrder(orderId, to, req.headers.authorization);
     if (!match.ok) {
-      return res.status(match.status || 400).json({ error: match.message });
+      return apiError(res, match.status || 400, 'recipient_mismatch', match.message);
     }
 
     const statusLt = orderStatusLabel(status);
@@ -946,11 +988,11 @@ app.post('/api/send-order-status-email', async (req, res) => {
       text: lines.join('\n'),
     });
     if (sendErr) {
-      return res.status(422).json({ error: String(sendErr.message || 'Resend klaida') });
+      return apiError(res, 422, 'resend_rejected', String(sendErr.message || 'Resend klaida'));
     }
     return res.json({ ok: true, id: sent?.id });
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Serverio klaida' });
+    return apiError(res, 500, 'server_error', error?.message || 'Serverio klaida');
   }
 });
 
@@ -986,14 +1028,14 @@ async function runReminderQueueWithTracking(source, { dryRun = false } = {}) {
 app.post('/api/cron/process-reminders', async (req, res) => {
   const auth = authorizeCron(req);
   if (!auth.ok) {
-    return res.status(auth.status || 401).json({ error: auth.message });
+    return apiError(res, auth.status || 401, 'cron_unauthorized', auth.message);
   }
   try {
     const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true';
     const result = await runReminderQueueWithTracking('cron', { dryRun });
     return res.json({ ok: true, ...result });
   } catch (error) {
-    return res.status(500).json({ error: error.message || 'Nepavyko apdoroti priminimų.' });
+    return apiError(res, 500, 'server_error', error?.message || 'Nepavyko apdoroti priminimų.');
   }
 });
 
