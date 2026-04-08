@@ -49,6 +49,21 @@ Trumpi, kanoniniai sprendimų įrašai apie tai, **kodėl** sistemoje pasirinkta
   - Kiekviena pamoka tampa pernaudojama ir patikrinama.
 - Patikra: `npm run verify` (kai yra kodo pakeitimų)
 
+---
+
+## 2026-04-08 — Nekeisti į ESLint 10, kol `react-hooks` plugin nepalaiko
+
+- Statusas: priimta
+- Kontekstas: norint kelti `eslint@10` gaunamas `ERESOLVE` dėl `eslint-plugin-react-hooks` peer range.
+- Sprendimas:
+  - Laikyti `eslint@9` ekosistemą iki upstream suderinamumo.
+  - Nenaudoti `--force`/`--legacy-peer-deps` lint toolchain upgrade’ui.
+- Alternatyvos:
+  - Force install — atmetama (gali atnešti nestabilų/nesuderinamą lint).
+- Pasekmės:
+  - Major upgrade nukeliamas; periodiškai peržiūrėti `npm outdated` ir atnaujinti, kai bus suderinama.
+- Patikra: `npm run lint:eslint`
+
 # Sprendimų žurnalas (ADR light)
 
 Įrašykite tik **stambius** ar **ilgai galiojančius** sprendimus. Formatas: data, kontekstas, sprendimas, pasekmės.

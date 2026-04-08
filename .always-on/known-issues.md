@@ -53,3 +53,19 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
 - Saugiklis (testas/diagnostika):
   - `npm run test:invoice` praeina be klaidinančio proxy log’o.
 
+---
+
+## KI-003 — ESLint 10 upgrade blokuoja peer dependency (react-hooks)
+
+- Būsena: open
+- Poveikis: P3 (nefunkcinis; techninė skola / tooling)
+- Simptomai:
+  - `npm i -D eslint@^10 ...` meta `ERESOLVE unable to resolve dependency tree`.
+- Priežastis:
+  - `eslint-plugin-react-hooks@7.x` peer range nepalaiko `eslint@10` (reikalauja `^9` ar žemiau).
+- Sprendimas / mitigacija:
+  - Laikyti `eslint@9` kol `eslint-plugin-react-hooks` (ar alternatyva) oficialiai palaikys `eslint@10`.
+  - Neapeidinėti su `--force/--legacy-peer-deps` be aiškaus motyvo (rizika įsivaryti nestabilų lint).
+- Saugiklis (testas/diagnostika):
+  - `npm run lint:eslint` turi būti žalias esamame toolchain.
+
