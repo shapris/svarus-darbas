@@ -52,10 +52,56 @@ const frontendOptional = [
   'VITE_OPENROUTER_API_KEY',
   'VITE_GEMINI_API_KEY',
   'VITE_OPENCODE_API_KEY',
-  'VITE_GOOGLE_MAPS_API_KEY',
-  'VITE_STRIPE_PUBLISHABLE_KEY',
   'VITE_INVOICE_API_BASE_URL',
 ];
+
+function stripePublishableLooksValid(v) {
+  return /^pk_(test|live)_[A-Za-z0-9]+$/.test(String(v).trim());
+}
+
+function googleMapsBrowserKeyLooksValid(v) {
+  const s = String(v).trim();
+  /* Klasikiniai „AIza…“ ir naujesni Google raktai (pvz. AQ.… su tašku po priedėlio) */
+  if (s.length < 24 || /\s/.test(s) || /[<>'"]/.test(s)) return false;
+  if (s.startsWith('AIza')) return true;
+  return /^[A-Za-z0-9._\-]{32,}$/.test(s);
+}
+
+function printStripePublishableRow(envFile) {
+  const k = 'VITE_STRIPE_PUBLISHABLE_KEY';
+  const v = val(k, envFile);
+  if (!v) {
+    console.log(
+      `INFO ${k} — tuščia (mokėjimų srautai per Stripe.js neįjungti, kol neįrašysite pk_test_/pk_live_ į .env)`
+    );
+    return;
+  }
+  if (!stripePublishableLooksValid(v)) {
+    console.log(
+      `WARN ${k} — reikšmė neprimena Stripe publishable rakto (tikėtina pk_test_… arba pk_live_…)`
+    );
+    return;
+  }
+  console.log(`OK   ${k}`);
+}
+
+function printGoogleMapsKeyRow(envFile) {
+  const k = 'VITE_GOOGLE_MAPS_API_KEY';
+  const v = val(k, envFile);
+  if (!v) {
+    console.log(
+      `INFO ${k} — tuščia (Places autocomplete išjungtas, kol neįrašysite Maps JavaScript API rakto į .env)`
+    );
+    return;
+  }
+  if (!googleMapsBrowserKeyLooksValid(v)) {
+    console.log(
+      `WARN ${k} — reikšmė atrodo įtartinai (netinkamas ilgis arba neleidžiami simboliai)`
+    );
+    return;
+  }
+  console.log(`OK   ${k}`);
+}
 
 let missingHard = 0;
 for (const k of frontendRequired) {
@@ -67,6 +113,8 @@ for (const k of frontendOptional) {
   const ok = has(k, envFile);
   console.log(`${ok ? 'OK  ' : 'WARN'} ${k}`);
 }
+printStripePublishableRow(envFile);
+printGoogleMapsKeyRow(envFile);
 
 printSection('Backend API (server.cjs) env');
 if (frontendOnly) {
