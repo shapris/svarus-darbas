@@ -555,8 +555,13 @@ export async function chatWithAssistant(
       getGeminiKeyFromEnv() ||
       '';
     const apiKey = preferredGeminiKey || fallbackApiKey;
+    const hasServerApiBase = !!(
+      import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
+    )?.trim();
 
-    if (!apiKey) {
+    // Jei nėra kliento rakto, bet yra serverio API bazė, tęsiame:
+    // OpenCode bus kviečiamas per serverio proxy (/api/ai/chat).
+    if (!apiKey && !hasServerApiBase) {
       return {
         text: 'Atsiprašau, API raktas nenustatytas. Į .env įrašykite VITE_GEMINI_API_KEY (Gemini) arba VITE_OPENROUTER_API_KEY (OpenRouter), ir perkraukite dev serverį. Arba įveskite raktą chat skydelyje.',
         history: [
@@ -595,9 +600,6 @@ export async function chatWithAssistant(
     // OpenCode (Zen/Go) — pirmiausia bandome per serverio proxy (bendras raktas visiems),
     // o jei vartotojas įvedė savo `sk-...` — jis irgi veiks.
     const openCodeKey = getOpenCodeKey();
-    const hasServerApiBase = !!(
-      import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
-    )?.trim();
     if (hasServerApiBase || openCodeKey || isOpenCodeKey(apiKey)) {
       try {
         return await runOpenCodeAssistantChat(message, history, systemInstruction, tools);
