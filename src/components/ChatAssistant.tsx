@@ -163,6 +163,7 @@ export default function ChatAssistant({
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const tempTranscriptRef = useRef('');
   const finalTranscriptRef = useRef('');
+  const latestTranscriptRef = useRef('');
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   const checkApiKey = async () => {
@@ -304,12 +305,22 @@ export default function ChatAssistant({
           setIsRecording(true);
           tempTranscriptRef.current = '';
           finalTranscriptRef.current = '';
+          latestTranscriptRef.current = '';
         };
 
         recognition.onresult = (event: {
           resultIndex?: number;
           results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
         }) => {
+          const allResultsTranscript = Array.from(event.results)
+            .map((r) => (r?.[0]?.transcript ?? '').trim())
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          if (allResultsTranscript) {
+            latestTranscriptRef.current = allResultsTranscript;
+          }
+
           const startAt = event.resultIndex ?? 0;
           let interimChunk = '';
           for (let i = startAt; i < event.results.length; i++) {
@@ -376,12 +387,18 @@ export default function ChatAssistant({
 
         recognition.onend = () => {
           setIsRecording(false);
-          const finalResult = `${finalTranscriptRef.current} ${tempTranscriptRef.current}`.trim();
+          const finalResult =
+            `${finalTranscriptRef.current} ${tempTranscriptRef.current} ${latestTranscriptRef.current}`.trim();
           if (finalResult) {
             setInput((prev) => `${prev}${prev ? ' ' : ''}${finalResult}`);
+          } else if (isLikelyMobile) {
+            showToast.error(
+              'Įrašas nebuvo atpažintas. Kalbėkite aiškiau 2-3 sek. ir tada sustabdykite įrašymą.'
+            );
           }
           tempTranscriptRef.current = '';
           finalTranscriptRef.current = '';
+          latestTranscriptRef.current = '';
           recognitionRef.current = null;
         };
 
