@@ -374,10 +374,12 @@ async function ensureAccessibleOrder(orderId, authHeader) {
   if (!normalized) {
     return { ok: false, status: 400, message: 'Trūksta užsakymo id (order_id).' };
   }
+  // Naudojame tik realiai reikalingus ir schemoje stabiliai esančius stulpelius.
+  // Ankstesnis select su `clientId`/`uid` galėjo grąžinti 400 kai tokių kolonų nėra.
   const result = await fetchSupabaseRows(
     'orders',
     { id: normalized },
-    'id,client_id,clientId,uid,owner_id',
+    'id,client_id,owner_id',
     authHeader
   );
   if (!result.ok) return result;
@@ -509,7 +511,7 @@ async function processReminderQueue({ dryRun = false } = {}) {
 
   const { data: ordersRows, error: ordersError } = await paymentsDb
     .from('orders')
-    .select('id,client_id,clientId,date,time,status,owner_id,address,client_name')
+    .select('id,client_id,date,time,status,owner_id,address,client_name')
     .in('status', ['suplanuota', 'vykdoma']);
 
   if (ordersError) throw ordersError;

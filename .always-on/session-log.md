@@ -4,6 +4,14 @@
 
 ---
 
+## Pamoka (ops): PostgREST 400 dėl `select`
+
+- **Įvykis:** naršyklėje `400` iš `/rest/v1/orders?...&select=...` ir dėl to Render `502` ant srautų, kur serveris kviečia Supabase REST su **neegzistuojančiais** stulpeliais (`clientId`, `uid` ir pan. schemoje, kur yra tik `client_id`).
+- **Taisyklė:** serverio `select=` visada derinti su **tikra** gamybos schema (`owner_id` track: snake_case); legacy camelCase tik jei aiškiai žinoma, kad stulpelis egzistuoja.
+- **Pataisyta:** `ensureAccessibleOrder` ir `processReminderQueue` užklausos `server.cjs`.
+
+---
+
 ## 2026-04-08 — P12–P14: GTM, runbook, KPI, notif metrika, portalo savitarna
 
 - **Dokumentacija:** `docs/GTM_COMMERCIAL_ONBOARDING.md`, `docs/RUNBOOK_INCIDENTS.md`, `docs/NOTIFICATION_TEMPLATES_VERSIONING.md`; nuorodos `DEPLOY.md`, `LAUNCH_AND_SALES_NEXT_STEPS.md` §3, `CLIENT_PORTAL_MVP.md` papildymas.
