@@ -64,6 +64,20 @@ Trumpi, kanoniniai sprendimų įrašai apie tai, **kodėl** sistemoje pasirinkta
   - Major upgrade nukeliamas; periodiškai peržiūrėti `npm outdated` ir atnaujinti, kai bus suderinama.
 - Patikra: `npm run lint:eslint`
 
+---
+
+## 2026-04-08 — `@vitejs/plugin-react` laikyti tik devDependencies
+
+- Statusas: priimta
+- Kontekstas: Vite pluginas reikalingas build/test įrankinei, bet ne runtime serveriui.
+- Sprendimas:
+  - `@vitejs/plugin-react` laikomas `devDependencies`, pašalintas iš `dependencies`.
+- Alternatyvos:
+  - Laikyti `dependencies` — atmetama (nereikalingas runtime paviršius ir painesnis dependency medis).
+- Pasekmės:
+  - Švaresnis production dependency rinkinys ir aiškesnis Vite upgrade kelias.
+- Patikra: `npm run verify`
+
 # Sprendimų žurnalas (ADR light)
 
 Įrašykite tik **stambius** ar **ilgai galiojančius** sprendimus. Formatas: data, kontekstas, sprendimas, pasekmės.

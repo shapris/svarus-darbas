@@ -69,3 +69,19 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
 - Saugiklis (testas/diagnostika):
   - `npm run lint:eslint` turi būti žalias esamame toolchain.
 
+---
+
+## KI-004 — Vite 8 upgrade stringa su `@vitejs/plugin-react` peer rezoliucija
+
+- Būsena: open
+- Poveikis: P3 (tooling skola; funkcionalumas nelūžęs)
+- Simptomai:
+  - `npm i -D vite@^8 @vitejs/plugin-react@^6` grąžina `ERESOLVE could not resolve`.
+- Priežastis:
+  - npm dependency tree rezoliucija konfliktuoja tarp esamo `@vitejs/plugin-react@5` ir siekiamo `6` pereinamojoje būsenoje.
+- Sprendimas / mitigacija:
+  - Laikyti `vite@6` + `@vitejs/plugin-react@5` kol suplanuotas atskiras controlled upgrade langas.
+  - `@vitejs/plugin-react` laikyti `devDependencies` (ne `dependencies`) — sutvarkyta.
+- Saugiklis (testas/diagnostika):
+  - `npm run verify` žalias po dependency korekcijų.
+
