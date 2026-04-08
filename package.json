@@ -70,7 +70,7 @@
     "react-markdown": "^10.1.0",
     "recharts": "^3.8.1",
     "resend": "^6.10.0",
-    "stripe": "^21.0.1"
+    "stripe": "^22.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
