@@ -214,5 +214,6 @@
 | 2026-04-07 | P10 notification_events RLS | Nauja migracija `20260407220000_notification_events_rls.sql`; `docs/RLS_SUMMARY.md`, `docs/env-matrix.md` (CRON/worker), `.env.example`; `npm run verify` OK. |
 | 2026-04-07 | P11 health observability reminder queue | `/health` papildytas `reminders` būsena + `lastRun`; cron/worker vykdymai centralizuotai žymi rezultatą; `tests/invoice-health.spec.ts` papildytas diagnostikos tikrinimas su backend-unavailable fallback; `npm run verify` OK. |
 | 2026-04-08 | P12–P14 planas (GTM, runbook, KPI, notif metrika, portalas) | Dokumentai `GTM_COMMERCIAL_ONBOARDING`, `RUNBOOK_INCIDENTS`, `NOTIFICATION_TEMPLATES_VERSIONING`; Dashboard KPI; serveris: šablonų versija, 7d notif statistika `/health`, portalo API; ClientDashboard savitarna; `npm run verify` OK. |
+| 2026-04-08 | Hotfix: Supabase orders `select` schema | `server.cjs`: `ensureAccessibleOrder` ir priminimų eilės užklausa be neegzistuojančių stulpelių (`clientId`/`uid`), kad neliktų PostgREST 400 ir Render 502 sąskaitų keliuose. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
