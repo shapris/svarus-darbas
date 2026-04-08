@@ -52,7 +52,7 @@
   - **Rollback:** revert vienas commit  
   - **Test plan:** `npm run lint` + `npm test`
 
-- [ ] **S2: `/health` praplėtimas minimaliai (signalai)**  
+- [x] **S2: `/health` praplėtimas minimaliai (signalai)**  *2026-04-08*  
   - **Apimtis:** papildyti `/health` rodikliais apie backend priklausomybes (pvz. supabase reachable, email enabled) be paslapčių  
   - **Acceptance:** `tests/invoice-health.spec.ts` vis dar praeina, o diagnostika yra stabiliai parsable JSON  
   - **Rollback:** revert vienas commit  

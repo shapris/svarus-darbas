@@ -1556,11 +1556,24 @@ app.get('/health', async (req, res) => {
       notificationMetrics.statsError = e instanceof Error ? e.message : 'stats failed';
     }
   }
+
+  const resendKeyConfigured = !!String(process.env.RESEND_API_KEY || '').trim();
+  const resendFromConfigured = !!String(process.env.RESEND_FROM_EMAIL || '').trim();
+  const supabaseConfigured = !!SUPABASE_URL_RAW && !!SUPABASE_ANON_KEY;
+  const supabaseServiceRoleConfigured = !!SUPABASE_URL_RAW && !!SUPABASE_SERVICE_ROLE_KEY;
+
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    invoiceEmail: !!(process.env.RESEND_API_KEY || '').trim(),
+    invoiceEmail: resendKeyConfigured,
     paymentsDb: paymentsDbAvailable(),
+    dependencies: {
+      stripeConfigured: !stripeIsPlaceholder,
+      resendKeyConfigured,
+      resendFromConfigured,
+      supabaseConfigured,
+      supabaseServiceRoleConfigured,
+    },
     reminders: {
       cronSecretConfigured,
       workerEnabled: reminderWorkerEnabled,
