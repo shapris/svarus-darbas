@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-08 — S5: incident -> test šablonas (QA)
+
+- **Implementacija:** pridėtas greitas vadovas `docs/INCIDENT_TEST_TEMPLATE.md` ir šabloninis kontraktinis testas `tests/templates/incident-contract.template.ts`.
+- **Rezultatas:** naujam incidentui užtenka nukopijuoti šabloną, užpildyti `INCIDENT_ID` ir assertions, paleisti tikslinį testą + `npm test`.
+- **Patikra:** `npm test`.
+
+---
+
 ## 2026-04-08 — S4: frontend network klaidų UX + retry
 
 - **Implementacija:** naujas helperis `src/utils/networkErrors.ts` (`formatNetworkErrorForUser`, `isLikelyNetworkError`) suvienodino tinklo klaidų tekstą.

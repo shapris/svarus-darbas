@@ -70,7 +70,7 @@
   - **Rollback:** revert vienas commit  
   - **Test plan:** `npm run test:console` + `npm run test:smoke`
 
-- [ ] **S5: Incident → testas šablonas (QA)**  
+- [x] **S5: Incident → testas šablonas (QA)**  *2026-04-08*  
   - **Apimtis:** šabloninis testas/skriptas (pvz. kontraktinis `/health`) + instrukcija kaip pridėti naują  
   - **Acceptance:** naujo incidento registravimo procesas užtrunka <5 min  
   - **Rollback:** revert vienas commit  
@@ -253,5 +253,6 @@
 | 2026-04-08 | Hotfix: Supabase orders `select` schema | `server.cjs`: `ensureAccessibleOrder` ir priminimų eilės užklausa be neegzistuojančių stulpelių (`clientId`/`uid`), kad neliktų PostgREST 400 ir Render 502 sąskaitų keliuose. |
 | 2026-04-08 | S3 timeout/retry server fetch | `server.cjs` pridėtas `fetchWithTimeoutAndRetry` (`EXTERNAL_FETCH_TIMEOUT_MS`, retry tik `GET/HEAD`), pritaikyta Supabase auth/profile REST kvietimams; pakibę request'ai apriboti timeout'u. |
 | 2026-04-08 | S4 frontend network UX + retry | `ClientDashboard`, `PaymentsView`, `SettingsView` suvienodinti network klaidų pranešimai per `formatNetworkErrorForUser`, pridėti aiškūs retry mygtukai klaidų blokuose; `npm run verify` žalia. |
+| 2026-04-08 | S5 incident -> test šablonas | Pridėtas `docs/INCIDENT_TEST_TEMPLATE.md` ir `tests/templates/incident-contract.template.ts` su 5 min procesu naujam regresiniam testui. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
