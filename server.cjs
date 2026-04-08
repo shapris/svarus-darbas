@@ -827,6 +827,97 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 app.use(express.json({ limit: '12mb' }));
 
 /**
+ * AI proxy (OpenCode Go/Zen) — bendras raktas visiems vartotojams.
+ * Raktas laikomas TIK serveryje: OPENCODE_API_KEY (be VITE_).
+ *
+ * Frontend (Vercel) kviečia šį endpoint per Render base URL (VITE_INVOICE_API_BASE_URL) arba per dev proxy.
+ */
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const apiKey = String(process.env.OPENCODE_API_KEY || '').trim();
+    if (!apiKey) {
+      return apiError(
+        res,
+        503,
+        'ai_not_configured',
+        'AI nesukonfigūruotas serveryje. Nustatykite OPENCODE_API_KEY (Render env) ir redeploy.'
+      );
+    }
+
+    const variantEnv = String(process.env.OPENCODE_VARIANT || '')
+      .trim()
+      .toLowerCase();
+    const modelEnv = String(process.env.OPENCODE_MODEL || '').trim();
+    const body = req.body || {};
+
+    const variant =
+      String(body.variant || '')
+        .trim()
+        .toLowerCase() === 'zen' || variantEnv === 'zen'
+        ? 'zen'
+        : 'go';
+    const endpoint =
+      variant === 'zen'
+        ? 'https://opencode.ai/zen/v1/chat/completions'
+        : 'https://opencode.ai/zen/go/v1/chat/completions';
+
+    const model = String(body.model || '').trim() || modelEnv || 'glm-5';
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const tools = Array.isArray(body.tools) ? body.tools : undefined;
+
+    if (!messages.length) {
+      return apiError(res, 400, 'bad_request', 'Trūksta messages masyvo.');
+    }
+
+    const controller = new AbortController();
+    const timeoutMs = Number(body.timeoutMs) > 0 ? Number(body.timeoutMs) : 60_000;
+    const timeoutId = setTimeout(() => controller.abort(), Math.min(timeoutMs, 120_000));
+
+    try {
+      const upstreamRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          tools,
+          tool_choice: tools ? 'auto' : undefined,
+          max_tokens: 1024,
+        }),
+        signal: controller.signal,
+      });
+
+      const text = await upstreamRes.text();
+      if (!upstreamRes.ok) {
+        return apiError(
+          res,
+          502,
+          'ai_upstream_error',
+          `OpenCode klaida: ${text || upstreamRes.statusText}`,
+          {
+            upstreamStatus: upstreamRes.status,
+            variant,
+          }
+        );
+      }
+      try {
+        return res.status(200).json(JSON.parse(text));
+      } catch {
+        return res.status(200).send(text);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return apiError(res, 500, 'ai_proxy_error', msg);
+  }
+});
+
+/**
  * Automatinis sąskaitos PDF siuntimas į kliento el. paštą (Resend).
  * Reikalauja: RESEND_API_KEY, RESEND_FROM_EMAIL (arba pilnas „Vardas <paštas>“); vartotojas prisijungęs per Supabase.
  */

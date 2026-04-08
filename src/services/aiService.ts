@@ -592,10 +592,13 @@ export async function chatWithAssistant(
 
     const tools = ALL_TOOLS;
 
-    // Jei įvestas OpenCode (Zen/Go) raktas — pirmiausia OpenCode endpoint'as (OpenAI-compatible).
-    // Prioritetas: dedicated VITE_OPENCODE_API_KEY arba custom_api_key `sk-...` (ne OpenRouter).
+    // OpenCode (Zen/Go) — pirmiausia bandome per serverio proxy (bendras raktas visiems),
+    // o jei vartotojas įvedė savo `sk-...` — jis irgi veiks.
     const openCodeKey = getOpenCodeKey();
-    if (openCodeKey || isOpenCodeKey(apiKey)) {
+    const hasServerApiBase = !!(
+      import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
+    )?.trim();
+    if (hasServerApiBase || openCodeKey || isOpenCodeKey(apiKey)) {
       try {
         return await runOpenCodeAssistantChat(message, history, systemInstruction, tools);
       } catch (openCodeError: unknown) {

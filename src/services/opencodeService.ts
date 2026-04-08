@@ -3,6 +3,15 @@ import { convertToOpenAITool } from './openRouterService';
 
 export type OpenCodeVariant = 'go' | 'zen';
 
+function getApiBaseUrl(): string {
+  // Render API base (Vercel prod) — toks pats principas kaip invoice/client portal API.
+  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)
+    ?.trim()
+    .replace(/\/$/, '');
+  if (envUrl) return envUrl;
+  return '';
+}
+
 export function isOpenCodeKey(key: string): boolean {
   const k = String(key ?? '').trim();
   // OpenCode Go/Zen keys shown in their console are `sk-...` (not `sk-or-v1-...`).
@@ -61,11 +70,36 @@ export async function callOpenCodeChatCompletions(args: {
   timeoutMs?: number;
 }): Promise<unknown> {
   const apiKey = getOpenCodeKey();
+  // Jei nėra rakto kliente, bandome per serverio proxy (bendras raktas visiems vartotojams).
+  // Tai saugu: raktas lieka serverio env (OPENCODE_API_KEY), o klientas gauna tik atsakymą.
   if (!apiKey) {
-    throw new Error(
-      'OpenCode API raktas nesukonfigūruotas. ' +
-        'Įveskite raktą asistento nustatymuose arba nustatykite VITE_OPENCODE_API_KEY.'
-    );
+    const base = getApiBaseUrl();
+    const controller = new AbortController();
+    const timeoutMs = Math.max(5_000, args.timeoutMs ?? 60_000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${base}/api/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: args.messages,
+          tools: args.tools,
+          model: args.model,
+        }),
+        signal: controller.signal,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      try {
+        return JSON.parse(text) as unknown;
+      } catch {
+        return text;
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   const variant = getOpenCodeVariant();
