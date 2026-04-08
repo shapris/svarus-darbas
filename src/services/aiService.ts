@@ -600,7 +600,8 @@ export async function chatWithAssistant(
     // OpenCode (Zen/Go) — pirmiausia bandome per serverio proxy (bendras raktas visiems),
     // o jei vartotojas įvedė savo `sk-...` — jis irgi veiks.
     const openCodeKey = getOpenCodeKey();
-    if (hasServerApiBase || openCodeKey || isOpenCodeKey(apiKey)) {
+    const useOpenCodeFirst = hasServerApiBase || openCodeKey || isOpenCodeKey(apiKey);
+    if (useOpenCodeFirst) {
       try {
         return await runOpenCodeAssistantChat(message, history, systemInstruction, tools);
       } catch (openCodeError: unknown) {
@@ -610,7 +611,17 @@ export async function chatWithAssistant(
             : typeof openCodeError === 'string'
               ? openCodeError
               : JSON.stringify(openCodeError);
-        console.warn('OpenCode failed, falling back to other providers:', ocMsg);
+        // Production policy: kai turime serverio OpenCode kelią, nenaudojame kitų tiekėjų fallback.
+        return {
+          text:
+            'OpenCode šiuo metu laikinai nepasiekiamas. Bandykite po kelių sekundžių.\n\n' +
+            `Techninė detalė: ${ocMsg}`,
+          history: [
+            ...history,
+            { role: 'user', parts: [{ text: message }] },
+            { role: 'model', parts: [{ text: 'OpenCode laikinai nepasiekiamas.' }] },
+          ],
+        };
       }
     }
 
