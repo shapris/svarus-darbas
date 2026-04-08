@@ -874,39 +874,51 @@ app.post('/api/ai/chat', async (req, res) => {
     const timeoutId = setTimeout(() => controller.abort(), Math.min(timeoutMs, 120_000));
 
     try {
-      const upstreamRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      async function callUpstream(withTools) {
+        const payload = {
           model,
           messages,
-          tools,
-          tool_choice: tools ? 'auto' : undefined,
+          tools: withTools ? tools : undefined,
+          tool_choice: withTools && tools ? 'auto' : undefined,
           max_tokens: 1024,
-        }),
-        signal: controller.signal,
-      });
+        };
+        const r = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        const text = await r.text();
+        return { ok: r.ok, status: r.status, statusText: r.statusText, text };
+      }
 
-      const text = await upstreamRes.text();
-      if (!upstreamRes.ok) {
+      // 1) Pirmas bandymas su tools (jei jie pateikti) — pilna asistento funkcija.
+      let upstream = await callUpstream(true);
+      // 2) Fallback: kai kai kurie OpenCode modeliai/string provideriai lūžta su tools,
+      // kartojame be tools, kad vartotojas bent gautų pokalbio atsakymą.
+      if (!upstream.ok && tools && upstream.status >= 500) {
+        upstream = await callUpstream(false);
+      }
+
+      if (!upstream.ok) {
         return apiError(
           res,
           502,
           'ai_upstream_error',
-          `OpenCode klaida: ${text || upstreamRes.statusText}`,
+          `OpenCode klaida: ${upstream.text || upstream.statusText}`,
           {
-            upstreamStatus: upstreamRes.status,
+            upstreamStatus: upstream.status,
             variant,
           }
         );
       }
       try {
-        return res.status(200).json(JSON.parse(text));
+        return res.status(200).json(JSON.parse(upstream.text));
       } catch {
-        return res.status(200).send(text);
+        return res.status(200).send(upstream.text);
       }
     } finally {
       clearTimeout(timeoutId);
