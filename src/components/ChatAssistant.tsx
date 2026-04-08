@@ -162,6 +162,7 @@ export default function ChatAssistant({
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const tempTranscriptRef = useRef('');
+  const finalTranscriptRef = useRef('');
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   const checkApiKey = async () => {
@@ -302,15 +303,26 @@ export default function ChatAssistant({
         recognition.onstart = () => {
           setIsRecording(true);
           tempTranscriptRef.current = '';
+          finalTranscriptRef.current = '';
         };
 
         recognition.onresult = (event: {
-          results: ArrayLike<ArrayLike<{ transcript: string }>>;
+          resultIndex?: number;
+          results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
         }) => {
-          const transcript = Array.from(event.results)
-            .map((result) => result[0]?.transcript ?? '')
-            .join('');
-          tempTranscriptRef.current = transcript;
+          const startAt = event.resultIndex ?? 0;
+          let interimChunk = '';
+          for (let i = startAt; i < event.results.length; i++) {
+            const result = event.results[i];
+            const chunk = (result?.[0]?.transcript ?? '').trim();
+            if (!chunk) continue;
+            if (result?.isFinal) {
+              finalTranscriptRef.current = `${finalTranscriptRef.current} ${chunk}`.trim();
+            } else {
+              interimChunk = `${interimChunk} ${chunk}`.trim();
+            }
+          }
+          tempTranscriptRef.current = interimChunk;
         };
 
         recognition.onerror = (event: { error: string }) => {
@@ -364,13 +376,12 @@ export default function ChatAssistant({
 
         recognition.onend = () => {
           setIsRecording(false);
-          if (tempTranscriptRef.current) {
-            const finalResult = tempTranscriptRef.current.trim();
-            if (finalResult) {
-              setInput((prev) => prev + (prev ? ' ' : '') + finalResult);
-            }
-            tempTranscriptRef.current = '';
+          const finalResult = `${finalTranscriptRef.current} ${tempTranscriptRef.current}`.trim();
+          if (finalResult) {
+            setInput((prev) => `${prev}${prev ? ' ' : ''}${finalResult}`);
           }
+          tempTranscriptRef.current = '';
+          finalTranscriptRef.current = '';
           recognitionRef.current = null;
         };
 

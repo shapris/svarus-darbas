@@ -15,7 +15,12 @@ export type BrowserSpeechRecognition = {
   lang: string;
   maxAlternatives: number;
   onstart: (() => void) | null;
-  onresult: ((ev: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onresult:
+    | ((ev: {
+        resultIndex?: number;
+        results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
+      }) => void)
+    | null;
   onerror: ((ev: { error: string }) => void) | null;
   onend: (() => void) | null;
   start(): void;
