@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-08 — Autonominė patikra (work-queue uždaryta)
+
+- **Eilė:** P0–P14 be atvirų `- [ ]`.
+- **Patikra:** `npm run verify` žalia; `node --check server.cjs`; `scout:improvements` → **100**.
+- **Priminimas:** po deploy į hostingą patikrinti tikrą `/health` ir sąskaitų kelią gamyboje (agentas be cloud prieigos negali baigti).
+
+---
+
 ## Pamoka (ops): PostgREST 400 dėl `select`
 
 - **Įvykis:** naršyklėje `400` iš `/rest/v1/orders?...&select=...` ir dėl to Render `502` ant srautų, kur serveris kviečia Supabase REST su **neegzistuojančiais** stulpeliais (`clientId`, `uid` ir pan. schemoje, kur yra tik `client_id`).
