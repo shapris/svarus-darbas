@@ -31,6 +31,7 @@ import {
   Star,
   Bell,
   Mail,
+  Users,
 } from 'lucide-react';
 import { getAiBudgetStatus } from '../services/aiService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
@@ -155,6 +156,8 @@ export default function SettingsView({
   };
 
   const bookingUrl = `${window.location.origin}/booking/${dataOwnerId}`;
+  const clientPortalLoginUrl = `${window.location.origin}/client/login`;
+  const clientPortalRegisterUrl = `${window.location.origin}/client/register`;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCopy = () => {
@@ -748,6 +751,69 @@ export default function SettingsView({
             <ExternalLink size={18} />
             Atidaryti rezervacijos puslapį
           </a>
+
+          <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center text-violet-600 shrink-0">
+                <Users size={20} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-slate-900">Klientų portalo nuorodos</p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Klientai čia prisijungia ir mato savo užsakymus. Registracijos nuoroda veikia tik
+                  jei įjungta <span className="font-medium text-slate-600">saviregistracija</span>{' '}
+                  aukščiau.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between gap-2 overflow-hidden">
+                <span className="text-xs sm:text-sm text-slate-600 truncate font-mono">
+                  {clientPortalLoginUrl}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(clientPortalLoginUrl);
+                    showToast.success('Prisijungimo nuoroda nukopijuota');
+                  }}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs sm:text-sm bg-violet-100 text-violet-800 hover:bg-violet-200 transition-colors"
+                >
+                  <Copy size={14} />
+                  Kopijuoti
+                </button>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between gap-2 overflow-hidden">
+                <span
+                  className={`text-xs sm:text-sm truncate font-mono ${formData.clientSelfRegistrationEnabled ? 'text-slate-600' : 'text-slate-400'}`}
+                >
+                  {clientPortalRegisterUrl}
+                </span>
+                <button
+                  type="button"
+                  disabled={!formData.clientSelfRegistrationEnabled}
+                  title={
+                    formData.clientSelfRegistrationEnabled
+                      ? 'Kopijuoti registracijos nuorodą'
+                      : 'Įjunkite kliento saviregistraciją skiltyje „Kainodara ir vieša rezervacija“'
+                  }
+                  onClick={() => {
+                    if (!formData.clientSelfRegistrationEnabled) return;
+                    void navigator.clipboard.writeText(clientPortalRegisterUrl);
+                    showToast.success('Registracijos nuoroda nukopijuota');
+                  }}
+                  className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs sm:text-sm transition-colors ${
+                    formData.clientSelfRegistrationEnabled
+                      ? 'bg-violet-100 text-violet-800 hover:bg-violet-200'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Copy size={14} />
+                  Kopijuoti
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="mt-4 pt-4 border-t border-slate-100">
             <div className="flex items-start gap-3">
