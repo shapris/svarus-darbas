@@ -6,8 +6,9 @@
  * with rollback capabilities and progress tracking.
  */
 
+import type { Client, Expense, InventoryItem, Memory, Order } from '../types';
 import { ExtendedIntention, ClassificationResult } from './hybridClassifier';
-import { routeAndExecute } from './toolRouter';
+import { executeToolDirect, type RoutingContext } from './toolRouter';
 
 // ============================================================
 // TYPES & INTERFACES
@@ -53,6 +54,13 @@ export interface PlanContext {
   userId: string;
   clientId?: string;
   orderId?: string;
+  /** Workspace savininkas — perduodama į `toolRouter` (pvz. inventoriui iš DB) */
+  dataOwnerId?: string;
+  clients?: Client[];
+  orders?: Order[];
+  expenses?: Expense[];
+  memories?: Memory[];
+  inventory?: InventoryItem[];
   businessData: {
     totalClients: number;
     totalOrders: number;
@@ -101,6 +109,18 @@ function coerceRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function planContextToRoutingContext(ctx: PlanContext): RoutingContext {
+  return {
+    clients: ctx.clients ?? [],
+    orders: ctx.orders ?? [],
+    expenses: ctx.expenses ?? [],
+    memories: ctx.memories ?? [],
+    userId: ctx.userId,
+    dataOwnerId: ctx.dataOwnerId,
+    inventory: ctx.inventory,
+  };
 }
 
 const PLAN_TEMPLATES: PlanTemplate[] = [
@@ -513,8 +533,11 @@ export class PlanningEngine {
         id: '3',
         type: 'tool_execution',
         description: 'Surinkti reikiamus duomenis',
-        action: classification.toolName || 'collect_data',
-        parameters: classification.parameters || {},
+        action: classification.toolName || 'get_business_summary',
+        parameters:
+          Object.keys(classification.parameters || {}).length > 0
+            ? (classification.parameters as Record<string, unknown>)
+            : { period: 'month' },
         dependencies: ['2'],
         timeout: 60,
         retryCount: 0,
@@ -690,15 +713,10 @@ export class PlanningEngine {
    * Execute tool step
    */
   private async executeToolStep(step: PlanStep, plan: ExecutionPlan): Promise<unknown> {
-    // Resolve parameter references (e.g., $step1.clientId) — kol kas neperduodama į routeAndExecute
-    void this.resolveParameters(step.parameters, plan);
+    const resolvedParams = this.resolveParameters(step.parameters, plan);
+    const routingContext = planContextToRoutingContext(plan.context);
 
-    const result = await routeAndExecute(step.action, {
-      clients: plan.context.businessData.totalClients > 0 ? [] : [],
-      orders: [],
-      expenses: [],
-      memories: [],
-    });
+    const result = await executeToolDirect(step.action, resolvedParams, routingContext);
 
     if (!result.success) {
       throw new Error(result.error || 'Tool execution failed');

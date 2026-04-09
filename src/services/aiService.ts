@@ -11,6 +11,8 @@ import { callOpenCodeChatCompletions, getOpenCodeKey, isOpenCodeKey } from './op
 import { ALL_TOOLS } from './toolDefinitions.js';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
 import { logDevError } from '../utils/devConsole.js';
+import { classifyIntentHybrid } from './hybridClassifier.js';
+import { executeWithPlanning, shouldUsePlanning, type PlanContext } from './planningEngine.js';
 
 /** OpenAI/OpenRouter expects `function.arguments` as a JSON string. */
 function toolArgumentsAsJsonString(raw: unknown): string {
@@ -132,14 +134,48 @@ export function getAiInstance(apiKey: string) {
 /**
  * Simple, effective system prompt that works well
  */
-type AssistantDataContext = {
+export type AssistantDataContext = {
   clients: Client[];
   orders: Order[];
   expenses: Expense[];
   memories: Memory[];
   /** Pvz. „Užsakymai“ — vartotojas gali klausti apie tai, ką mato šioje skiltyje */
   activeViewLabel?: string;
+  /** CRM workspace savininko id — planavimo įrankiams (inventorius ir kt.) */
+  dataOwnerId?: string;
+  userId?: string;
 };
+
+function assistantContextToPlanContext(
+  message: string,
+  history: ChatHistoryTurn[],
+  ctx: AssistantDataContext
+): PlanContext {
+  const totalRevenue = ctx.orders
+    .filter((o) => o.status === 'atlikta')
+    .reduce((sum, o) => sum + o.totalPrice, 0);
+  const totalExpenses = ctx.expenses.reduce((sum, e) => sum + e.amount, 0);
+  const conversationHistory = history
+    .map((h) => h.parts?.[0]?.text || '')
+    .filter((t): t is string => Boolean(t && t.trim()));
+
+  return {
+    userQuery: message,
+    userId: ctx.userId?.trim() || 'anonymous',
+    dataOwnerId: ctx.dataOwnerId?.trim() || undefined,
+    clients: ctx.clients,
+    orders: ctx.orders,
+    expenses: ctx.expenses,
+    memories: ctx.memories,
+    businessData: {
+      totalClients: ctx.clients.length,
+      totalOrders: ctx.orders.length,
+      totalRevenue,
+      totalExpenses,
+    },
+    conversationHistory,
+  };
+}
 
 function buildSystemInstruction(
   message: string,
@@ -587,6 +623,27 @@ export async function chatWithAssistant(
       .reduce((sum, o) => sum + o.totalPrice, 0);
     const totalExpenses = context.expenses.reduce((sum, e) => sum + e.amount, 0);
     const profit = totalRevenue - totalExpenses;
+
+    // Sudėtingoms užklausoms — daugelio žingsnių planas su tikrais CRM duomenimis (be atskiros LLM grandinės)
+    if (message.trim()) {
+      try {
+        const classification = await classifyIntentHybrid(message, apiKey);
+        if (shouldUsePlanning(message, classification)) {
+          const planContext = assistantContextToPlanContext(message, history, context);
+          const { finalResponse } = await executeWithPlanning(message, classification, planContext);
+          return {
+            text: finalResponse,
+            history: [
+              ...history,
+              { role: 'user', parts: [{ text: message }] },
+              { role: 'model', parts: [{ text: finalResponse }] },
+            ],
+          };
+        }
+      } catch (planErr) {
+        logDevError('Planning path failed, falling back to chat:', planErr);
+      }
+    }
 
     // Build simple, effective system instruction
     const systemInstruction = buildSystemInstruction(message, context, history, {

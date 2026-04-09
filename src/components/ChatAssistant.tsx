@@ -153,8 +153,10 @@ export default function ChatAssistant({
       expenses,
       memories,
       activeViewLabel,
+      dataOwnerId,
+      userId: user.uid,
     }),
-    [clients, orders, expenses, memories, activeViewLabel]
+    [clients, orders, expenses, memories, activeViewLabel, dataOwnerId, user.uid]
   );
 
   const lastUserMessageRef = useRef<string>('');

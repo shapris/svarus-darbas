@@ -33,7 +33,7 @@ export interface ToolExecutionResult {
   method?: 'keyword' | 'llm' | 'hybrid';
 }
 
-interface RoutingContext {
+export interface RoutingContext {
   clients?: Client[];
   orders?: Order[];
   expenses?: Expense[];
@@ -233,6 +233,17 @@ async function executeToolByName(
     default:
       throw new Error(`Unknown tool: ${toolName}`);
   }
+}
+
+/**
+ * Deterministinis įrankio vykdymas (planavimo variklis, testai) — be intention klasifikatoriaus.
+ */
+export async function executeToolDirect(
+  toolName: string,
+  params: Record<string, unknown>,
+  context: RoutingContext
+): Promise<ToolExecutionResult> {
+  return executeToolByName(toolName, params, context);
 }
 
 // Keep all the original execution functions...
