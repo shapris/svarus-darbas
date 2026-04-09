@@ -47,6 +47,14 @@ interface ClientDashboardProps {
   onProfileRefresh?: () => void | Promise<void>;
 }
 
+interface ClientPortalRequestHistoryItem {
+  id: string;
+  createdAt: string;
+  category: ClientPortalRequestCategory;
+  message: string;
+  orderId?: string;
+}
+
 export default function ClientDashboard({
   user,
   profile,
@@ -72,6 +80,7 @@ export default function ClientDashboard({
   const [requestMessage, setRequestMessage] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [requestError, setRequestError] = useState('');
+  const [requestHistory, setRequestHistory] = useState<ClientPortalRequestHistoryItem[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -148,6 +157,27 @@ export default function ClientDashboard({
       /* ignore storage errors */
     }
   }, [notifications, profile.uid]);
+
+  useEffect(() => {
+    const key = `client_portal_requests_${profile.uid}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as ClientPortalRequestHistoryItem[];
+      if (Array.isArray(parsed)) setRequestHistory(parsed.slice(0, 15));
+    } catch {
+      /* ignore JSON errors */
+    }
+  }, [profile.uid]);
+
+  useEffect(() => {
+    const key = `client_portal_requests_${profile.uid}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(requestHistory.slice(0, 15)));
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [requestHistory, profile.uid]);
 
   useEffect(() => {
     if (!orders.length) return;
@@ -245,6 +275,12 @@ export default function ClientDashboard({
 
   const formatTime = (timeString: string) => {
     return timeString.substring(0, 5);
+  };
+
+  const getRequestCategoryLabel = (category: ClientPortalRequestCategory) => {
+    if (category === 'reschedule') return 'Laiko / datos pakeitimas';
+    if (category === 'cancel') return 'Atšaukimas / klaida';
+    return 'Kita';
   };
 
   const handleLogout = async () => {
@@ -942,6 +978,14 @@ export default function ClientDashboard({
                           category: requestCategory,
                           order_id: requestOrderId || undefined,
                         });
+                        const newItem: ClientPortalRequestHistoryItem = {
+                          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+                          createdAt: new Date().toISOString(),
+                          category: requestCategory,
+                          message: requestMessage.trim(),
+                          orderId: requestOrderId || undefined,
+                        };
+                        setRequestHistory((prev) => [newItem, ...prev].slice(0, 15));
                         setRequestMessage('');
                         setRequestOrderId('');
                         setRequestError('');
@@ -961,6 +1005,50 @@ export default function ClientDashboard({
                   <Send className="w-4 h-4" aria-hidden />
                   {submittingRequest ? 'Siunčiama…' : 'Siųsti prašymą'}
                 </button>
+
+                <div className="mt-6 border-t border-gray-100 pt-4">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                    Paskutiniai mano prašymai
+                  </h3>
+                  {requestHistory.length === 0 ? (
+                    <p className="text-xs text-gray-500">
+                      Dar neturite išsiųstų prašymų šioje naršyklėje.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {requestHistory.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-slate-700">
+                              {getRequestCategoryLabel(item.category)}
+                            </span>
+                            <span className="text-[11px] text-slate-500">
+                              {formatDate(item.createdAt)}{' '}
+                              {new Date(item.createdAt).toLocaleTimeString('lt-LT', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-700 line-clamp-2">{item.message}</p>
+                          <div className="mt-1 flex items-center justify-between">
+                            <span className="text-[11px] text-slate-500">
+                              {item.orderId
+                                ? `Užsakymas: ${item.orderId.slice(0, 8)}…`
+                                : 'Be susieto užsakymo'}
+                            </span>
+                            <span className="text-[11px] text-emerald-700 font-medium">
+                              Išsiųsta
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </motion.div>
