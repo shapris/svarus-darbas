@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { addData, updateData, deleteData, getData, TABLES } from '../../supabase';
 import { calculateOrderPrice } from '../../utils';
-import type { Client, Order, Expense, AppSettings, Memory } from '../../types';
+import type { Client, Order, Expense, AppSettings, Memory, InventoryItem } from '../../types';
 import { logDevError } from '../../utils/devConsole';
 import type { AssistantToolCall } from './types';
 
@@ -98,7 +98,15 @@ export async function runAssistantToolCall(
       try {
         const fullAddress = `${placeName}, ${city}${country ? ', ' + country : ', Lietuva'}`;
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}`,
+          {
+            headers: {
+              Accept: 'application/json',
+              'Accept-Language': 'lt,en',
+              // OSM naudojimo politika — identifikuojame aplikaciją (žr. docs/NOMINATIM_GEOCODING.md)
+              'User-Agent': 'SvarusDarbas-CRM/1.0 (+https://github.com/shapris/svarus-darbas)',
+            },
+          }
         );
         const data = await response.json();
 
@@ -266,7 +274,24 @@ export async function runAssistantToolCall(
     }
 
     if (name === 'get_low_inventory') {
-      return `Norint patikrinti inventorių, reikia papildomų duomenų. Šiuo metu inventoriaus funkcija nepilnai įgyvendinta.`;
+      try {
+        const items = await getData<InventoryItem>(TABLES.INVENTORY, dataOwnerId);
+        const low = items.filter((i) => Number(i.quantity) < Number(i.minQuantity));
+        if (low.length === 0) {
+          return `Inventorius: žemiau minimalios ribos prekių nėra (iš viso ${items.length} pozicijų).`;
+        }
+        const lines = low
+          .slice(0, 25)
+          .map(
+            (i) =>
+              `• ${i.name}: likutis ${i.quantity} ${i.unit}, minimumas ${i.minQuantity} ${i.unit} (${i.category})`
+          );
+        const more = low.length > 25 ? `\n… ir dar ${low.length - 25} poz.` : '';
+        return `Žemiau minimalios ribos (${low.length}):\n${lines.join('\n')}${more}`;
+      } catch (e) {
+        logDevError('get_low_inventory', e);
+        return 'Nepavyko nuskaityti inventoriaus. Patikrinkite ryšį arba atverkite skiltį „Daugiau → Inventorius“.';
+      }
     }
 
     if (name === 'get_unpaid_orders') {

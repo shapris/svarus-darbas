@@ -19,7 +19,8 @@ import {
   ExtendedIntention,
 } from './hybridClassifier';
 import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority';
-import type { Client, Order, Expense, Memory } from '../types';
+import { getData, TABLES } from '../supabase';
+import type { Client, Order, Expense, Memory, InventoryItem } from '../types';
 
 // Types for context and execution
 export interface ToolExecutionResult {
@@ -38,6 +39,9 @@ interface RoutingContext {
   expenses?: Expense[];
   memories?: Memory[];
   userId?: string;
+  /** Workspace savininkas — jei perduota, galima užkrauti inventorių be iš anksto paruošto masyvo */
+  dataOwnerId?: string;
+  inventory?: InventoryItem[];
 }
 
 /**
@@ -307,13 +311,26 @@ async function executeGetUnpaidOrders(params: Record<string, unknown>, context: 
   };
 }
 
-async function executeGetLowInventory(_params: Record<string, unknown>, _context: RoutingContext) {
+async function executeGetLowInventory(_params: Record<string, unknown>, context: RoutingContext) {
+  let items: InventoryItem[] = context.inventory ?? [];
+  if (items.length === 0 && context.dataOwnerId) {
+    try {
+      items = await getData<InventoryItem>(TABLES.INVENTORY, context.dataOwnerId);
+    } catch {
+      items = [];
+    }
+  }
+  const low = items.filter((i) => Number(i.quantity) < Number(i.minQuantity));
   return {
     success: true,
     data: {
       type: 'low_inventory',
-      items: [],
-      message: 'Inventory system not fully implemented yet',
+      items: low,
+      count: low.length,
+      message:
+        low.length === 0
+          ? 'Žemiau minimalios ribos prekių nėra arba inventoriaus duomenys neperduoti.'
+          : `Rasta ${low.length} pozicijų žemiau minimalios ribos.`,
     },
     toolName: 'get_low_inventory',
     intention: 'low_inventory' as Intention,

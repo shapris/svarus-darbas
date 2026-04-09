@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — Asistentas: inventorius + Nominatim
+
+- **`get_low_inventory`:** skaito `inventory` per `getData` (workspace); sąrašas pozicijų su `quantity < minQuantity`; `toolRouter` — `dataOwnerId` / `inventory` kontekste.
+- **Nominatim:** `fetch` su `User-Agent` + `docs/NOMINATIM_GEOCODING.md`.
+- **Patikra:** `npm run verify:local` OK.
+
+---
+
 ## 2026-04-09 — Asistento įrankiai: neapmokėti užsakymai + batch status
 
 - **`get_unpaid_orders`:** filtras `status === 'atlikta' && isPaid !== true` (suderinta su `Order.isPaid` ir `toolRouter`); aiškesnis LT atsakymas.
