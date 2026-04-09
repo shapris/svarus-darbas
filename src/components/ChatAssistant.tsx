@@ -26,6 +26,7 @@ import {
   isOpenRouterKey,
 } from '../services/aiService';
 import { generateSpeech, stopAllAudio } from '../services/ttsService';
+import { getOpenCodeKey, isOpenCodeKey } from '../services/opencodeService';
 import { shouldSuggestMemory } from '../services/memoryPriority';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 import { Client, Order, Expense, AppSettings, Memory } from '../types';
@@ -541,9 +542,16 @@ export default function ChatAssistant({
 
         // Send tool results back to get a natural language confirmation
         try {
-          if (isOpenRouterKey(apiKey)) {
-            // For OpenRouter, we just call chatWithAssistant again with the updated history
-            // We use an empty message because the history now contains the tool responses
+          const hasInvoiceApiBase = !!(
+            import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
+          )?.trim();
+          const useOpenCodeSecond =
+            hasInvoiceApiBase ||
+            !!getOpenCodeKey() ||
+            (typeof apiKey === 'string' && apiKey.trim() !== '' && isOpenCodeKey(apiKey));
+
+          if (isOpenRouterKey(apiKey) || useOpenCodeSecond) {
+            // OpenRouter arba OpenCode (serverio proxy / sk-): tas pats kelias kaip pirmame žingsnyje
             const secondResult = await chatWithAssistant('', updatedHistory, assistantDataContext);
             finalResponse = secondResult.text;
             currentHistory = secondResult.history;
