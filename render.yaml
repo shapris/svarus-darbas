@@ -15,6 +15,8 @@ services:
       # OPENCODE_API_KEY įrašykite Render Dashboard (Blueprint negali saugiai laikyti secrets).
       - key: OPENCODE_API_KEY
         sync: false
+      - key: FRONTEND_URL
+        value: https://svarus-darbas.vercel.app
       - key: OPENCODE_VARIANT
         value: go
       - key: OPENCODE_MODEL

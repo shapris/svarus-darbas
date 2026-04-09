@@ -107,17 +107,9 @@ async function fetchWithTimeoutAndRetry(url, init = {}, opts = {}) {
   throw lastErr || new Error('External fetch failed');
 }
 
-function buildCorsOrigin() {
-  const raw = (process.env.CORS_ORIGINS || '').trim();
-  if (raw === '*') return true;
-  if (raw) {
-    const list = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (list.length) return list;
-  }
-  const defaults = [
+/** Bazinis CORS sąrašas — visada suliejamas su FRONTEND_URL ir CORS_ORIGINS (kad vienas siauras env neužblokuotų Vercel). */
+function getBaseCorsOrigins() {
+  return [
     'http://127.0.0.1:3000',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
@@ -126,9 +118,24 @@ function buildCorsOrigin() {
     'http://localhost:4173',
     'https://svarus-darbas.vercel.app',
   ];
+}
+
+function buildCorsOrigin() {
+  const raw = (process.env.CORS_ORIGINS || '').trim();
+  if (raw === '*') return true;
+
+  const merged = new Set(getBaseCorsOrigins());
   const fe = (process.env.FRONTEND_URL || '').trim().replace(/\/$/, '');
-  if (fe && !defaults.includes(fe)) defaults.push(fe);
-  return defaults;
+  if (fe) merged.add(fe);
+  if (raw) {
+    for (const o of raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)) {
+      merged.add(o);
+    }
+  }
+  return Array.from(merged);
 }
 
 const stripeIsPlaceholder =
