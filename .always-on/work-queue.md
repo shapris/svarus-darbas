@@ -263,5 +263,6 @@
 | 2026-04-09 | KI-005 uždarymas | Production Supabase: RLS migracija pritaikyta; `known-issues` KI-005 → **fixed**; `npm run verify` žalia. Eilės punktai (P0–P14) jau uždaryti — tolesnis darbas iš `known-issues` (KI-003/004 tooling) arba naujas P15 pagal produktą. |
 | 2026-04-09 | P15 Windows verify | `kill-dev-ports` +4173; `verify:local`; mažiau atsitiktinių Playwright `webServer` klaidų lokaliai. |
 | 2026-04-09 | npm audit (basic-ftp) | `npm audit fix` — high → 0; scout **100**; `verify:local` OK. |
+| 2026-04-09 | Verify offline-crm stabilumas | `free-ports` (`kill-port`) prieš `test:offline-crm`; mažiau Windows flakiness. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

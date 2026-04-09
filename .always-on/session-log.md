@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — Verify: `free-ports` prieš offline-crm
+
+- **Problema:** Windows’e po kelių Playwright paleidimų iš eilės kartais `test:offline-crm` stringdavo (libuv / webServer).
+- **Sprendimas:** `kill-port` + `scripts/free-dev-ports.mjs` (4173, 3001, 5173); `verify` grandinėje prieš `test:offline-crm` — `npm run free-ports`. Veikia ir CI (Linux).
+- **Patikra:** `npm run verify` — žalia.
+
+---
+
 ## 2026-04-09 — Priklausomybių patch + push
 
 - **`npm update`** (semver „wanted“: React 19.2.5, Supabase client, Vitest, GenAI, Stripe patch ir kt.); `npm audit` = 0; scout **100**.
