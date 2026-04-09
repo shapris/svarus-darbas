@@ -56,4 +56,4 @@
 
 ## Žinomos rizikos (žr. `known-issues.md`)
 
-- Jei **Mokėjimuose** backend grąžina RLS klaidą (pvz. `infinite recursion` ant `workspace_memberships`), reikia **DB politikos** pataisos; UI turi rodyti sanituotą žinutę (`sanitizeSupabaseErrorForDisplay`).
+- **KI-005:** rekursija `workspace_memberships` — taikyti migraciją `20260409210000_workspace_memberships_rls_break_recursion.sql`; UI vis tiek naudoja `sanitizeSupabaseErrorForDisplay`.

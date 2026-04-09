@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — KI-005: workspace_memberships RLS be rekursijos
+
+- **Migracija:** `20260409210000_workspace_memberships_rls_break_recursion.sql` — `workspace_membership_meets()` (SECURITY DEFINER) ir trys politikos perrašytos.
+- **Dokumentacija:** `docs/RLS_SUMMARY.md`, `known-issues.md`, `app-map.md`.
+- **Taikymas debesyje:** Supabase SQL Editor (visas failas) arba `supabase db push` pagal jūsų procesą.
+
+---
+
 ## 2026-04-09 — Agent „penki pirštai“: app-map + Mokėjimų klaidos sanitarija + LT užsakymų skaičius
 
 - **Naršymas:** patikrinti visos CRM apačios skiltys (įskaitą Daugiau); Mokėmuose fiksuota Supabase RLS rekursijos klaida ant `workspace_memberships`.
