@@ -5,6 +5,12 @@
 - `npm outdated` — minor/patch atnaujinimai, tada **`npm run verify`**.
 - Peržiūrėti `npm audit` (repo siekis: 0 high).
 
+## `verify` grandinė (trumpai)
+
+- Pilnas vartai: lint → build → unit → keli Playwright → **`npm run free-ports`** → `test:offline-crm`.
+- **`free-ports`** (`scripts/free-dev-ports.mjs`, priklausomybė `kill-port`) atlaisvina 4173 / 3001 / 5173 prieš paskutinį E2E, kad Windows’e rečiau strigtų keli Playwright `webServer` paleidimai iš eilės.
+- Jei lokaliai vis tiek stringa: **`npm run verify:local`** (pradžioje `dev:kill` tik PowerShell / 3001+5173+4173).
+
 ## Kas ketvirtį
 
 - Major versijų planas: React, Vite, `@supabase/supabase-js`, Playwright — atskiras PR su changelog skaitymu.

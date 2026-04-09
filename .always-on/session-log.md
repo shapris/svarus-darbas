@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-09 — Docs: `verify` + `free-ports` periodinėje priežiūroje
+
+- **`docs/PERIODIC_MAINTENANCE.md`:** skyrius apie `verify` grandinę ir `verify:local`; `npm run verify` vėl žalia.
+
+---
+
 ## 2026-04-09 — Verify: `free-ports` prieš offline-crm
 
 - **Problema:** Windows’e po kelių Playwright paleidimų iš eilės kartais `test:offline-crm` stringdavo (libuv / webServer).
