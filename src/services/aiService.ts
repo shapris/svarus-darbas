@@ -117,6 +117,18 @@ export function consumeAiBudget(units = 1): boolean {
   return true;
 }
 
+/**
+ * Dienos limitas (20) taikomas tik nemokamiems naršyklės tiekėjams (Gemini / OpenRouter iš env).
+ * Ne OpenCode Go/Zen (serverio proxy arba sk- raktas) — ten kvotas valdo pats tiekėjas.
+ */
+export function shouldApplyClientAiDailyBudget(apiKey = ''): boolean {
+  if (getInvoiceApiBaseUrl().trim()) return false;
+  if (getOpenCodeKey()) return false;
+  const k = String(apiKey ?? '').trim();
+  if (k && isOpenCodeKey(k)) return false;
+  return true;
+}
+
 export function getAiInstance(apiKey: string) {
   const key = String(apiKey ?? '').trim();
   if (!key) {
@@ -606,7 +618,7 @@ export async function chatWithAssistant(
         ],
       };
     }
-    if (!consumeAiBudget(1)) {
+    if (shouldApplyClientAiDailyBudget(apiKey) && !consumeAiBudget(1)) {
       return {
         text: 'AI dienos kvota išnaudota. Įjungtas vietinis režimas: naudokite trumpesnes komandas (pvz. pridėti klientą/užsakymą/išlaidas) arba bandykite rytoj.',
         history: [

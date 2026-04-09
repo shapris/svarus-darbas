@@ -1,7 +1,12 @@
 // Dashboard business insights and analytics
 
 import { Order, Client, Expense, Memory } from '../types';
-import { getAiInstance, getGeminiApiKeyForSdk, consumeAiBudget } from './aiService';
+import {
+  getAiInstance,
+  getGeminiApiKeyForSdk,
+  consumeAiBudget,
+  shouldApplyClientAiDailyBudget,
+} from './aiService';
 import {
   callOpenCodeChatCompletions,
   canUseOpenCodeFromBrowser,
@@ -348,7 +353,7 @@ export async function getBusinessInsights(
     const runOpenCodeInsights = async (): Promise<DashboardInsight[] | null> => {
       if (!canUseOpenCodeFromBrowser()) return null;
       if (isCooldownActive(openCodeInsightsCooldownUntil)) return null;
-      if (!consumeAiBudget(1)) return null;
+      if (shouldApplyClientAiDailyBudget(apiKey) && !consumeAiBudget(1)) return null;
       try {
         const raw = await callOpenCodeChatCompletions({
           messages: [{ role: 'user', content: prompt }],
