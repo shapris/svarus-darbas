@@ -44,19 +44,31 @@ export async function fetchOwnerScopedRowsRaw(
     return (data || []) as Record<string, unknown>[];
   }
 
-  const run = (column: 'owner_id' | 'uid') =>
-    supabase
-      .from(tableName)
-      .select('*')
-      .eq(column, userId)
-      .order('created_at', { ascending: false });
+  /** Senose lentelėse (pvz. employees) gali būti `createdAt`, ne `created_at` — kitaip GET 400. */
+  const selectOrdered = async (column: 'owner_id' | 'uid') => {
+    const base = () => supabase.from(tableName).select('*').eq(column, userId);
+    let res = await base().order('created_at', { ascending: false });
+    if (
+      res.error?.code === 'PGRST204' &&
+      extractMissingColumnFromPgError(res.error) === 'created_at'
+    ) {
+      res = await base().order('createdAt', { ascending: false });
+    }
+    if (
+      res.error?.code === 'PGRST204' &&
+      extractMissingColumnFromPgError(res.error) === 'createdAt'
+    ) {
+      res = await base();
+    }
+    return res;
+  };
 
-  const { data: d1, error: e1 } = await run('owner_id');
+  const { data: d1, error: e1 } = await selectOrdered('owner_id');
 
   if (e1) {
     const missing = extractMissingColumnFromPgError(e1);
     if (e1.code === 'PGRST204' && missing === 'owner_id') {
-      const { data: d2, error: e2 } = await run('uid');
+      const { data: d2, error: e2 } = await selectOrdered('uid');
       if (e2) {
         logSupabaseDevError(`getData(${tableName})`, e2);
         throw e2;
