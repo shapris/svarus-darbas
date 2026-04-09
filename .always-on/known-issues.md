@@ -89,7 +89,7 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
 
 ## KI-005 — `workspace_memberships` RLS: infinite recursion
 
-- Būsena: mitigated (repo migracija; taikyti Supabase SQL Editor arba CLI)
+- Būsena: fixed (2026-04-09: migracija pritaikyta production DB; funkcija `workspace_membership_meets(text, text[])` — `workspace_id` stulpelis `text`)
 - Poveikis: P1 (Mokėjimų / sąskaitų skiltis gali neįsikrauti; baisus neapdorotas Postgres tekstas vartotojui)
 - Simptomai:
   - Klaida panaši į: `infinite recursion detected in policy for relation "workspace_memberships"`.
@@ -102,4 +102,5 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
   - **DB:** migracija `20260409210000_workspace_memberships_rls_break_recursion.sql` — `workspace_membership_meets()` + politikos be įterptinio `EXISTS` į tą pačią lentelę.
   - **UI:** `sanitizeSupabaseErrorForDisplay` (`src/utils/networkErrors.ts`) — neberodyti neapdoroto Postgres teksto.
 - Saugiklis (testas/diagnostika):
-  - Rankinis: Mokėjimai po RLS fix / regresija: `npm run test:smoke` ir lint.
+  - Rankinis: Mokėjimai po RLS fix; regresija: `npm run verify` (arba bent `test:smoke` + lint).
+  - DB: politikos ir funkcijos parašas gali būti patikrintas (`pg_proc` / `pg_policies`).

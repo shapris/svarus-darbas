@@ -214,6 +214,12 @@
 
 ---
 
+## P15 — autonominė priežiūra (po P14)
+
+- [x] **Windows E2E patikimumas:** `scripts/kill-dev-ports.ps1` stabdo ir **4173** (`vite preview`); `npm run verify:local` = `dev:kill` + `verify`, kad neliktų pakibusio preview prieš Playwright. *2026-04-09*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -254,5 +260,8 @@
 | 2026-04-08 | S3 timeout/retry server fetch | `server.cjs` pridėtas `fetchWithTimeoutAndRetry` (`EXTERNAL_FETCH_TIMEOUT_MS`, retry tik `GET/HEAD`), pritaikyta Supabase auth/profile REST kvietimams; pakibę request'ai apriboti timeout'u. |
 | 2026-04-08 | S4 frontend network UX + retry | `ClientDashboard`, `PaymentsView`, `SettingsView` suvienodinti network klaidų pranešimai per `formatNetworkErrorForUser`, pridėti aiškūs retry mygtukai klaidų blokuose; `npm run verify` žalia. |
 | 2026-04-08 | S5 incident -> test šablonas | Pridėtas `docs/INCIDENT_TEST_TEMPLATE.md` ir `tests/templates/incident-contract.template.ts` su 5 min procesu naujam regresiniam testui. |
+| 2026-04-09 | KI-005 uždarymas | Production Supabase: RLS migracija pritaikyta; `known-issues` KI-005 → **fixed**; `npm run verify` žalia. Eilės punktai (P0–P14) jau uždaryti — tolesnis darbas iš `known-issues` (KI-003/004 tooling) arba naujas P15 pagal produktą. |
+| 2026-04-09 | P15 Windows verify | `kill-dev-ports` +4173; `verify:local`; mažiau atsitiktinių Playwright `webServer` klaidų lokaliai. |
+| 2026-04-09 | npm audit (basic-ftp) | `npm audit fix` — high → 0; scout **100**; `verify:local` OK. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

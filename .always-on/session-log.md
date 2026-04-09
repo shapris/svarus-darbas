@@ -4,11 +4,33 @@
 
 ---
 
+## 2026-04-09 — npm audit: `basic-ftp` (high)
+
+- **Scout** rodė score 97 dėl 1× **high** (`basic-ftp` CRLF) — `npm audit fix` sutvarkė; `npm audit` = 0; `npm run verify:local` žalia; scout score **100**.
+
+---
+
+## 2026-04-09 — Architektūrinė patikra: E2E konsolė + įžvalgos
+
+- **Problema:** `test:console` kartais krisdavo dėl naršyklės `404` į `openrouter.ai` — **Apžvalgos** AI įžvalgos bandė kviesti OpenRouter net E2E / offline build’e.
+- **Sprendimas:** `getBusinessInsights` — jei `VITE_ALLOW_OFFLINE_CRM` arba `MODE === 'e2e'`, grąžinamas tik vietinis fallback be išorinių API.
+- **Patikra:** `npm run verify:local` — žalia.
+
+---
+
+## 2026-04-09 — P15: lokali „verify“ patikimumas (Windows)
+
+- **Problema:** kartais `npm run verify` stringa, jei likęs `vite preview` ant 4173; senasis `dev:kill` stabdė tik 3001/5173.
+- **Sprendimas:** `kill-dev-ports.ps1` papildytas 4173; naujas skriptas `npm run verify:local` (= `dev:kill` + `verify`).
+
+---
+
 ## 2026-04-09 — KI-005: workspace_memberships RLS be rekursijos
 
-- **Migracija:** `20260409210000_workspace_memberships_rls_break_recursion.sql` — `workspace_membership_meets()` (SECURITY DEFINER) ir trys politikos perrašytos.
+- **Migracija:** `20260409210000_workspace_memberships_rls_break_recursion.sql` — `workspace_membership_meets(text, text[])` (SECURITY DEFINER; `workspace_id` kaip `text` ir DB lyginimas per `::text`), trys politikos.
 - **Dokumentacija:** `docs/RLS_SUMMARY.md`, `known-issues.md`, `app-map.md`.
-- **Taikymas debesyje:** Supabase SQL Editor (visas failas) arba `supabase db push` pagal jūsų procesą.
+- **Production:** SQL Editor — visas failas sėkmingai (`Success. No rows returned`); KI-005 **fixed**.
+- **Automatinė patikra:** `npm run verify` po uždarymo.
 
 ---
 

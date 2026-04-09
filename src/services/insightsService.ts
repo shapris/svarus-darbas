@@ -326,6 +326,12 @@ export async function getBusinessInsights(
     const fallback = buildDashboardInsightsFallback(orders, clients, memories, expenses);
     const geminiKey = getGeminiApiKeyForSdk();
 
+    // E2E / offline CRM: nekviesk Gemini ar OpenRouter — kitaip naršyklė logina tinklo 404 ir byra Playwright `test:console`.
+    if (import.meta.env.VITE_ALLOW_OFFLINE_CRM === 'true' || import.meta.env.MODE === 'e2e') {
+      lastInsightsSource = 'fallback';
+      return fallback;
+    }
+
     if (!apiKey && !geminiKey) {
       lastInsightsSource = 'fallback';
       return fallback;
