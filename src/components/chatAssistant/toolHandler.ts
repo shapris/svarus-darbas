@@ -270,9 +270,14 @@ export async function runAssistantToolCall(
     }
 
     if (name === 'get_unpaid_orders') {
-      const unpaid = orders.filter((o) => o.status === 'atlikta');
+      /** Atlikti dar nepažymėti kaip apmokėti CRM (`isPaid !== true`, įsk. senus įrašus be žymės). */
+      const unpaid = orders.filter((o) => o.status === 'atlikta' && o.isPaid !== true);
       const total = unpaid.reduce((sum, o) => sum + o.totalPrice, 0);
-      return `Rasta ${unpaid.length} atliktų užsakymų. Bendra neapmokėta suma: ${total}€`;
+      return (
+        `Atlikti, bet CRM dar nepažymėti kaip apmokėti: ${unpaid.length} užsakymų. ` +
+        `Bendra suma: ${total.toFixed(2)} €. ` +
+        `(Jei sąskaita jau apmokėta — pažymėkite užsakyme „apmokėta“.)`
+      );
     }
 
     if (name === 'get_business_summary') {
@@ -398,10 +403,15 @@ export async function runAssistantToolCall(
     }
 
     if (name === 'batch_update_order_status') {
-      const { orderIds, status } = args;
-      for (const orderId of orderIds) {
-        updateData(TABLES.ORDERS, orderId, { status });
+      const rawIds = args.orderIds;
+      const orderIds = Array.isArray(rawIds)
+        ? rawIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : [];
+      const status = args.status;
+      if (orderIds.length === 0 || typeof status !== 'string') {
+        return 'Neteisingi parametrai: reikia orderIds (ne tuščias stringų masyvas) ir status (tekstas).';
       }
+      await Promise.all(orderIds.map((orderId) => updateData(TABLES.ORDERS, orderId, { status })));
       return `✅ ${orderIds.length} užsakymų būsena pakeista į "${status}".`;
     }
   } catch (error) {

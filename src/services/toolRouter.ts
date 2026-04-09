@@ -285,7 +285,7 @@ async function executeGetUnpaidOrders(params: Record<string, unknown>, context: 
   }
 
   const unpaidOrders = context.orders.filter(
-    (order) => order.status === 'atlikta' && !order.isPaid
+    (order) => order.status === 'atlikta' && order.isPaid !== true
   );
 
   return {

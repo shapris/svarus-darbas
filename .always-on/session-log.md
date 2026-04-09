@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — Asistento įrankiai: neapmokėti užsakymai + batch status
+
+- **`get_unpaid_orders`:** filtras `status === 'atlikta' && isPaid !== true` (suderinta su `Order.isPaid` ir `toolRouter`); aiškesnis LT atsakymas.
+- **`batch_update_order_status`:** `await Promise.all`, validacija `orderIds` / `status`.
+- **Patikra:** `npm run verify` OK.
+
+---
+
 ## 2026-04-09 — npm script `test:journey`
 
 - Pridėta **`npm run test:journey`** → `tests/user-journey.spec.ts` (offline CRM maršrutas); paleista — žalia; `PERIODIC_MAINTENANCE.md` papildyta nuoroda.
