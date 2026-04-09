@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — Priklausomybių patch + push
+
+- **`npm update`** (semver „wanted“: React 19.2.5, Supabase client, Vitest, GenAI, Stripe patch ir kt.); `npm audit` = 0; scout **100**.
+- **`npm run verify:local`** — žalia.
+- **Git:** vienas commit (`7b29727`) — RLS migracija text, insights E2E, kill 4173, verify:local, lockfile; **push** į `origin/main`.
+
+---
+
 ## 2026-04-09 — npm audit: `basic-ftp` (high)
 
 - **Scout** rodė score 97 dėl 1× **high** (`basic-ftp` CRLF) — `npm audit fix` sutvarkė; `npm audit` = 0; `npm run verify:local` žalia; scout score **100**.
