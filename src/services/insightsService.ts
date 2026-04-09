@@ -2,6 +2,11 @@
 
 import { Order, Client, Expense, Memory } from '../types';
 import { getAiInstance, getGeminiApiKeyForSdk, consumeAiBudget } from './aiService';
+import {
+  callOpenCodeChatCompletions,
+  canUseOpenCodeFromBrowser,
+  getOpenCodeModel,
+} from './opencodeService';
 import { isOpenRouterKey, callOpenRouter } from './openRouterService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 
@@ -35,6 +40,7 @@ export const DASHBOARD_INSIGHT_LABELS: Record<
 
 let geminiInsightsCooldownUntil = 0;
 let openRouterInsightsCooldownUntil = 0;
+let openCodeInsightsCooldownUntil = 0;
 let inFlightInsightsPromise: Promise<DashboardInsight[]> | null = null;
 let inFlightInsightsKey = '';
 let lastInsightsSource: 'ai' | 'fallback' = 'fallback';
@@ -326,16 +332,49 @@ export async function getBusinessInsights(
     const fallback = buildDashboardInsightsFallback(orders, clients, memories, expenses);
     const geminiKey = getGeminiApiKeyForSdk();
 
-    // E2E / offline CRM: nekviesk Gemini ar OpenRouter — kitaip naršyklė logina tinklo 404 ir byra Playwright `test:console`.
+    // E2E / offline CRM: nekviesk išorinių AI — kitaip byra Playwright `test:console`.
     if (import.meta.env.VITE_ALLOW_OFFLINE_CRM === 'true' || import.meta.env.MODE === 'e2e') {
       lastInsightsSource = 'fallback';
       return fallback;
     }
 
-    if (!apiKey && !geminiKey) {
+    // OpenCode (Go/Zen) — tas pats kelias kaip CRM asistentas (proxy arba VITE_OPENCODE_API_KEY).
+    if (!canUseOpenCodeFromBrowser() && !apiKey && !geminiKey) {
       lastInsightsSource = 'fallback';
       return fallback;
     }
+
+    const runOpenCodeInsights = async (): Promise<DashboardInsight[] | null> => {
+      if (!canUseOpenCodeFromBrowser()) return null;
+      if (isCooldownActive(openCodeInsightsCooldownUntil)) return null;
+      if (!consumeAiBudget(1)) return null;
+      try {
+        const raw = await callOpenCodeChatCompletions({
+          messages: [{ role: 'user', content: prompt }],
+          model: getOpenCodeModel(),
+        });
+        const result = raw as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const text = result?.choices?.[0]?.message?.content ?? '';
+        if (!text) return null;
+        const normalized = normalizeLikelyJsonFromChatModel(text);
+        const jsonSlice = normalized.startsWith('{')
+          ? normalized
+          : (normalized.match(/\{[\s\S]*\}/)?.[0] ?? text.match(/\{[\s\S]*\}/)?.[0]);
+        if (!jsonSlice) return null;
+        try {
+          return parseDashboardInsightsPayload(JSON.parse(jsonSlice));
+        } catch {
+          return null;
+        }
+      } catch (e: unknown) {
+        if (isRateLimitOrQuotaError(e)) {
+          openCodeInsightsCooldownUntil = Date.now() + extractRetryDelayMs(e);
+        }
+        return null;
+      }
+    };
 
     const runOpenRouterInsights = async (): Promise<DashboardInsight[] | null> => {
       if (isCooldownActive(openRouterInsightsCooldownUntil)) {
@@ -368,7 +407,9 @@ export async function getBusinessInsights(
         if (isRateLimitOrQuotaError(e)) {
           openRouterInsightsCooldownUntil = Date.now() + extractRetryDelayMs(e);
         }
-        console.warn('OpenRouter insights:', e);
+        if (import.meta.env.DEV) {
+          console.warn('OpenRouter insights:', e);
+        }
         return null;
       }
     };
@@ -407,11 +448,17 @@ export async function getBusinessInsights(
       }
     };
 
-    /** Pirmiau Gemini — išvengiama OpenRouter „free“ dienos ribos kiekvienam dashboard atnaujinimui. */
-    const fromGeminiFirst = await runGeminiInsights();
-    if (fromGeminiFirst) {
+    /** Pirmiau OpenCode — tas pats tiekėjas kaip asistentas; tik tada Gemini / OpenRouter. */
+    const fromOpenCode = await runOpenCodeInsights();
+    if (fromOpenCode) {
       lastInsightsSource = 'ai';
-      return fromGeminiFirst;
+      return fromOpenCode;
+    }
+
+    const fromGemini = await runGeminiInsights();
+    if (fromGemini) {
+      lastInsightsSource = 'ai';
+      return fromGemini;
     }
 
     if (apiKey && isOpenRouterKey(apiKey)) {

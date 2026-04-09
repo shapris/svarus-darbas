@@ -37,6 +37,13 @@ export function getOpenCodeModel(): string {
   return t || 'glm-5';
 }
 
+/** Ar galima kviesti OpenCode iš naršyklės: serverio proxy arba kliento `sk-` raktas. */
+export function canUseOpenCodeFromBrowser(): boolean {
+  const base = getApiBaseUrl();
+  if (base) return true;
+  return getOpenCodeKey() !== null;
+}
+
 export function getOpenCodeKey(): string | null {
   const envKey =
     (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENCODE_API_KEY) ||
