@@ -450,9 +450,24 @@ export default function App() {
       return;
     }
 
+    if (requestedClientPortalRoute === 'register' && !clientSelfRegistrationEnabled) {
+      setShowClientPortal('login');
+      syncClientPortalPath('login', 'replace');
+      showToast.warning('Kliento saviregistracija šiuo metu išjungta.');
+      return;
+    }
+
     setShowLoginForm(null);
     setShowClientPortal(requestedClientPortalRoute);
-  }, [requestedClientPortalRoute, user, userProfile, isBookingPage, isResetPasswordPage]);
+  }, [
+    requestedClientPortalRoute,
+    user,
+    userProfile,
+    isBookingPage,
+    isResetPasswordPage,
+    clientSelfRegistrationEnabled,
+    showToast,
+  ]);
 
   const handleLogin = async (e: React.FormEvent, rememberMe: boolean = false) => {
     e.preventDefault();

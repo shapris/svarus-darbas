@@ -71,6 +71,7 @@ export default function ClientDashboard({
   const [requestOrderId, setRequestOrderId] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [requestError, setRequestError] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -270,6 +271,25 @@ export default function ClientDashboard({
     bookingOwnerId && typeof window !== 'undefined'
       ? `${window.location.origin}/booking/${bookingOwnerId}`
       : '';
+  const selectedRequestOrderExists =
+    !requestOrderId || orders.some((order) => String(order.id) === String(requestOrderId));
+  const isRequestMessageTooShort =
+    requestMessage.trim().length > 0 && requestMessage.trim().length < 12;
+
+  const applyRequestTemplate = (category: ClientPortalRequestCategory) => {
+    if (requestMessage.trim()) return;
+    if (category === 'reschedule') {
+      setRequestMessage(
+        'Sveiki, norėčiau pakeisti užsakymo datą/laiką. Siūlomas naujas laikas: ____.'
+      );
+      return;
+    }
+    if (category === 'cancel') {
+      setRequestMessage('Sveiki, norėčiau atšaukti šį užsakymą. Priežastis: ____.');
+      return;
+    }
+    setRequestMessage('Sveiki, turiu papildomą klausimą dėl paslaugos: ____.');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -819,9 +839,12 @@ export default function ClientDashboard({
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipas</label>
                   <select
                     value={requestCategory}
-                    onChange={(e) =>
-                      setRequestCategory(e.target.value as ClientPortalRequestCategory)
-                    }
+                    onChange={(e) => {
+                      const nextCategory = e.target.value as ClientPortalRequestCategory;
+                      setRequestCategory(nextCategory);
+                      setRequestError('');
+                      applyRequestTemplate(nextCategory);
+                    }}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="reschedule">Laiko / datos pakeitimas</option>
@@ -835,7 +858,10 @@ export default function ClientDashboard({
                   </label>
                   <select
                     value={requestOrderId}
-                    onChange={(e) => setRequestOrderId(e.target.value)}
+                    onChange={(e) => {
+                      setRequestOrderId(e.target.value);
+                      setRequestError('');
+                    }}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     <option value="">— nenurodyti —</option>
@@ -845,22 +871,70 @@ export default function ClientDashboard({
                       </option>
                     ))}
                   </select>
+                  {orders.length === 0 ? (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Užsakymų sąrašas tuščias — prašymą vis tiek galite pateikti be susiejimo.
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Žinutė</label>
                   <textarea
                     value={requestMessage}
-                    onChange={(e) => setRequestMessage(e.target.value)}
+                    onChange={(e) => {
+                      setRequestMessage(e.target.value);
+                      setRequestError('');
+                    }}
                     rows={5}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className={`w-full rounded-lg border px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${
+                      isRequestMessageTooShort
+                        ? 'border-amber-300 bg-amber-50/50'
+                        : 'border-gray-300'
+                    }`}
                     placeholder="Aprašykite, kokio pokyčio reikia..."
                   />
+                  <div className="mt-1 flex items-center justify-between">
+                    <p
+                      className={`text-xs ${
+                        isRequestMessageTooShort ? 'text-amber-700' : 'text-gray-500'
+                      }`}
+                    >
+                      {isRequestMessageTooShort
+                        ? 'Žinutė per trumpa — įrašykite bent 12 simbolių.'
+                        : 'Kuo tiksliau aprašysite situaciją, tuo greičiau galėsime sureaguoti.'}
+                    </p>
+                    <span className="text-xs text-gray-400">
+                      {requestMessage.trim().length} simb.
+                    </span>
+                  </div>
                 </div>
+                {requestError ? (
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    {requestError}
+                  </div>
+                ) : null}
                 <button
                   type="button"
-                  disabled={submittingRequest || !requestMessage.trim()}
+                  disabled={
+                    submittingRequest ||
+                    !requestMessage.trim() ||
+                    requestMessage.trim().length < 12 ||
+                    !selectedRequestOrderExists
+                  }
                   onClick={() => {
                     void (async () => {
+                      if (!selectedRequestOrderExists) {
+                        setRequestError(
+                          'Pasirinktas užsakymas nerastas. Pasirinkite iš sąrašo dar kartą.'
+                        );
+                        return;
+                      }
+                      if (requestMessage.trim().length < 12) {
+                        setRequestError(
+                          'Prašome žinutėje nurodyti daugiau detalių (bent 12 simbolių).'
+                        );
+                        return;
+                      }
                       setSubmittingRequest(true);
                       try {
                         await submitClientPortalRequest({
@@ -870,11 +944,13 @@ export default function ClientDashboard({
                         });
                         setRequestMessage('');
                         setRequestOrderId('');
+                        setRequestError('');
                         showToast.success('Prašymas išsiųstas. Atsakysime artimiausiu metu.');
                       } catch (e) {
-                        showToast.error(
-                          e instanceof Error ? e.message : 'Nepavyko išsiųsti prašymo.'
-                        );
+                        const message =
+                          e instanceof Error ? e.message : 'Nepavyko išsiųsti prašymo.';
+                        setRequestError(message);
+                        showToast.error(message);
                       } finally {
                         setSubmittingRequest(false);
                       }
