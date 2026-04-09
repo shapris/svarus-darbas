@@ -26,6 +26,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
 import { logDevError } from '../utils/devConsole';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
+import { formatLtOrderCount } from '../utils/localeLt';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import ClientAddressAutocomplete, {
   googleMapsSearchUrl,
@@ -280,7 +281,7 @@ export default function ClientsView({ clients, orders, user: _user }: ClientsVie
                     </span>
                     <span className="text-[10px] text-slate-300">•</span>
                     <span className="text-[10px] font-bold text-blue-600">
-                      {getClientOrders(client.id).length} užsakymai
+                      {formatLtOrderCount(getClientOrders(client.id).length)}
                     </span>
                     {!isRestrictedStaff && (
                       <>

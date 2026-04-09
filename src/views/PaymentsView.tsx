@@ -25,7 +25,7 @@ import { fetchPaymentsWorkspaceData, updateInvoiceStatusInSupabase } from '../su
 import { motion } from 'motion/react';
 import { useToast } from '../hooks/useToast';
 import { generateInvoicePDF } from '../utils';
-import { formatNetworkErrorForUser } from '../utils/networkErrors';
+import { formatNetworkErrorForUser, sanitizeSupabaseErrorForDisplay } from '../utils/networkErrors';
 
 interface PaymentsViewProps {
   user: { uid: string };
@@ -175,7 +175,7 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
           className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
           role="alert"
         >
-          <p>{workspaceError}</p>
+          <p>{sanitizeSupabaseErrorForDisplay(workspaceError)}</p>
           <button
             type="button"
             onClick={() => void loadData()}

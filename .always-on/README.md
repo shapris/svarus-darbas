@@ -11,6 +11,7 @@
 | [`decisions.md`](decisions.md) | Stabilūs sprendimai („kodėl taip“) | Kai priimate architektūrinį ar produkto sprendimą |
 | [`milestones.md`](milestones.md) | Datos, release, susitikimai, išoriniai terminai | Kai atsiranda data ar įvykis vertas sekti |
 | [`improvement-backlog.md`](improvement-backlog.md) | Scout / techninė diagnostika | Automatinis arba `npm run scout:improvements` (jei yra) |
+| [`app-map.md`](app-map.md) | CRM maršrutai, komponentai, API santrauka (agentui) | Po didelių App/Layout/settings pokyčių |
 | [`improvement-state.json`](improvement-state.json) | Scout būsena (mašininis) | Automatinis |
 | [`worker.log`](worker.log) | Agentų darbo žurnalas (jei naudojamas) | Automatinis |
 

@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — Agent „penki pirštai“: app-map + Mokėjimų klaidos sanitarija + LT užsakymų skaičius
+
+- **Naršymas:** patikrinti visos CRM apačios skiltys (įskaitą Daugiau); Mokėmuose fiksuota Supabase RLS rekursijos klaida ant `workspace_memberships`.
+- **Kodas:** `.always-on/app-map.md` (maršrutai, komponentai, API); `sanitizeSupabaseErrorForDisplay` + `PaymentsView`; `formatLtOrderCount` + `ClientsView`; `tests/utils-locale-lt.test.ts`; `known-issues.md` KI-005.
+- **Patikra:** `npm run lint`, `npm test`.
+
+---
+
 ## 2026-04-09 — Realtime: viena `memories` prenumerata
 
 - **Problema:** `App.tsx` ir `ChatAssistant` abi kvietė `subscribeToData('memories', …)` — tas pats Supabase kanalas, klaida „postgres_changes … after subscribe()“.

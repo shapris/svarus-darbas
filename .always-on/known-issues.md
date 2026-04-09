@@ -85,3 +85,21 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
 - Saugiklis (testas/diagnostika):
   - `npm run verify` žalias po dependency korekcijų.
 
+---
+
+## KI-005 — `workspace_memberships` RLS: infinite recursion
+
+- Būsena: mitigated (UI) / open (DB)
+- Poveikis: P1 (Mokėjimų / sąskaitų skiltis gali neįsikrauti; baisus neapdorotas Postgres tekstas vartotojui)
+- Simptomai:
+  - Klaida panaši į: `infinite recursion detected in policy for relation "workspace_memberships"`.
+  - `PaymentsView` / `fetchPaymentsWorkspaceData` negali užbaigti užklausų.
+- Priežastis:
+  - RLS politika ant `workspace_memberships` (ar susijusių lentelių) rekursyviai tikrina tą pačią lentelę be išėjimo / be helper funkcijos su `SECURITY DEFINER`.
+- Atkūrimas:
+  - Prisijungus CRM atidaryti **Mokėjimai** su paskyra, kuri eina per workspace RLS (ne service role).
+- Sprendimas / mitigacija:
+  - **DB:** peržiūrėti migracijas (`supabase/migrations/*workspace_memberships*`, `*rls*`) ir pataisyti politikas (dažnai — atskiras `SELECT` be savęs kvietimo arba `is_workspace_member(uid)` funkcija).
+  - **UI:** `sanitizeSupabaseErrorForDisplay` (`src/utils/networkErrors.ts`) — neberodyti neapdoroto Postgres teksto.
+- Saugiklis (testas/diagnostika):
+  - Rankinis: Mokėjimai po RLS fix / regresija: `npm run test:smoke` ir lint.
