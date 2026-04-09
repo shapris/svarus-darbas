@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-10 — AI planavimo kelias ir push į `main`
+
+- **`chatWithAssistant`:** sudėtingoms užklausoms (`shouldUsePlanning`) — `executeWithPlanning` su `PlanContext` iš `assistantContextToPlanContext` (`userId`, `dataOwnerId`, klientai/užsakymai/išlaidos/atmintys).
+- **`ChatAssistant`:** `assistantDataContext` papildytas `userId` / `dataOwnerId`; `planningEngine` naudoja `executeToolDirect`.
+- **Repo:** commit `0255f11`; patikra: lint, build, unit, smoke, `test:console`, `test:invoice`.
+
+---
+
 ## 2026-04-09 — Asistentas: inventorius + Nominatim
 
 - **`get_low_inventory`:** skaito `inventory` per `getData` (workspace); sąrašas pozicijų su `quantity < minQuantity`; `toolRouter` — `dataOwnerId` / `inventory` kontekste.
