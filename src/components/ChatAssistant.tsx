@@ -27,6 +27,7 @@ import {
 } from '../services/aiService';
 import { generateSpeech, stopAllAudio } from '../services/ttsService';
 import { getOpenCodeKey, isOpenCodeKey } from '../services/opencodeService';
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { shouldSuggestMemory } from '../services/memoryPriority';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 import { Client, Order, Expense, AppSettings, Memory } from '../types';
@@ -174,9 +175,7 @@ export default function ChatAssistant({
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
 
   const checkApiKey = async () => {
-    const hasServerApiBase = !!(
-      import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
-    )?.trim();
+    const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
     if (hasServerApiBase) {
       setApiKeyProvider('opencode');
       return;
@@ -542,9 +541,7 @@ export default function ChatAssistant({
 
         // Send tool results back to get a natural language confirmation
         try {
-          const hasInvoiceApiBase = !!(
-            import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
-          )?.trim();
+          const hasInvoiceApiBase = !!getInvoiceApiBaseUrl().trim();
           const useOpenCodeSecond =
             hasInvoiceApiBase ||
             !!getOpenCodeKey() ||

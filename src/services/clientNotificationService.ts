@@ -1,4 +1,5 @@
 import { supabase, usesLocalStorageBackend } from '../supabase';
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import type { OrderStatus } from '../types';
 
 type SendOrderStatusEmailInput = {
@@ -10,15 +11,6 @@ type SendOrderStatusEmailInput = {
   date: string;
   time: string;
 };
-
-function getNotificationApiBaseUrl(): string {
-  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)
-    ?.trim()
-    .replace(/\/$/, '');
-  if (envUrl) return envUrl;
-  if (import.meta.env.DEV) return '';
-  return '';
-}
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
@@ -36,7 +28,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export async function sendOrderStatusEmail(input: SendOrderStatusEmailInput): Promise<void> {
-  const base = getNotificationApiBaseUrl();
+  const base = getInvoiceApiBaseUrl();
   const endpoint = `${base}/api/send-order-status-email`;
   const headers = await getAuthHeaders();
 

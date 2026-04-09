@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppSettings, Order, Client, INVOICE_API_STORAGE_KEY } from './types';
+import { AppSettings, Order, Client } from './types';
+import { getInvoiceApiBaseUrl } from './utils/invoiceApiBase';
 import { logDevError } from './utils/devConsole';
 import { usesLocalStorageBackend, supabase } from './supabase';
 import { jsPDF } from 'jspdf';
@@ -230,28 +231,6 @@ function downloadPdfBlob(blob: Blob, filename: string): void {
   a.rel = 'noopener';
   a.click();
   URL.revokeObjectURL(url);
-}
-
-/**
- * Tuščia eilutė DEV reiškia: naudoti `/api/...` per Vite proxy → server.cjs:3001.
- * Produkcijoje tuščia = serverio nėra – automatinis el. paštas nebandomas.
- */
-function getInvoiceApiBaseUrl(): string {
-  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)
-    ?.trim()
-    .replace(/\/$/, '');
-  if (envUrl) return envUrl;
-  try {
-    const ls =
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim()
-        : '';
-    if (ls) return ls.replace(/\/$/, '');
-  } catch {
-    /* private mode */
-  }
-  if (import.meta.env.DEV) return '';
-  return '';
 }
 
 type InvoiceHealthJson = {

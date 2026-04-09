@@ -7,6 +7,7 @@ import { GoogleGenAI, FunctionDeclaration } from '@google/genai';
 import { Order, Client, Expense, Memory } from '../types.js';
 import { prioritizeMemories, formatMemoriesForContext } from './memoryPriority.js';
 import { isOpenRouterKey, callOpenRouter, getOpenRouterKey } from './openRouterService.js';
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { callOpenCodeChatCompletions, getOpenCodeKey, isOpenCodeKey } from './opencodeService.js';
 import { ALL_TOOLS } from './toolDefinitions.js';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
@@ -591,9 +592,7 @@ export async function chatWithAssistant(
       getGeminiKeyFromEnv() ||
       '';
     const apiKey = preferredGeminiKey || fallbackApiKey;
-    const hasServerApiBase = !!(
-      import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined
-    )?.trim();
+    const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
 
     // Jei nėra kliento rakto, bet yra serverio API bazė, tęsiame:
     // OpenCode bus kviečiamas per serverio proxy (/api/ai/chat).

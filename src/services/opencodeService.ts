@@ -1,15 +1,11 @@
 import type { FunctionDeclaration } from '@google/genai';
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { convertToOpenAITool } from './openRouterService';
 
 export type OpenCodeVariant = 'go' | 'zen';
 
 function getApiBaseUrl(): string {
-  // Render API base (Vercel prod) — toks pats principas kaip invoice/client portal API.
-  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)
-    ?.trim()
-    .replace(/\/$/, '');
-  if (envUrl) return envUrl;
-  return '';
+  return getInvoiceApiBaseUrl();
 }
 
 export function isOpenCodeKey(key: string): boolean {
@@ -113,7 +109,7 @@ export async function callOpenCodeChatCompletions(args: {
   if (!apiKey) {
     throw new Error(
       'OpenCode API raktas nerastas kliente, o serverio API bazė nesukonfigūruota. ' +
-        'Nustatykite VITE_INVOICE_API_BASE_URL (produkcinis kelias) arba įveskite raktą lokaliai.'
+        'Produkcijoje nustatykite VITE_INVOICE_API_BASE_URL arba įveskite sk- raktą nustatymuose; lokaliai — dev proxy arba raktas.'
     );
   }
 

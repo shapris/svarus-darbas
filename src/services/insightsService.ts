@@ -9,6 +9,7 @@ import {
 } from './opencodeService';
 import { isOpenRouterKey, callOpenRouter } from './openRouterService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 
 export type DashboardInsightId = 'memory' | 'market' | 'operations';
 
@@ -453,6 +454,12 @@ export async function getBusinessInsights(
     if (fromOpenCode) {
       lastInsightsSource = 'ai';
       return fromOpenCode;
+    }
+
+    // Kai AI eina per Render (env arba žinomas Vercel host), OpenCode nepavykus nebekalbėti Gemini iš kliento — išvengiama 429 triukšmo.
+    if (getInvoiceApiBaseUrl().trim()) {
+      lastInsightsSource = 'fallback';
+      return fallback;
     }
 
     const fromGemini = await runGeminiInsights();

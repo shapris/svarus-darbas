@@ -1,13 +1,5 @@
 import { supabase, usesLocalStorageBackend } from '../supabase';
-
-function getApiBaseUrl(): string {
-  const envUrl = (import.meta.env.VITE_INVOICE_API_BASE_URL as string | undefined)
-    ?.trim()
-    .replace(/\/$/, '');
-  if (envUrl) return envUrl;
-  if (import.meta.env.DEV) return '';
-  return '';
-}
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
@@ -24,7 +16,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export async function updateClientPortalPhone(phone: string): Promise<void> {
-  const base = getApiBaseUrl();
+  const base = getInvoiceApiBaseUrl();
   const res = await fetch(`${base}/api/client-update-phone`, {
     method: 'POST',
     headers: await getAuthHeaders(),
@@ -52,7 +44,7 @@ export async function submitClientPortalRequest(input: {
   category: ClientPortalRequestCategory;
   order_id?: string;
 }): Promise<void> {
-  const base = getApiBaseUrl();
+  const base = getInvoiceApiBaseUrl();
   const res = await fetch(`${base}/api/client-service-request`, {
     method: 'POST',
     headers: await getAuthHeaders(),
@@ -69,7 +61,7 @@ export async function submitClientPortalRequest(input: {
 }
 
 export async function getClientPortalRequestHistory(): Promise<ClientPortalRequestHistoryItem[]> {
-  const base = getApiBaseUrl();
+  const base = getInvoiceApiBaseUrl();
   const res = await fetch(`${base}/api/client-service-requests`, {
     method: 'GET',
     headers: await getAuthHeaders(),
