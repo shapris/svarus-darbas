@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-09 — Realtime: viena `memories` prenumerata
+
+- **Problema:** `App.tsx` ir `ChatAssistant` abi kvietė `subscribeToData('memories', …)` — tas pats Supabase kanalas, klaida „postgres_changes … after subscribe()“.
+- **Sprendimas:** `ChatAssistant` gauna `memories` / `setMemories` props iš `App`, antra prenumerata pašalinta.
+- **Patikra:** `npm run verify`; push `main` (`c2a3483`).
+
+---
+
 ## 2026-04-08 — S5: incident -> test šablonas (QA)
 
 - **Implementacija:** pridėtas greitas vadovas `docs/INCIDENT_TEST_TEMPLATE.md` ir šabloninis kontraktinis testas `tests/templates/incident-contract.template.ts`.
