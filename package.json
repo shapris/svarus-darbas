@@ -34,6 +34,7 @@
     "test:console:headed": "playwright test tests/console-no-errors.spec.ts --headed",
     "test:console:ui": "playwright test tests/console-no-errors.spec.ts --ui",
     "test:invoice": "playwright test tests/invoice-health.spec.ts",
+    "test:journey": "playwright test tests/user-journey.spec.ts",
     "test:legacy-memory": "node --import tsx src/services/test-memory.ts",
     "scout:improvements": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/improvement-scout.ps1\"",
     "dev:chrome": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/dev-open-chrome.ps1\"",

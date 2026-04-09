@@ -10,6 +10,7 @@
 - Pilnas vartai: lint → build → unit → keli Playwright → **`npm run free-ports`** → `test:offline-crm`.
 - **`free-ports`** (`scripts/free-dev-ports.mjs`, priklausomybė `kill-port`) atlaisvina 4173 / 3001 / 5173 prieš paskutinį E2E, kad Windows’e rečiau strigtų keli Playwright `webServer` paleidimai iš eilės.
 - Jei lokaliai vis tiek stringa: **`npm run verify:local`** (pradžioje `dev:kill` tik PowerShell / 3001+5173+4173).
+- Papildomas E2E (neįeina į `verify`): **`npm run test:journey`** — pilnas offline CRM maršrutas per skiltis + kliento portalas (`tests/user-journey.spec.ts`).
 
 ## Kas ketvirtį
 

@@ -4,6 +4,12 @@
 
 ---
 
+## 2026-04-09 — npm script `test:journey`
+
+- Pridėta **`npm run test:journey`** → `tests/user-journey.spec.ts` (offline CRM maršrutas); paleista — žalia; `PERIODIC_MAINTENANCE.md` papildyta nuoroda.
+
+---
+
 ## 2026-04-09 — Docs: `verify` + `free-ports` periodinėje priežiūroje
 
 - **`docs/PERIODIC_MAINTENANCE.md`:** skyrius apie `verify` grandinę ir `verify:local`; `npm run verify` vėl žalia.
