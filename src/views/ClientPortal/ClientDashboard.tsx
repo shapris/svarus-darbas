@@ -1007,9 +1007,23 @@ export default function ClientDashboard({
                 </button>
 
                 <div className="mt-6 border-t border-gray-100 pt-4">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                    Paskutiniai mano prašymai
-                  </h3>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Paskutiniai mano prašymai
+                    </h3>
+                    {requestHistory.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRequestHistory([]);
+                          showToast.success('Prašymų istorija išvalyta šioje naršyklėje.');
+                        }}
+                        className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
+                      >
+                        Išvalyti istoriją
+                      </button>
+                    ) : null}
+                  </div>
                   {requestHistory.length === 0 ? (
                     <p className="text-xs text-gray-500">
                       Dar neturite išsiųstų prašymų šioje naršyklėje.
