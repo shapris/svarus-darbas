@@ -29,7 +29,7 @@ import { generateSpeech, stopAllAudio } from '../services/ttsService';
 import { shouldSuggestMemory } from '../services/memoryPriority';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 import { Client, Order, Expense, AppSettings, Memory } from '../types';
-import { addData, subscribeToData, TABLES } from '../supabase';
+import { addData, TABLES } from '../supabase';
 
 import ReactMarkdown from 'react-markdown';
 import { useToast } from '../hooks/useToast';
@@ -63,6 +63,9 @@ interface ChatAssistantProps {
   orders: Order[];
   expenses: Expense[];
   settings: AppSettings;
+  /** AI „memories“ sinchronizuojami su App.tsx (viena realtime prenumerata — be Supabase kanalo konflikto). */
+  memories: Memory[];
+  setMemories: React.Dispatch<React.SetStateAction<Memory[]>>;
   /** Aktyvi CRM skiltis — rodoma asistente ir perduodama AI kaip kontekstas */
   activeTab: string;
 }
@@ -73,6 +76,8 @@ export default function ChatAssistant({
   orders,
   expenses,
   settings,
+  memories,
+  setMemories,
   activeTab,
 }: ChatAssistantProps) {
   const { dataOwnerId, authUid } = useCrmWorkspace();
@@ -116,7 +121,6 @@ export default function ChatAssistant({
       return [];
     }
   });
-  const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAiOffline, setIsAiOffline] = useState(false);
@@ -233,20 +237,14 @@ export default function ChatAssistant({
   };
 
   useEffect(() => {
-    checkApiKey();
-
-    const unsubscribe = subscribeToData<Memory>('memories', dataOwnerId, (data) => {
-      setMemories(data);
-    });
-
+    void checkApiKey();
     return () => {
-      unsubscribe();
       stopSpeaking();
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
     };
-  }, [user.uid, dataOwnerId]);
+  }, [user.uid]);
 
   useEffect(() => {
     try {
@@ -433,7 +431,7 @@ export default function ChatAssistant({
         isRestrictedStaff,
         setMemories,
       }),
-    [user, dataOwnerId, clients, orders, expenses, settings, isRestrictedStaff]
+    [user, dataOwnerId, clients, orders, expenses, settings, isRestrictedStaff, setMemories]
   );
 
   const handleOpenKeySelector = async () => {

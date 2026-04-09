@@ -1081,6 +1081,8 @@ export default function App() {
                     orders={orders}
                     expenses={expenses}
                     settings={settings}
+                    memories={memories}
+                    setMemories={setMemories}
                     activeTab={activeTab}
                   />
                 </Suspense>
