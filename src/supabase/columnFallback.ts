@@ -23,8 +23,11 @@ export function recordMissingColumn(tableName: string, col: string) {
 
 export function extractMissingColumnFromPgError(error: PgLikeError): string | null {
   const msg = String(error?.message ?? '');
-  const match = msg.match(/Could not find the '([^']+)' column/i);
-  return match?.[1] ?? null;
+  let match = msg.match(/Could not find the '([^']+)' column/i);
+  if (match?.[1]) return match[1];
+  match = msg.match(/column "([^"]+)" does not exist/i);
+  if (match?.[1]) return match[1];
+  return null;
 }
 
 export async function insertWithColumnFallback(

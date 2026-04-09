@@ -44,23 +44,23 @@ export async function fetchOwnerScopedRowsRaw(
     return (data || []) as Record<string, unknown>[];
   }
 
-  /** Senose lentelėse (pvz. employees) gali būti `createdAt`, ne `created_at` — kitaip GET 400. */
+  /**
+   * Senose lentelėse (pvz. employees) gali būti `createdAt`, ne `created_at`.
+   * PostgREST kartais grąžina 400 be PGRST204 — vis tiek bandoma createdAt ir be order.
+   */
   const selectOrdered = async (column: 'owner_id' | 'uid') => {
     const base = () => supabase.from(tableName).select('*').eq(column, userId);
     let res = await base().order('created_at', { ascending: false });
-    if (
-      res.error?.code === 'PGRST204' &&
-      extractMissingColumnFromPgError(res.error) === 'created_at'
-    ) {
-      res = await base().order('createdAt', { ascending: false });
-    }
-    if (
-      res.error?.code === 'PGRST204' &&
-      extractMissingColumnFromPgError(res.error) === 'createdAt'
-    ) {
-      res = await base();
-    }
-    return res;
+    if (!res.error) return res;
+    const miss0 = extractMissingColumnFromPgError(res.error);
+    if (res.error?.code === 'PGRST204' && miss0 === 'owner_id') return res;
+
+    res = await base().order('createdAt', { ascending: false });
+    if (!res.error) return res;
+    const miss1 = extractMissingColumnFromPgError(res.error);
+    if (res.error?.code === 'PGRST204' && miss1 === 'owner_id') return res;
+
+    return await base();
   };
 
   const { data: d1, error: e1 } = await selectOrdered('owner_id');
