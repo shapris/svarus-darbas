@@ -9,6 +9,11 @@ export function clearResolvedOwnerScopeCache() {
   resolvedOwnerScopeColumn = {};
 }
 
+/** Po sėkmingo įrašymo su žinomu stulpeliu (pvz. employees legacy `uid`). */
+export function setResolvedOwnerScopeForTable(tableName: string, column: 'owner_id' | 'uid'): void {
+  resolvedOwnerScopeColumn[tableName] = column;
+}
+
 /** RLS / filtravimui: kur saugomas savininkas (`profiles` → uid uuid). */
 export function ownerScopeColumn(tableName: string): 'uid' | 'owner_id' {
   if (tableName === TABLES.PROFILES || tableName === 'profiles') return 'uid';

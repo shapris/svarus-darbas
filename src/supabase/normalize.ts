@@ -2,6 +2,7 @@ import {
   DEFAULT_SETTINGS,
   type AppSettings,
   type Client,
+  type Employee,
   type Invoice,
   type Memory,
   type Order,
@@ -171,6 +172,25 @@ export function normalizeNullableId(v: unknown): string | null {
 
 const ORDER_EMPLOYEE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Senoji schema: `uid` + `isActive`; nauja — `owner_id` + `is_active`. */
+export function normalizeEmployeeFromDb(row: Record<string, unknown>): Employee {
+  const owner =
+    row.owner_id != null ? String(row.owner_id) : row.uid != null ? String(row.uid) : '';
+  return {
+    id: String(row.id ?? ''),
+    name: String(row.name ?? ''),
+    phone: String(row.phone ?? ''),
+    color: String(row.color ?? '#3b82f6'),
+    isActive:
+      row.is_active != null
+        ? Boolean(row.is_active)
+        : row.isActive != null
+          ? Boolean(row.isActive)
+          : true,
+    uid: owner,
+  };
+}
 
 export function normalizeEmployeeIdForOrderDb(v: unknown): string | null {
   const n = normalizeNullableId(v);

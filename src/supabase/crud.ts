@@ -7,13 +7,18 @@ import {
 } from '../localDb';
 import type { DatabaseRecord } from './dbTypes';
 import { supabase, needsBackendSetup, usesLocalStorageBackend } from './client';
-import { insertWithColumnFallback, updateWithColumnFallback } from './columnFallback';
+import {
+  extractMissingColumnFromPgError,
+  insertWithColumnFallback,
+  updateWithColumnFallback,
+} from './columnFallback';
 import { DEBUG_SUPABASE, logSupabaseDevError } from './logging';
 import {
   coerceBuildingType,
   coerceOrderDateForDbWrite,
   getOrderStatusDbCandidates,
   normalizeClientFromDb,
+  normalizeEmployeeFromDb,
   normalizeMemoryFromDb,
   normalizeOrderFromDb,
   normalizeSettingsFromDb,
@@ -27,7 +32,9 @@ import {
   fetchOwnerScopedRowsRaw,
   getEffectiveOwnerScopeColumn,
   ownerScopeColumn,
+  setResolvedOwnerScopeForTable,
 } from './ownerScope';
+import { TABLES } from './constants';
 import { ordersSchemaState } from './ordersSchema';
 
 export async function getData<T extends DatabaseRecord>(
@@ -72,6 +79,11 @@ export async function getData<T extends DatabaseRecord>(
       normalizeSettingsFromDb(r)
     ) as unknown as T[];
   }
+  if (tableName === TABLES.EMPLOYEES) {
+    return (rows as Record<string, unknown>[]).map((r) =>
+      normalizeEmployeeFromDb(r)
+    ) as unknown as T[];
+  }
   return rows as T[];
 }
 
@@ -100,6 +112,9 @@ export async function getDataById<T extends DatabaseRecord>(
   }
   if (tableName === 'orders' && data) {
     return normalizeOrderFromDb(data as Record<string, unknown>) as unknown as T;
+  }
+  if (tableName === TABLES.EMPLOYEES && data) {
+    return normalizeEmployeeFromDb(data as Record<string, unknown>) as unknown as T;
   }
   return data;
 }
@@ -268,6 +283,64 @@ export async function addData<T extends Record<string, unknown>>(
     return data as T;
   }
 
+  if (tableName === TABLES.EMPLOYEES) {
+    const e = item as Record<string, unknown>;
+    const name = String(e.name ?? '').trim();
+    const phone = String(e.phone ?? '');
+    const color = String(e.color ?? '#3b82f6');
+    const isActive = Boolean(e.isActive ?? e.is_active ?? true);
+
+    const modernInsert: Record<string, unknown> = {
+      name,
+      phone,
+      color,
+      is_active: isActive,
+      owner_id: userId,
+    };
+
+    let data: unknown = null;
+    let err: PgLikeError = null;
+
+    const first = await supabase.from('employees').insert(modernInsert).select().single();
+    data = first.data;
+    err = first.error as PgLikeError;
+
+    if (err) {
+      const missing = extractMissingColumnFromPgError(err);
+      const code = err?.code;
+      const msg = String(err?.message ?? '');
+      // Bet koks trūkstamas stulpelis (PGRST204) ar aiškus „column“ pranešimas → bandoma senoji uid + isActive schema
+      const tryLegacy =
+        code === 'PGRST204' || missing != null || /Could not find the '[^']+' column/i.test(msg);
+      if (tryLegacy) {
+        const legacyInsert: Record<string, unknown> = {
+          uid: userId,
+          name,
+          phone,
+          color,
+          isActive,
+        };
+        const fb = await insertWithColumnFallback('employees', legacyInsert);
+        data = fb.data;
+        err = fb.error;
+        if (!err) {
+          setResolvedOwnerScopeForTable(TABLES.EMPLOYEES, 'uid');
+        }
+      }
+    } else {
+      setResolvedOwnerScopeForTable(TABLES.EMPLOYEES, 'owner_id');
+    }
+
+    if (err) {
+      logSupabaseDevError(
+        `addData(employees): ${err.message || err.code}`,
+        err as unknown as Error
+      );
+      throw err;
+    }
+    return normalizeEmployeeFromDb(data as Record<string, unknown>) as unknown as T;
+  }
+
   const snakeItem: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(item)) {
     if (key === 'uid' || key === 'owner_id') {
@@ -368,6 +441,33 @@ export async function updateData<T extends Record<string, unknown>>(
     if (error) {
       logSupabaseDevError('updateData(clients)', error);
       throw error;
+    }
+    return;
+  }
+  if (tableName === TABLES.EMPLOYEES) {
+    const u = updates as Record<string, unknown>;
+    const modern: Record<string, unknown> = {};
+    if (u.name !== undefined) modern.name = u.name;
+    if (u.phone !== undefined) modern.phone = u.phone;
+    if (u.color !== undefined) modern.color = u.color;
+    if (u.isActive !== undefined) modern.is_active = u.isActive;
+    if (u.is_active !== undefined) modern.is_active = u.is_active;
+    if (Object.keys(modern).length === 0) return;
+    modern.updated_at = new Date().toISOString();
+
+    let err = await updateWithColumnFallback('employees', id, modern);
+    if (!err) return;
+
+    const legacy: Record<string, unknown> = {};
+    if (u.name !== undefined) legacy.name = u.name;
+    if (u.phone !== undefined) legacy.phone = u.phone;
+    if (u.color !== undefined) legacy.color = u.color;
+    if (u.isActive !== undefined) legacy.isActive = u.isActive;
+    legacy.updatedAt = new Date().toISOString();
+    err = await updateWithColumnFallback('employees', id, legacy);
+    if (err) {
+      logSupabaseDevError('updateData(employees)', err);
+      throw err;
     }
     return;
   }

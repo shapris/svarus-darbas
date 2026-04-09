@@ -63,8 +63,10 @@ export default function TeamView({ employees }: TeamViewProps) {
       setIsAdding(false);
       setEditingId(null);
       setFormData({ name: '', phone: '', color: COLORS[0], isActive: true });
-    } catch {
-      showToast.error('Klaida išsaugant darbuotoją');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const short = msg.length > 120 ? `${msg.slice(0, 117)}…` : msg;
+      showToast.error(short ? `Nepavyko išsaugoti: ${short}` : 'Klaida išsaugant darbuotoją');
     }
   };
 
