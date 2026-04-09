@@ -315,6 +315,7 @@ export async function addData<T extends Record<string, unknown>>(
       if (tryLegacy) {
         const legacyInsert: Record<string, unknown> = {
           uid: userId,
+          owner_id: userId,
           name,
           phone,
           color,
