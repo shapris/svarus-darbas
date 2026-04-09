@@ -1323,6 +1323,12 @@ app.post('/api/client-service-request', async (req, res) => {
     status: 'logged',
     sent_at: null,
     error: null,
+    payload: {
+      message,
+      category,
+      source: 'client_portal',
+      created_by_uid: String(context.user?.id || ''),
+    },
   };
 
   try {
@@ -1353,6 +1359,52 @@ app.post('/api/client-service-request', async (req, res) => {
   }
 
   return res.json({ ok: true });
+});
+
+app.get('/api/client-service-requests', async (req, res) => {
+  const context = await getRequestContext(req, res);
+  if (!context) return;
+  const role = String(context.profile?.role || '');
+  if (role !== 'client') {
+    return res.status(403).json({ error: 'Prieinama tik klientų portalo paskyroms.' });
+  }
+  const clientId = normalizeId(context.profile?.client_id);
+  if (!clientId) {
+    return res.status(400).json({ error: 'Profilis nesusietas su kliento kortele.' });
+  }
+  if (!paymentsDbAvailable()) {
+    return res.json([]);
+  }
+
+  const { data, error } = await paymentsDb
+    .from('notification_events')
+    .select('id,order_id,type,status,created_at,payload')
+    .eq('client_id', clientId)
+    .eq('channel', 'portal')
+    .like('type', 'client_portal_%')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    return res.status(500).json({ error: error.message || 'Nepavyko gauti prašymų.' });
+  }
+
+  const rows = (data || []).map((row) => {
+    const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+    const categoryFromType = String(row.type || '').replace(/^client_portal_/, '') || 'other';
+    const category = String(payload.category || categoryFromType || 'other')
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '');
+    return {
+      id: String(row.id || ''),
+      order_id: normalizeId(row.order_id) || null,
+      category,
+      message: String(payload.message || '').slice(0, 4000),
+      status: String(row.status || 'logged'),
+      created_at: row.created_at ? String(row.created_at) : new Date().toISOString(),
+    };
+  });
+
+  return res.json(rows);
 });
 
 // Create payment intent

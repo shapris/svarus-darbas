@@ -38,6 +38,15 @@ export async function updateClientPortalPhone(phone: string): Promise<void> {
 
 export type ClientPortalRequestCategory = 'reschedule' | 'cancel' | 'other';
 
+export interface ClientPortalRequestHistoryItem {
+  id: string;
+  createdAt: string;
+  category: ClientPortalRequestCategory;
+  message: string;
+  orderId?: string;
+  status?: string;
+}
+
 export async function submitClientPortalRequest(input: {
   message: string;
   category: ClientPortalRequestCategory;
@@ -57,4 +66,42 @@ export async function submitClientPortalRequest(input: {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(data.error || 'Nepavyko išsiųsti prašymo.');
   }
+}
+
+export async function getClientPortalRequestHistory(): Promise<ClientPortalRequestHistoryItem[]> {
+  const base = getApiBaseUrl();
+  const res = await fetch(`${base}/api/client-service-requests`, {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || 'Nepavyko gauti prašymų istorijos.');
+  }
+  const rows = (await res.json().catch(() => [])) as Array<{
+    id?: string;
+    created_at?: string;
+    category?: string;
+    message?: string;
+    order_id?: string | null;
+    status?: string;
+  }>;
+
+  const parseCategory = (value: string | undefined): ClientPortalRequestCategory => {
+    if (value === 'reschedule' || value === 'cancel' || value === 'other') return value;
+    return 'other';
+  };
+
+  return rows
+    .map(
+      (row): ClientPortalRequestHistoryItem => ({
+        id: String(row.id || ''),
+        createdAt: String(row.created_at || ''),
+        category: parseCategory(row.category),
+        message: String(row.message || ''),
+        orderId: row.order_id ? String(row.order_id) : undefined,
+        status: row.status ? String(row.status) : undefined,
+      })
+    )
+    .filter((row) => row.id.length > 0 && row.message.length > 0);
 }

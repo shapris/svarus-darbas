@@ -149,7 +149,7 @@ function googleMapsBrowserKeyLooksValid(v) {
   const s = String(v).trim();
   if (s.length < 24 || /\s/.test(s) || /[<>'"]/.test(s)) return false;
   if (s.startsWith('AIza')) return true;
-  return /^[A-Za-z0-9._\-]{32,}$/.test(s);
+  return /^[A-Za-z0-9._-]{32,}$/.test(s);
 }
 
 function assertValidOptionalForSync(key, value) {

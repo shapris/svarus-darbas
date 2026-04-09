@@ -33,8 +33,10 @@ import {
 } from '../../services/paymentService';
 import { useToast } from '../../hooks/useToast';
 import {
+  getClientPortalRequestHistory,
   submitClientPortalRequest,
   updateClientPortalPhone,
+  type ClientPortalRequestHistoryItem,
   type ClientPortalRequestCategory,
 } from '../../services/clientPortalApi';
 import { formatNetworkErrorForUser } from '../../utils/networkErrors';
@@ -45,14 +47,6 @@ interface ClientDashboardProps {
   settings?: AppSettings;
   onLogout: () => void;
   onProfileRefresh?: () => void | Promise<void>;
-}
-
-interface ClientPortalRequestHistoryItem {
-  id: string;
-  createdAt: string;
-  category: ClientPortalRequestCategory;
-  message: string;
-  orderId?: string;
 }
 
 export default function ClientDashboard({
@@ -81,6 +75,7 @@ export default function ClientDashboard({
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [requestError, setRequestError] = useState('');
   const [requestHistory, setRequestHistory] = useState<ClientPortalRequestHistoryItem[]>([]);
+  const [loadingRequestHistory, setLoadingRequestHistory] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -127,10 +122,36 @@ export default function ClientDashboard({
     }
   }, [profile.clientId, showToast]);
 
+  const loadRequestHistory = useCallback(async () => {
+    if (!profile.clientId) {
+      setRequestHistory([]);
+      return;
+    }
+    setLoadingRequestHistory(true);
+    try {
+      const rows = await getClientPortalRequestHistory();
+      setRequestHistory(rows.slice(0, 15));
+    } catch {
+      // fallback to local cache when API temporarily unavailable
+      const key = `client_portal_requests_${profile.uid}`;
+      try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const parsed = JSON.parse(raw) as ClientPortalRequestHistoryItem[];
+        if (Array.isArray(parsed)) setRequestHistory(parsed.slice(0, 15));
+      } catch {
+        /* ignore local fallback errors */
+      }
+    } finally {
+      setLoadingRequestHistory(false);
+    }
+  }, [profile.clientId, profile.uid]);
+
   useEffect(() => {
     void loadOrders();
     void loadPayments();
-  }, [loadOrders, loadPayments]);
+    void loadRequestHistory();
+  }, [loadOrders, loadPayments, loadRequestHistory]);
 
   useEffect(() => {
     setPhoneEdit(profile.phone || '');
@@ -157,18 +178,6 @@ export default function ClientDashboard({
       /* ignore storage errors */
     }
   }, [notifications, profile.uid]);
-
-  useEffect(() => {
-    const key = `client_portal_requests_${profile.uid}`;
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as ClientPortalRequestHistoryItem[];
-      if (Array.isArray(parsed)) setRequestHistory(parsed.slice(0, 15));
-    } catch {
-      /* ignore JSON errors */
-    }
-  }, [profile.uid]);
 
   useEffect(() => {
     const key = `client_portal_requests_${profile.uid}`;
@@ -986,6 +995,7 @@ export default function ClientDashboard({
                           orderId: requestOrderId || undefined,
                         };
                         setRequestHistory((prev) => [newItem, ...prev].slice(0, 15));
+                        void loadRequestHistory();
                         setRequestMessage('');
                         setRequestOrderId('');
                         setRequestError('');
@@ -1011,23 +1021,18 @@ export default function ClientDashboard({
                     <h3 className="text-sm font-semibold text-gray-900">
                       Paskutiniai mano prašymai
                     </h3>
-                    {requestHistory.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRequestHistory([]);
-                          showToast.success('Prašymų istorija išvalyta šioje naršyklėje.');
-                        }}
-                        className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
-                      >
-                        Išvalyti istoriją
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => void loadRequestHistory()}
+                      className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
+                    >
+                      Atnaujinti
+                    </button>
                   </div>
-                  {requestHistory.length === 0 ? (
-                    <p className="text-xs text-gray-500">
-                      Dar neturite išsiųstų prašymų šioje naršyklėje.
-                    </p>
+                  {loadingRequestHistory ? (
+                    <p className="text-xs text-gray-500">Kraunama prašymų istorija…</p>
+                  ) : requestHistory.length === 0 ? (
+                    <p className="text-xs text-gray-500">Dar neturite išsiųstų prašymų.</p>
                   ) : (
                     <div className="space-y-2">
                       {requestHistory.map((item) => (

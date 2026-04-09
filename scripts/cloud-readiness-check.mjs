@@ -64,7 +64,7 @@ function googleMapsBrowserKeyLooksValid(v) {
   /* Klasikiniai „AIza…“ ir naujesni Google raktai (pvz. AQ.… su tašku po priedėlio) */
   if (s.length < 24 || /\s/.test(s) || /[<>'"]/.test(s)) return false;
   if (s.startsWith('AIza')) return true;
-  return /^[A-Za-z0-9._\-]{32,}$/.test(s);
+  return /^[A-Za-z0-9._-]{32,}$/.test(s);
 }
 
 function printStripePublishableRow(envFile) {
