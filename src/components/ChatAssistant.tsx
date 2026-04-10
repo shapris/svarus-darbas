@@ -900,6 +900,11 @@ export default function ChatAssistant({
         }
       }
 
+      if (toolCalls?.length && !String(finalResponse ?? '').trim()) {
+        finalResponse =
+          'Įrankiai vykdyti, bet atsakymo tekstas nebuvo sugeneruotas. Bandykite trumpai pakartoti klausimą arba atnaujinkite puslapį.';
+      }
+
       if (finalResponse) {
         setMessages((prev) => [
           ...prev,

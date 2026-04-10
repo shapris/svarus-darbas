@@ -15,6 +15,13 @@ import { logDevError } from '../utils/devConsole.js';
 import { classifyIntentHybrid } from './hybridClassifier.js';
 import { executeWithPlanning, shouldUsePlanning, type PlanContext } from './planningEngine.js';
 
+/**
+ * Po įrankių vykdymo antras OpenCode/OpenRouter ratas kviečiamas su tuščia žinute;
+ * be explicit user eilutės API ne visada grąžina tekstą — pokalbis „nutyla“.
+ */
+const TOOL_FOLLOWUP_USER_PROMPT_LT =
+  'Remiantis aukščiau pateiktais įrankių (funkcijų) rezultatais, parašyk galutinį, aiškų atsakymą vartotojui lietuvių kalba. Apibendrink skaičius sakiniais.';
+
 /** OpenAI/OpenRouter expects `function.arguments` as a JSON string. */
 function toolArgumentsAsJsonString(raw: unknown): string {
   if (raw == null) return '{}';
@@ -472,7 +479,8 @@ async function runOpenCodeAssistantChat(
     }
   }
 
-  if (message) messages.push({ role: 'user', content: message });
+  const userRoundMessage = message?.trim() ? message : TOOL_FOLLOWUP_USER_PROMPT_LT;
+  messages.push({ role: 'user', content: userRoundMessage });
 
   const raw = await callOpenCodeChatCompletions({ messages, tools });
   const result = raw as { choices?: Array<{ message?: OpenCodeChoiceMessage }> };
@@ -493,7 +501,7 @@ async function runOpenCodeAssistantChat(
     functionCalls,
     history: [
       ...history,
-      { role: 'user', parts: [{ text: message }] },
+      { role: 'user', parts: [{ text: userRoundMessage }] },
       { role: 'model', parts: [{ text: choice.content || '' }] },
     ],
   };
@@ -545,9 +553,8 @@ async function runOpenRouterAssistantChat(
     }
   }
 
-  if (message) {
-    messages.push({ role: 'user', content: message });
-  }
+  const userRoundMessage = message?.trim() ? message : TOOL_FOLLOWUP_USER_PROMPT_LT;
+  messages.push({ role: 'user', content: userRoundMessage });
 
   const result = await callOpenRouter('free-auto', messages, tools);
   if (!result.choices || result.choices.length === 0) {
@@ -577,7 +584,7 @@ async function runOpenRouterAssistantChat(
     functionCalls,
     history: [
       ...history,
-      { role: 'user', parts: [{ text: message }] },
+      { role: 'user', parts: [{ text: userRoundMessage }] },
       { role: 'model', parts: [{ text: choice.content || '' }] },
     ],
   };
