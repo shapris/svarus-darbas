@@ -11,6 +11,14 @@
 
 ---
 
+## 2026-04-10 — P20: negalima priskirti darbuotojo (gamyba / legacy `employeeId`)
+
+- **Priežastis:** jei DB neturi `employee_id`, o tik `"employeeId"`, `updateWithColumnFallback` išmesdavo stulpelį ir „sėkmingai“ atnaujindavo tik `updated_at` — priskyrimas neįrašytas.
+- **Sprendimas:** `columnFallback.ts` atmeta tokius tuščius UPDATE; `crud` legacy kelias gali įrašyti `employeeId`. `normalize.ts` — platesnis UUID raštas. `OrdersView` — aiškesnė klaida toast’e.
+- **Patikra:** `npm run verify:local` žalia.
+
+---
+
 ## 2026-04-10 — P18: Playwright E2E pakartojimas (verify)
 
 - **`scripts/retry-cmd.mjs`:** iki N bandymų; `package.json` — `test:smoke`, `test:console`, `test:invoice`, `test:offline-crm` per `npx playwright` su 2 bandymais (Windows `webServer` / libuv).

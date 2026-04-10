@@ -244,6 +244,14 @@
 
 ---
 
+## P20 — gamyba: darbuotojo priskyrimas užsakymui
+
+- [x] **UPDATE „tuščias“ po missing-column cache:** `updateWithColumnFallback` nebeprisiima sėkmės, jei po precache/column-drop liko tik `updated_at` — leidžia pereiti į legacy `employeeId` kelią (senoji DB schema). *2026-04-10*
+- [x] **`employee_id` UUID normalizavimas:** `normalizeEmployeeIdForOrderDb` — pilnas hex UUID (ne tik siauras RFC v4 regex). *2026-04-10*
+- [x] **UX:** `OrdersView` toast rodo Supabase/tinklo klaidą per `formatNetworkErrorForUser`. *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -296,5 +304,6 @@
 | 2026-04-10 | P17 CI verify PR | `ci.yml`: `verify` paleidžiamas ir `pull_request`, ne tik `main` push. |
 | 2026-04-10 | P18 E2E retry | `retry-cmd.mjs`; keturi `test:*` Playwright skriptai su 2 bandymais. |
 | 2026-04-10 | P19 employees RLS migracija | Idempotentiškumas: `DROP POLICY IF EXISTS employees_workspace_org_all` + `ENABLE RLS`; `RLS_SUMMARY` papildytas kanonine migracija. |
+| 2026-04-10 | P20 priskyrimas užsakymui | `columnFallback` + UUID regex + `OrdersView` klaidos toast; unit testas `normalize-order-employee.test.ts`. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

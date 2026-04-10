@@ -3,6 +3,13 @@ import type { PgLikeError } from './normalize';
 
 const tableMissingColumnsCache = new Map<string, Set<string>>();
 
+/** Stulpeliai, kurių „išmetimas“ iš UPDATE vis dar laikomas „tuščiu“ atnaujinimu. */
+const UPDATE_META_KEYS = new Set(['updated_at']);
+
+function countNonMetaUpdateKeys(payload: Record<string, unknown>): number {
+  return Object.keys(payload).filter((k) => !UPDATE_META_KEYS.has(k)).length;
+}
+
 export function precacheRemoveMissingColumns(tableName: string, payload: Record<string, unknown>) {
   const set = tableMissingColumnsCache.get(tableName);
   if (!set) return;
@@ -59,7 +66,15 @@ export async function updateWithColumnFallback(
   initialPayload: Record<string, unknown>
 ): Promise<PgLikeError> {
   const payload: Record<string, unknown> = { ...initialPayload };
+  const initialDataKeys = countNonMetaUpdateKeys(initialPayload);
   precacheRemoveMissingColumns(tableName, payload);
+  if (countNonMetaUpdateKeys(payload) === 0 && initialDataKeys > 0) {
+    return {
+      code: 'PGRST204',
+      message:
+        'Could not find a column from the update payload in the schema cache (all data columns were skipped).',
+    };
+  }
   let attempts = 0;
   while (attempts < 12) {
     attempts += 1;
@@ -73,6 +88,13 @@ export async function updateWithColumnFallback(
       recordMissingColumn(tableName, missing);
     }
     delete payload[missing];
+    if (countNonMetaUpdateKeys(payload) === 0 && initialDataKeys > 0) {
+      return {
+        code: 'PGRST204',
+        message:
+          'Could not find a column from the update payload in the schema cache (all data columns were skipped).',
+      };
+    }
   }
   return { code: 'PGRST204', message: 'Too many missing-column retries' };
 }

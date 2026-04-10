@@ -170,8 +170,8 @@ export function normalizeNullableId(v: unknown): string | null {
   return s ? s : null;
 }
 
-const ORDER_EMPLOYEE_UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** Postgres `uuid` ir `gen_random_uuid()::text` — pilnas hex UUID (ne tik RFC „v4“ variantas). */
+const ORDER_EMPLOYEE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Senoji schema: `uid` + `isActive`; nauja — `owner_id` + `is_active`. */
 export function normalizeEmployeeFromDb(row: Record<string, unknown>): Employee {

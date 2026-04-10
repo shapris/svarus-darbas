@@ -18,6 +18,7 @@ import {
 } from '../utils';
 import { sendOrderStatusEmail } from '../services/clientNotificationService';
 import { useToast } from '../hooks/useToast';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import { Plus, Search, Download, HelpCircle } from 'lucide-react';
@@ -585,9 +586,9 @@ export default function OrdersView({
       showToast.success(`Priskyrimas atnaujintas: ${selectedOrderIds.length}`);
       setSelectedOrderIds([]);
       setBulkEmployeeId('');
-    } catch {
+    } catch (err) {
       setEmployeeOverrideByOrderId((prev) => ({ ...prev, ...previousById }));
-      showToast.error('Nepavyko masiškai priskirti darbuotojo');
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko masiškai priskirti darbuotojo'));
     } finally {
       setIsBulkUpdating(false);
     }
@@ -602,9 +603,9 @@ export default function OrdersView({
         employeeId: employeeId || '',
       } as Record<string, unknown>);
       showToast.success(employeeId ? 'Darbuotojas priskirtas' : 'Priskyrimas pašalintas');
-    } catch {
+    } catch (err) {
       setEmployeeOverrideByOrderId((prev) => ({ ...prev, [order.id]: previousEmployeeId }));
-      showToast.error('Nepavyko atnaujinti darbuotojo priskyrimo');
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko atnaujinti darbuotojo priskyrimo'));
     } finally {
       setAssigningOrderId(null);
     }
