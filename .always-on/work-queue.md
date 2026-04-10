@@ -232,6 +232,12 @@
 
 ---
 
+## P18 — E2E patikimumas
+
+- [x] **Playwright pakartojimas:** `scripts/retry-cmd.mjs` + `test:smoke` / `test:console` / `test:invoice` / `test:offline-crm` — iki 2 bandymų (Windows webServer / libuv flakiness). *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -282,5 +288,6 @@
 | 2026-04-10 | verify free-ports start | `verify` pradeda nuo `free-ports` — mažiau Windows/Playwright webServer flakiness; CI tas pats `npm run verify`. |
 | 2026-04-10 | P16 KI stebėsena | `known-issues` KI-004 GH #918/#923; `PERIODIC_MAINTENANCE` ketvirtis — `npm view` peer patikros. |
 | 2026-04-10 | P17 CI verify PR | `ci.yml`: `verify` paleidžiamas ir `pull_request`, ne tik `main` push. |
+| 2026-04-10 | P18 E2E retry | `retry-cmd.mjs`; keturi `test:*` Playwright skriptai su 2 bandymais. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

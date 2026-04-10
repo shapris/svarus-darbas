@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-10 — P18: Playwright E2E pakartojimas (verify)
+
+- **`scripts/retry-cmd.mjs`:** iki N bandymų; `package.json` — `test:smoke`, `test:console`, `test:invoice`, `test:offline-crm` per `npx playwright` su 2 bandymais (Windows `webServer` / libuv).
+- **Patikra:** `npm run verify:local` — žalia.
+
+---
+
 ## 2026-04-10 — P17: CI `verify` ir ant pull request
 
 - **`.github/workflows/ci.yml`:** `verify` job sąlyga papildyta `github.event_name == 'pull_request'`, kad PR eitų pro tą patį E2E grandinę kaip `main` push.
