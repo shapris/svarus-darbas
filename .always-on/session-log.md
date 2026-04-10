@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-10 — E2E: greitas darbuotojo priskyrimas offline + „don’t stop“ ciklas
+
+- **`tests/offline-crm.spec.ts`:** trečias testas — prisijungimas, profilis pakeliamas į `admin` (kad matytųsi „Pridėti darbuotoją“; demo profilis kitaip `staff`), naujas darbuotojas, naujas užsakymas, `selectOption` priskyrimas, **perkrovimas** — `<select>` vis dar ne tuščias (`employeeId` persistencija).
+- **Patikra:** `npm run verify` žalia.
+
+---
+
 ## 2026-04-10 — Tooling audit (KI-003 / KI-004), lint ir pilnas verify
 
 - **KI-003 (ESLint 10):** `npm view eslint-plugin-react-hooks@7.0.1 peerDependencies` — `eslint` leidžiamas tik iki **`^9.0.0`**; upgrade į ESLint 10 vis dar **neįmanomas** be peer override / rizikos.

@@ -264,5 +264,6 @@
 | 2026-04-09 | P15 Windows verify | `kill-dev-ports` +4173; `verify:local`; mažiau atsitiktinių Playwright `webServer` klaidų lokaliai. |
 | 2026-04-09 | npm audit (basic-ftp) | `npm audit fix` — high → 0; scout **100**; `verify:local` OK. |
 | 2026-04-09 | Verify offline-crm stabilumas | `free-ports` (`kill-port`) prieš `test:offline-crm`; mažiau Windows flakiness. |
+| 2026-04-10 | E2E darbuotojo priskyrimas (offline) | `tests/offline-crm.spec.ts` — priskyrimas + perkrovimas; demo profilis teste pakeltas į `admin` (kad veiktų „Pridėti darbuotoją“); `npm run verify` žalia. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
