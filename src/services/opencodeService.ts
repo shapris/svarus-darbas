@@ -1,5 +1,5 @@
 import type { FunctionDeclaration } from '@google/genai';
-import { supabase, usesLocalStorageBackend } from '../supabase';
+import { supabase } from '../supabase';
 import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { convertToOpenAITool } from './openRouterService';
 

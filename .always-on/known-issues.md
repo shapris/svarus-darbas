@@ -62,12 +62,14 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
 - Simptomai:
   - `npm i -D eslint@^10 ...` meta `ERESOLVE unable to resolve dependency tree`.
 - Priežastis:
-  - `eslint-plugin-react-hooks@7.x` peer range nepalaiko `eslint@10` (reikalauja `^9` ar žemiau).
+  - `eslint-plugin-react-hooks@7.0.1` (npm `peerDependencies`) vis dar leidžia tik `eslint` iki **`^9.0.0`** (`^3`–`^9`), be `^10`.
 - Sprendimas / mitigacija:
   - Laikyti `eslint@9` kol `eslint-plugin-react-hooks` (ar alternatyva) oficialiai palaikys `eslint@10`.
   - Neapeidinėti su `--force/--legacy-peer-deps` be aiškaus motyvo (rizika įsivaryti nestabilų lint).
 - Saugiklis (testas/diagnostika):
   - `npm run lint:eslint` turi būti žalias esamame toolchain.
+- Pastabos:
+  - *2026-04-10:* pakartotinai patvirtinta per `npm view eslint-plugin-react-hooks peerDependencies` — `eslint@10` vis dar neįtrauktas.
 
 ---
 
@@ -78,12 +80,15 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
 - Simptomai:
   - `npm i -D vite@^8 @vitejs/plugin-react@^6` grąžina `ERESOLVE could not resolve`.
 - Priežastis:
-  - npm dependency tree rezoliucija konfliktuoja tarp esamo `@vitejs/plugin-react@5` ir siekiamo `6` pereinamojoje būsenoje.
+  - **`vite-plugin-pwa@1.2.0`** (`peerDependencies.vite`) leidžia tik **`^3–^7`**, ne `^8` — net ir su `@vitejs/plugin-react@6` + `vite@8` vienu prisėdimu npm vis dar nutraukia rezoliuciją.
+  - Papildomai: senesnė `@tailwindcss/vite@4.1.x` leido tik iki `^7`; **`@tailwindcss/vite@4.2.2`** jau deklaruoja `vite: '^5.2.0 || ^6 || ^7 || ^8'` (t. y. Tailwind pusė nebėra kietasis blokas po atnaujinimo).
 - Sprendimas / mitigacija:
-  - Laikyti `vite@6` + `@vitejs/plugin-react@5` kol suplanuotas atskiras controlled upgrade langas.
+  - Laikyti `vite@6` + `@vitejs/plugin-react@5` kol **`vite-plugin-pwa`** (ar pakaitalas) oficialiai palaikys `vite@^8`, arba suplanuotas atskiras PWA perkėlimo etapas.
   - `@vitejs/plugin-react` laikyti `devDependencies` (ne `dependencies`) — sutvarkyta.
 - Saugiklis (testas/diagnostika):
   - `npm run verify` žalias po dependency korekcijų.
+- Pastabos:
+  - *2026-04-10:* bandyta `npm install -D vite@8.0.8 @vitejs/plugin-react@6.0.1` — `ERESOLVE`; root cause patvirtinta per `npm view vite-plugin-pwa@1.2.0 peerDependencies`.
 
 ---
 

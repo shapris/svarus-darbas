@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-04-10 — Tooling audit (KI-003 / KI-004), lint ir pilnas verify
+
+- **KI-003 (ESLint 10):** `npm view eslint-plugin-react-hooks@7.0.1 peerDependencies` — `eslint` leidžiamas tik iki **`^9.0.0`**; upgrade į ESLint 10 vis dar **neįmanomas** be peer override / rizikos.
+- **KI-004 (Vite 8):** bandyta `npm install -D vite@8.0.8 @vitejs/plugin-react@6.0.1` → **`ERESOLVE`**. Šakninė priežastis: **`vite-plugin-pwa@1.2.0`** deklaruoja `vite` tik **`^3–^7`**. `@tailwindcss/vite@4.2.2` jau palaiko ir `^8`, bet PWA pluginas vis dar laiko projektą ant Vite 6–7 linijos.
+- **Kodas:** `src/services/opencodeService.ts` — pašalintas nenaudojamas importas (`eslint` warning prieš tai rodė `@typescript-eslint/no-unused-vars`).
+- **Patikra:** `npm run verify` — žalia (lint, build, unit, smoke, console, invoice, offline-crm). Produkcija: `GET https://svarus-darbas-api.onrender.com/health` — `status ok`, `dependencies.supabaseConfigured: true`.
+- **Dokumentacija:** atnaujinta `.always-on/known-issues.md` (KI-003/KI-004 pastabos su data ir tikslesniu blocker’iu).
+
+---
+
 ## 2026-04-10 — AI health endpoint vietoje „chat ping“
 
 - **Serveris:** pridėtas `GET /api/ai/health` (su JWT auth), kuris grąžina `aiConfigured`, `variant`, `model` ir AI rate-limit parametrus.
