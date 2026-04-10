@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-10 — P17: CI `verify` ir ant pull request
+
+- **`.github/workflows/ci.yml`:** `verify` job sąlyga papildyta `github.event_name == 'pull_request'`, kad PR eitų pro tą patį E2E grandinę kaip `main` push.
+- **`docs/DEPLOY.md`:** CI santrauka atnaujinta (PR + `main`).
+- **Patikra:** `npm run verify:local` — žalia (vienas Windows `webServer` bandymas kartais reikalauja pakartoti — libuv).
+
+---
+
 ## 2026-04-10 — P16: KI-003/004 stebėsena (dokumentai, be kodo)
 
 - **`known-issues` KI-004:** nuorodos į [vite-plugin-pwa#918](https://github.com/vite-pwa/vite-plugin-pwa/issues/918) ir [#923](https://github.com/vite-pwa/vite-plugin-pwa/issues/923).

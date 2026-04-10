@@ -32,7 +32,7 @@ npm run check:cloud
 node --check server.cjs
 ```
 
-CI: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — po Prettier vykdoma `npm run verify`.
+CI: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — kiekvienam PR ir `main` push: `fast` (Prettier + lint + unit), tada **`verify`** (build + likę Playwright testai).
 
 ## 5. Kita dokumentacija (P4)
 

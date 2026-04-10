@@ -226,6 +226,12 @@
 
 ---
 
+## P17 — CI (po P16)
+
+- [x] **Pilnas `verify` ir ant PR:** `.github/workflows/ci.yml` — `verify` job ne tik `push` į `main`, bet ir `pull_request` (prieš merge matomas E2E). *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -275,5 +281,6 @@
 | 2026-04-10 | Tailwind 4.2.2 | `@tailwindcss/vite` + `tailwindcss` ^4.2.2; KI-004 Tailwind blokas nuimtas, lieka PWA peer. |
 | 2026-04-10 | verify free-ports start | `verify` pradeda nuo `free-ports` — mažiau Windows/Playwright webServer flakiness; CI tas pats `npm run verify`. |
 | 2026-04-10 | P16 KI stebėsena | `known-issues` KI-004 GH #918/#923; `PERIODIC_MAINTENANCE` ketvirtis — `npm view` peer patikros. |
+| 2026-04-10 | P17 CI verify PR | `ci.yml`: `verify` paleidžiamas ir `pull_request`, ne tik `main` push. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
