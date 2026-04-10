@@ -24,7 +24,7 @@
     "format:check": "prettier --check .",
     "test:offline-crm": "playwright test tests/offline-crm.spec.ts",
     "free-ports": "node scripts/free-dev-ports.mjs",
-    "verify": "npm run lint && npm run build && npm test && npm run test:smoke && npm run test:console && npm run test:invoice && npm run free-ports && npm run test:offline-crm",
+    "verify": "npm run free-ports && npm run lint && npm run build && npm test && npm run test:smoke && npm run test:console && npm run test:invoice && npm run free-ports && npm run test:offline-crm",
     "verify:local": "npm run dev:kill && npm run verify",
     "test:unit": "vitest run",
     "test:watch": "vitest",

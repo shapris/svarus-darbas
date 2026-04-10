@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-10 — `verify`: free-ports pradžioje (CI + Windows stabilumas)
+
+- **`package.json`:** `npm run verify` dabar pradeda nuo **`free-ports`** (4173/3001/5173), kad pakartotiniai Playwright paleidimai neliktų ant „pakibusio“ preview; prieš `test:offline-crm` — antras `free-ports` (kaip ir anksčiau).
+- **Patikra:** `npm run verify` be `dev:kill` — žalia lokaliai; `check:cloud:frontend` — READY.
+
+---
+
 ## 2026-04-10 — Tailwind 4.2.2 (pasirengimas Vite 8 peer linijai)
 
 - **`@tailwindcss/vite` / `tailwindcss` → `^4.2.2`** (Vite 8 peer jau deklaruotas upstream; projektas vis dar ant Vite 6 iki PWA atnaujinimo).
