@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-10 — P19: employees RLS migracijos atsparumas
+
+- **`supabase/migrations/20260410160000_employees_owner_id_backfill_and_rls.sql`:** pridėta saugi pakartotinio vykdymo apsauga (`DROP POLICY IF EXISTS employees_workspace_org_all`) ir `ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY`.
+- **`docs/RLS_SUMMARY.md`:** į kanoninį RLS migracijų sąrašą įtrauktas `20260410160000_employees_owner_id_backfill_and_rls.sql`.
+
+---
+
 ## 2026-04-10 — P18: Playwright E2E pakartojimas (verify)
 
 - **`scripts/retry-cmd.mjs`:** iki N bandymų; `package.json` — `test:smoke`, `test:console`, `test:invoice`, `test:offline-crm` per `npx playwright` su 2 bandymais (Windows `webServer` / libuv).

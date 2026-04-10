@@ -31,8 +31,12 @@ CREATE INDEX IF NOT EXISTS idx_employees_owner_id ON public.employees (owner_id)
 DROP POLICY IF EXISTS crm_employees_rw ON public.employees;
 DROP POLICY IF EXISTS employees_owner_all ON public.employees;
 DROP POLICY IF EXISTS employees_staff_org_all ON public.employees;
+DROP POLICY IF EXISTS employees_workspace_org_all ON public.employees;
 
--- 4) Viena aiški politika: eilutė priklauso effective workspace savininkui;
+-- 4) Užtikrinti, kad RLS įjungtas (senose DB gali būti likęs OFF)
+ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
+
+-- 5) Viena aiški politika: eilutė priklauso effective workspace savininkui;
 --    rašyti gali staff/admin ARBA pats tas savininkas (auth.uid = effective_workspace_owner_id).
 CREATE POLICY employees_workspace_org_all ON public.employees
   FOR ALL TO authenticated

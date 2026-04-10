@@ -238,6 +238,12 @@
 
 ---
 
+## P19 — DB/RLS migracijų atsparumas
+
+- [x] **`employees` RLS migracijos idempotentiškumas:** `20260410160000_employees_owner_id_backfill_and_rls.sql` papildyta `DROP POLICY IF EXISTS employees_workspace_org_all` + `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`; `docs/RLS_SUMMARY.md` įtrauktas šis migration failas į kanoninį sąrašą. *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -289,5 +295,6 @@
 | 2026-04-10 | P16 KI stebėsena | `known-issues` KI-004 GH #918/#923; `PERIODIC_MAINTENANCE` ketvirtis — `npm view` peer patikros. |
 | 2026-04-10 | P17 CI verify PR | `ci.yml`: `verify` paleidžiamas ir `pull_request`, ne tik `main` push. |
 | 2026-04-10 | P18 E2E retry | `retry-cmd.mjs`; keturi `test:*` Playwright skriptai su 2 bandymais. |
+| 2026-04-10 | P19 employees RLS migracija | Idempotentiškumas: `DROP POLICY IF EXISTS employees_workspace_org_all` + `ENABLE RLS`; `RLS_SUMMARY` papildytas kanonine migracija. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
