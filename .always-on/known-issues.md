@@ -90,6 +90,7 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
   - `npm run verify` žalias po dependency korekcijų.
 - Pastabos:
   - *2026-04-10:* bandyta `npm install -D vite@8.0.8 @vitejs/plugin-react@6.0.1` — `ERESOLVE`; root cause patvirtinta per `npm view vite-plugin-pwa@1.2.0 peerDependencies`.
+  - *2026-04-10 (pakartotinai):* `npm view vite-plugin-pwa@latest` — vis dar **1.2.0**, `peerDependencies.vite` be `^8`.
 
 ---
 

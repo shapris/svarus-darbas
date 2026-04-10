@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-10 — npm update (semver ribose) + verify:local
+
+- **`npm update`:** `package-lock.json` atnaujintas wanted versijomis; `npm audit` = 0.
+- **Patikra:** `npm run verify:local` — žalia.
+- **Pastaba:** `vite-plugin-pwa@latest` vis dar **1.2.0** su `vite` peer tik iki **^7** — KI-004 (Vite 8) lieka atviras.
+
+---
+
 ## 2026-04-10 — `verify`: free-ports pradžioje (CI + Windows stabilumas)
 
 - **`package.json`:** `npm run verify` dabar pradeda nuo **`free-ports`** (4173/3001/5173), kad pakartotiniai Playwright paleidimai neliktų ant „pakibusio“ preview; prieš `test:offline-crm` — antras `free-ports` (kaip ir anksčiau).
