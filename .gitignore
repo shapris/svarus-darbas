@@ -7,4 +7,5 @@ coverage/
 .env*
 !.env.example
 !.env.e2e
+!.env.cloud-e2e.example
 .vercel

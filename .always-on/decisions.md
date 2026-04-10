@@ -17,6 +17,20 @@ Trumpi, kanoniniai sprendimų įrašai apie tai, **kodėl** sistemoje pasirinkta
 
 ---
 
+## 2026-04-10 — Supabase skaitymas: schema drift ir „ankstyvas“ aptikimas
+
+- Statusas: priimta
+- Kontekstas: gamybinėje DB 400 ant `orders` kilo dėl `owner_id` filtro, kai lentelė dar legacy (`uid`); PostgREST klaidos kodas ne visada `PGRST204`. Vietiniai testai to nepagavo, nes nenaudoja tikro Supabase.
+- Sprendimas:
+  - Kliento pusėje — platus fallback (`shouldFallbackFromOwnerIdToUid`) + migracija `owner_id` kur trūksta.
+  - Procese — po tokio incidento **privalomas** pigus kontraktinis testas (`tests/ownerScope.test.ts`), kad regresija patektų į `npm run test`.
+  - Agentas nebesiremia vien „lint + unit“ be Supabase sutarties: backend keitimuose tikrinti migracijų ir `production_owner_id_schema.sql` suderinamumą.
+- Alternatyvos: tik dokumentuoti — atmetama; pilnas E2E prie cloud — pageidautina CI, bet ne blokas vieneto lygiui.
+- Pasekmės: ankstesnės sesijos be šių taisyklių gali būti „žalios“ pagal CI, bet raudonos cloud — tai žinoma ir valdoma testu + migracija.
+- Patikra: `npm run test` (įskaitant `ownerScope.test.ts`), `npm run lint`
+
+---
+
 ## 2026-04-08 — „Incident → testas“ kaip taisyklė
 
 - Statusas: priimta

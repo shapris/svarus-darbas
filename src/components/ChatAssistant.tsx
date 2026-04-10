@@ -49,6 +49,7 @@ import {
 } from './chatAssistant/types';
 import {
   getAiStudio,
+  getMicDictationChecklist,
   getSpeechRecognitionCtor,
   type BrowserSpeechRecognition,
 } from './chatAssistant/browserMedia';
@@ -95,6 +96,10 @@ export default function ChatAssistant({
     }
   });
   const [input, setInput] = useState('');
+  const inputRef = useRef(input);
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
   const [messages, setMessages] = useState<Message[]>(() => {
     try {
       const raw = sessionStorage.getItem(chatPanelMessagesKey(user.uid));
@@ -147,6 +152,8 @@ export default function ChatAssistant({
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [showPreviewMicHint, setShowPreviewMicHint] = useState(false);
+  /** Mobilus: naršyklė nutraukė klausymą — reikia naujo paspaudimo (gesto), kad vėl leistų start(). */
+  const [micNeedsGestureContinue, setMicNeedsGestureContinue] = useState(false);
 
   const assistantDataContext = useMemo(
     () => ({
@@ -172,7 +179,24 @@ export default function ChatAssistant({
   const tempTranscriptRef = useRef('');
   const finalTranscriptRef = useRef('');
   const latestTranscriptRef = useRef('');
+  /** Vartotojas nori klausyti, kol pats paspaus „stop“ (ne naršyklės automatinis nutraukimas). */
+  const micSessionWantedRef = useRef(false);
+  /** Apsauga nuo begalinio ciklo, jei naršyklė nuolat kviečia onend. */
+  const micMobileRestartCountRef = useRef(0);
+  const MIC_MAX_MOBILE_RECOGNITION_CHUNKS = 320;
+  const lastMicToggleAtRef = useRef(0);
+  const MIC_TOGGLE_DEBOUNCE_MS = 280;
+  /** Paskutinė startOneInstance funkcija — „Tęsti“ mygtukas kviečia iš tiesioginio paspaudimo. */
+  const startSpeechInstanceRef = useRef<(() => void) | null>(null);
+  /** Tekstas laukelyje pradėjus diktuoti (prie jo prijungiame atpažintą tekstą). */
+  const micDictationBaseRef = useRef('');
+  /** Ar jau atnaujinome lauką gyvai iš onresult (kad finalize nedubliuotų). */
+  const micLiveUpdatedRef = useRef(false);
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const micPhoneChecklist = useMemo(
+    () => (isLikelyMobile ? getMicDictationChecklist() : null),
+    [isLikelyMobile]
+  );
 
   const checkApiKey = async () => {
     const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
@@ -242,8 +266,13 @@ export default function ChatAssistant({
     void checkApiKey();
     return () => {
       stopSpeaking();
+      micSessionWantedRef.current = false;
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          /* jau sustabdytas */
+        }
       }
     };
   }, [user.uid]);
@@ -267,7 +296,45 @@ export default function ChatAssistant({
     }
   }, [messages, user.uid]);
 
+  const finalizeMicTranscriptToInput = () => {
+    if (micLiveUpdatedRef.current) {
+      micLiveUpdatedRef.current = false;
+      tempTranscriptRef.current = '';
+      finalTranscriptRef.current = '';
+      latestTranscriptRef.current = '';
+      return;
+    }
+    const finalResult =
+      `${finalTranscriptRef.current} ${tempTranscriptRef.current} ${latestTranscriptRef.current}`.trim();
+    if (finalResult) {
+      setInput((prev) => `${prev}${prev ? ' ' : ''}${finalResult}`);
+    } else if (isLikelyMobile) {
+      showToast.error(
+        'Įrašas nebuvo atpažintas. Kalbėkite aiškiau ir bandykite dar kartą (raudonas mygtukas = sustabdyti).'
+      );
+    }
+    tempTranscriptRef.current = '';
+    finalTranscriptRef.current = '';
+    latestTranscriptRef.current = '';
+  };
+
+  const continueMobileSpeechRecognition = useCallback(() => {
+    setMicNeedsGestureContinue(false);
+    if (!micSessionWantedRef.current) return;
+    try {
+      startSpeechInstanceRef.current?.();
+    } catch (e) {
+      logDevError('continueMobileSpeechRecognition', e);
+      micSessionWantedRef.current = false;
+      setIsRecording(false);
+    }
+  }, []);
+
   const toggleRecording = () => {
+    const now = Date.now();
+    if (now - lastMicToggleAtRef.current < MIC_TOGGLE_DEBOUNCE_MS) return;
+    lastMicToggleAtRef.current = now;
+
     const SpeechRecognition = getSpeechRecognitionCtor();
 
     if (!SpeechRecognition) {
@@ -280,6 +347,8 @@ export default function ChatAssistant({
     }
 
     if (isRecording) {
+      micSessionWantedRef.current = false;
+      setMicNeedsGestureContinue(false);
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -292,125 +361,184 @@ export default function ChatAssistant({
         setIsRecording(false);
       }
     } else {
-      // Stop any current speech before starting to record
+      if (!window.isSecureContext) {
+        showToast.error('Balso įvedimas veikia tik per saugų ryšį (HTTPS arba localhost).');
+        return;
+      }
+
       stopSpeaking();
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true; // Allows manual stop
-        recognition.interimResults = true;
-        recognition.lang = 'lt-LT';
-        recognition.maxAlternatives = 1;
+      setMicNeedsGestureContinue(false);
+      micSessionWantedRef.current = true;
+      micMobileRestartCountRef.current = 0;
 
-        recognition.onstart = () => {
-          setIsRecording(true);
-          tempTranscriptRef.current = '';
-          finalTranscriptRef.current = '';
-          latestTranscriptRef.current = '';
-        };
-
-        recognition.onresult = (event: {
-          resultIndex?: number;
-          results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
-        }) => {
-          const allResultsTranscript = Array.from(event.results)
-            .map((r) => (r?.[0]?.transcript ?? '').trim())
-            .filter(Boolean)
-            .join(' ')
-            .trim();
-          if (allResultsTranscript) {
-            latestTranscriptRef.current = allResultsTranscript;
-          }
-
-          const startAt = event.resultIndex ?? 0;
-          let interimChunk = '';
-          for (let i = startAt; i < event.results.length; i++) {
-            const result = event.results[i];
-            const chunk = (result?.[0]?.transcript ?? '').trim();
-            if (!chunk) continue;
-            if (result?.isFinal) {
-              finalTranscriptRef.current = `${finalTranscriptRef.current} ${chunk}`.trim();
-            } else {
-              interimChunk = `${interimChunk} ${chunk}`.trim();
-            }
-          }
-          tempTranscriptRef.current = interimChunk;
-        };
-
-        recognition.onerror = (event: { error: string }) => {
+      const startOneInstance = () => {
+        const Ctor = getSpeechRecognitionCtor();
+        if (!Ctor) {
+          micSessionWantedRef.current = false;
           setIsRecording(false);
-          recognitionRef.current = null;
+          return;
+        }
+        try {
+          const recognition = new Ctor();
+          /* Mobilus Chrome: continuous+async prieš start() dažnai duoda tuščią rezultatą — start() turi būti tame pačiame paspaudime. */
+          recognition.continuous = !isLikelyMobile;
+          recognition.interimResults = true;
+          recognition.maxAlternatives = 1;
+          if (!isLikelyMobile) {
+            recognition.lang = 'lt-LT';
+          } else {
+            const navLang = (navigator.language || 'lt-LT').toLowerCase();
+            recognition.lang = navLang.startsWith('lt') ? 'lt-LT' : navLang.slice(0, 5) || 'en-US';
+          }
 
-          // User-friendly error messages
-          const errorMessages: Record<string, string> = {
-            'not-allowed':
-              'Mikrofono prieiga neleista. Spauskite akutės ikoną URL juostoje ir leiskite prieigą.',
-            'no-speech': 'Nebuvo girdimas joks balsas. Bandykite dar kartą.',
-            network: 'Tinklo klaida. Patikrinkite interneto ryšį.',
-            aborted: 'Įrašymas buvo nutrauktas.',
-            'audio-capture': 'Mikrofonas nerastas. Prijunkite mikrofoną.',
-            'service-not-allowed': 'Balso atpažinimo paslauga neleidžiama.',
+          recognition.onstart = () => {
+            setMicNeedsGestureContinue(false);
+            micDictationBaseRef.current = inputRef.current;
+            tempTranscriptRef.current = '';
+            finalTranscriptRef.current = '';
+            latestTranscriptRef.current = '';
+            micLiveUpdatedRef.current = false;
+            setIsRecording(true);
           };
 
-          const userMessage = errorMessages[event.error] || `Klaida: ${event.error}`;
-          const isCursorLikePreview =
-            window.location.hostname === 'localhost' &&
-            (window.self !== window.top || /electron|cursor/i.test(navigator.userAgent));
-          if (
-            isCursorLikePreview &&
-            (event.error === 'network' ||
-              event.error === 'not-allowed' ||
-              event.error === 'service-not-allowed')
-          ) {
-            setShowPreviewMicHint(true);
-          }
-          // Avoid disruptive alert/console spam for transient or permission-blocked speech errors.
-          if (
-            event.error === 'network' ||
-            event.error === 'aborted' ||
-            event.error === 'no-speech' ||
-            event.error === 'not-allowed' ||
-            event.error === 'service-not-allowed'
-          ) {
-            // Mobile users often need explicit hint instead of silent fail.
-            if (isLikelyMobile && event.error !== 'aborted') {
-              showToast.error(
-                'Mikrofonas nepasiekiamas telefone. Patikrinkite svetainės mikrofono leidimą ir bandykite dar kartą.'
-              );
+          recognition.onresult = (event: {
+            resultIndex?: number;
+            results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal?: boolean }>;
+          }) => {
+            const allResultsTranscript = Array.from(event.results)
+              .map((r) => (r?.[0]?.transcript ?? '').trim())
+              .filter(Boolean)
+              .join(' ')
+              .trim();
+            if (allResultsTranscript) {
+              latestTranscriptRef.current = allResultsTranscript;
             }
-            lastSpeechErrorAlertAtRef.current = Date.now();
-            return;
-          }
 
-          logDevError('Speech recognition error:', event.error);
-          showToast.error(userMessage);
-        };
+            const startAt = event.resultIndex ?? 0;
+            let interimChunk = '';
+            for (let i = startAt; i < event.results.length; i++) {
+              const result = event.results[i];
+              const chunk = (result?.[0]?.transcript ?? '').trim();
+              if (!chunk) continue;
+              if (result?.isFinal) {
+                finalTranscriptRef.current = `${finalTranscriptRef.current} ${chunk}`.trim();
+              } else {
+                interimChunk = `${interimChunk} ${chunk}`.trim();
+              }
+            }
+            tempTranscriptRef.current = interimChunk;
 
-        recognition.onend = () => {
+            const spokenPiece = `${finalTranscriptRef.current} ${tempTranscriptRef.current}`.trim();
+            if (spokenPiece) {
+              micLiveUpdatedRef.current = true;
+              const base = micDictationBaseRef.current;
+              const trimmedBase = base.replace(/\s+$/, '');
+              setInput(trimmedBase ? `${trimmedBase} ${spokenPiece}`.trim() : spokenPiece);
+            }
+          };
+
+          recognition.onerror = (event: { error: string }) => {
+            if (isLikelyMobile && micSessionWantedRef.current && event.error === 'no-speech') {
+              return;
+            }
+
+            recognitionRef.current = null;
+            micSessionWantedRef.current = false;
+            setMicNeedsGestureContinue(false);
+            setIsRecording(false);
+
+            const errorMessages: Record<string, string> = {
+              'not-allowed':
+                'Mikrofono prieiga neleista. Spauskite akutės ikoną URL juostoje ir leiskite prieigą.',
+              'no-speech': 'Nebuvo girdimas joks balsas. Bandykite dar kartą.',
+              network: 'Tinklo klaida. Patikrinkite interneto ryšį.',
+              aborted: 'Įrašymas buvo nutrauktas.',
+              'audio-capture': 'Mikrofonas nerastas. Prijunkite mikrofoną.',
+              'service-not-allowed': 'Balso atpažinimo paslauga neleidžiama.',
+            };
+
+            const userMessage = errorMessages[event.error] || `Klaida: ${event.error}`;
+            const isCursorLikePreview =
+              window.location.hostname === 'localhost' &&
+              (window.self !== window.top || /electron|cursor/i.test(navigator.userAgent));
+            if (
+              isCursorLikePreview &&
+              (event.error === 'network' ||
+                event.error === 'not-allowed' ||
+                event.error === 'service-not-allowed')
+            ) {
+              setShowPreviewMicHint(true);
+            }
+            if (
+              event.error === 'network' ||
+              event.error === 'aborted' ||
+              event.error === 'no-speech' ||
+              event.error === 'not-allowed' ||
+              event.error === 'service-not-allowed'
+            ) {
+              if (isLikelyMobile && event.error !== 'aborted') {
+                showToast.error(
+                  'Mikrofonas nepasiekiamas telefone. Patikrinkite svetainės mikrofono leidimą ir bandykite dar kartą.'
+                );
+              }
+              lastSpeechErrorAlertAtRef.current = Date.now();
+              return;
+            }
+
+            logDevError('Speech recognition error:', event.error);
+            showToast.error(userMessage);
+          };
+
+          recognition.onend = () => {
+            recognitionRef.current = null;
+
+            if (micSessionWantedRef.current && isLikelyMobile) {
+              micMobileRestartCountRef.current += 1;
+              if (micMobileRestartCountRef.current > MIC_MAX_MOBILE_RECOGNITION_CHUNKS) {
+                micSessionWantedRef.current = false;
+                setMicNeedsGestureContinue(false);
+                setIsRecording(false);
+                showToast.error(
+                  'Balso įrašas nutrauktas (techninė riba). Jei reikia, vėl paspauskite mikrofoną.'
+                );
+                finalizeMicTranscriptToInput();
+                return;
+              }
+              setMicNeedsGestureContinue(true);
+              return;
+            }
+
+            setIsRecording(false);
+            setMicNeedsGestureContinue(false);
+            finalizeMicTranscriptToInput();
+          };
+
+          recognitionRef.current = recognition;
+          recognition.start();
+        } catch (error) {
+          logDevError('Failed to start recognition', error);
+          micSessionWantedRef.current = false;
+          setMicNeedsGestureContinue(false);
           setIsRecording(false);
-          const finalResult =
-            `${finalTranscriptRef.current} ${tempTranscriptRef.current} ${latestTranscriptRef.current}`.trim();
-          if (finalResult) {
-            setInput((prev) => `${prev}${prev ? ' ' : ''}${finalResult}`);
-          } else if (isLikelyMobile) {
-            showToast.error(
-              'Įrašas nebuvo atpažintas. Kalbėkite aiškiau 2-3 sek. ir tada sustabdykite įrašymą.'
-            );
-          }
-          tempTranscriptRef.current = '';
-          finalTranscriptRef.current = '';
-          latestTranscriptRef.current = '';
+          showToast.error(
+            'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
+          );
           recognitionRef.current = null;
-        };
+        }
+      };
 
-        recognitionRef.current = recognition;
-        recognition.start();
-      } catch (error) {
-        logDevError('Failed to start recognition', error);
-        setIsRecording(false);
-        showToast.error(
-          'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
-        );
-        recognitionRef.current = null;
+      startSpeechInstanceRef.current = startOneInstance;
+      startOneInstance();
+
+      if (isLikelyMobile && navigator.mediaDevices?.getUserMedia) {
+        void navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((stream) => {
+            stream.getTracks().forEach((t) => t.stop());
+          })
+          .catch(() => {
+            /* Speech API gali vis tiek veikti; jei ne — onerror parodys */
+          });
       }
     }
   };
@@ -673,7 +801,11 @@ export default function ChatAssistant({
       }
     } catch (error) {
       logDevError('Chat Error:', error);
-      const errorMsg = `Atsiprašau, įvyko klaida: ${error instanceof Error ? error.message : 'Nežinoma klaida'}.`;
+      const detail =
+        error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : 'nenumatyta tinklo ar serverio klaida — patikrinkite ryšį ir API nustatymus';
+      const errorMsg = `Atsiprašau, asistentas šiuo metu neatsakė: ${detail}. Bandykite trumpesnę užklausą arba pakartokite po kelių sekundžių.`;
       setMessages((prev) => [
         ...prev,
         { role: 'model', text: errorMsg, timestamp: Date.now(), failed: true },
@@ -1290,6 +1422,21 @@ export default function ChatAssistant({
                   </button>
                 </div>
               )}
+              {micNeedsGestureContinue && (
+                <div className="mb-3 text-[12px] bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-3 py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Telefone naršyklė nutraukė klausymą. Paspauskite <strong>Tęsti klausymą</strong>{' '}
+                    (reikia rankinio prisilietimo), tada vėl kalbėkite.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={continueMobileSpeechRecognition}
+                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-white text-sm font-medium active:bg-blue-700"
+                  >
+                    Tęsti klausymą
+                  </button>
+                </div>
+              )}
               <div className="relative">
                 <input
                   type="text"
@@ -1301,13 +1448,19 @@ export default function ChatAssistant({
                 />
                 <div className="absolute right-2 top-2 bottom-2 flex gap-1">
                   <button
+                    type="button"
+                    aria-pressed={isRecording}
                     onClick={toggleRecording}
-                    className={`w-10 rounded-xl flex items-center justify-center transition-all ${
+                    className={`touch-manipulation w-10 rounded-xl flex items-center justify-center transition-all ${
                       isRecording
                         ? 'bg-red-500 text-white animate-pulse'
                         : 'bg-slate-100 text-slate-400 hover:text-blue-600'
                     }`}
-                    title={isRecording ? 'Sustabdyti įrašymą' : 'Įrašyti balsu'}
+                    title={
+                      isRecording
+                        ? 'Sustabdyti įrašymą (raudonas)'
+                        : 'Įrašyti balsu — mobilus Chrome gali trumpam perleisti klausymą; kalbėkite tol, kol sustabdysite'
+                    }
                   >
                     {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
                   </button>
@@ -1338,6 +1491,20 @@ export default function ChatAssistant({
                   )}
                 </div>
               </div>
+              {micPhoneChecklist && (
+                <div className="mt-3 space-y-1 text-[10px] leading-snug text-slate-500">
+                  <p>
+                    <span className="font-semibold text-slate-600">Telefonas / mic: </span>
+                    {micPhoneChecklist.primaryHintLt}
+                  </p>
+                  {micPhoneChecklist.secureContext && micPhoneChecklist.hasWebSpeech && (
+                    <p className="text-slate-400">
+                      Ką tik keitėte kodą? Telefone matysite tik po{' '}
+                      <strong className="text-slate-500">git push</strong> (Vercel naujas deploy).
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         )}

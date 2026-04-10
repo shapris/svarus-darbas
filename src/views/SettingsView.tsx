@@ -115,8 +115,8 @@ export default function SettingsView({
       }
       setSettings({ ...formData });
       showToast.success('Nustatymai išsaugoti!');
-    } catch {
-      showToast.error('Nepavyko išsaugoti nustatymų');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko išsaugoti nustatymų.'));
     } finally {
       setIsSaving(false);
     }
@@ -208,8 +208,8 @@ export default function SettingsView({
       a.click();
       URL.revokeObjectURL(url);
       showToast.success('JSON eksportas paruoštas.');
-    } catch {
-      showToast.error('Nepavyko eksportuoti duomenų.');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko eksportuoti duomenų.'));
     }
   };
 
@@ -251,8 +251,8 @@ export default function SettingsView({
           'Pranešimai atmesti — vis tiek matysite žalią pranešimą programėlės viduje, kai esate prisijungę.'
         );
       }
-    } catch {
-      showToast.error('Nepavyko paprašyti pranešimų leidimo.');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko paprašyti pranešimų leidimo.'));
     }
   };
 
@@ -263,8 +263,7 @@ export default function SettingsView({
       if (result.ok) showToast.success(result.message);
       else showToast.error(result.message);
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      showToast.error(`Schema check failed: ${msg}`);
+      showToast.error(formatNetworkErrorForUser(error, 'Nepavyko patikrinti užsakymų schemos.'));
     } finally {
       setIsCheckingSchema(false);
     }

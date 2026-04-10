@@ -10,6 +10,7 @@ import { Plus, Trash2, Wallet, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatCurrency, formatDate } from '../utils';
 import { useToast } from '../hooks/useToast';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 
 interface LocalUser {
@@ -53,18 +54,19 @@ export default function ExpensesView({ expenses }: ExpensesViewProps) {
         notes: '',
       });
       showToast.success('Išlaida išsaugota');
-    } catch {
-      showToast.error('Klaida išsaugant išlaidą');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Klaida išsaugant išlaidą.'));
     }
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Ar tikrai norite ištrinti šias išlaidas?')) {
       try {
-        deleteData(TABLES.EXPENSES, id);
+        await deleteData(TABLES.EXPENSES, id);
         if (selectedExpense?.id === id) setSelectedExpense(null);
-      } catch {
-        // Silent fail
+        showToast.success('Išlaida pašalinta');
+      } catch (err) {
+        showToast.error(formatNetworkErrorForUser(err, 'Nepavyko ištrinti išlaidos.'));
       }
     }
   };

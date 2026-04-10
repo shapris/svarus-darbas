@@ -21,6 +21,7 @@ import {
   isClientSelfRegistrationEnabled,
 } from './client';
 import { clearResolvedOwnerScopeCache } from './ownerScope';
+import { isMissingColumnInPostgrestRequest } from './columnFallback';
 import { logSupabaseDevError } from './logging';
 import { normalizeOrderFromDb } from './normalize';
 import { addData } from './crud';
@@ -437,7 +438,7 @@ export async function getClientOrders(clientId: string): Promise<Order[]> {
       .eq('client_id', clientId)
       .order('date', { ascending: false });
 
-    if (error && error.code === 'PGRST204') {
+    if (error && isMissingColumnInPostgrestRequest(error, 'client_id')) {
       ({ data, error } = await supabase
         .from('orders')
         .select('*')

@@ -108,8 +108,8 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
       try {
         const result = await generateInvoicePDF(order, client);
         showToast.success(`${result.detail} (Sąskaitos nuoroda DB nebuvo — duomenys iš užsakymo.)`);
-      } catch {
-        showToast.error('Nepavyko sugeneruoti PDF.');
+      } catch (err) {
+        showToast.error(formatNetworkErrorForUser(err, 'Nepavyko sugeneruoti PDF.'));
       }
       return;
     }
@@ -125,13 +125,7 @@ export default function PaymentsView({ user, clients, orders }: PaymentsViewProp
       setSelectedInvoice(null);
       showToast.success('Sąskaitos statusas atnaujintas');
     } catch (err) {
-      const msg =
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: string }).message)
-          : '';
-      showToast.error(
-        msg ? `Nepavyko atnaujinti sąskaitos: ${msg}` : 'Nepavyko atnaujinti sąskaitos statuso'
-      );
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko atnaujinti sąskaitos statuso.'));
     }
   };
 

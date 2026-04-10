@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-04-10 — „On air“: PostgREST stulpelių fallback sutvarkymas
+
+- **Kaip ieškota:** `grep PGRST204` per `src` → `authSession.getClientOrders` tik `error.code === 'PGRST204'` prieš `clientId` fallback (ta pati rizika kaip `owner_id`).
+- **Pataisymai:** `isMissingColumnInPostgrestRequest` + `extractMissingColumnFromPgError` papildymas `column … .col does not exist`; `getClientOrders` naudoja bendrą helperį; `ownerScope` be dubliuotos logikos.
+- **Testai:** `tests/postgrest-missing-column.test.ts`; `npm run lint`, `build`, `test` (26), Playwright smoke+console+invoice — OK.
+
+---
+
+## 2026-04-10 — Strategija: Supabase schema drift + owner scope testai
+
+- **ADR** `.always-on/decisions.md` (2026-04-10): po PostgREST incidentų — kontraktiniai testai, ne tik „lint + unit“ be API sutarties.
+- **`tests/ownerScope.test.ts`:** `shouldFallbackFromOwnerIdToUid` scenarijai (PGRST204, 400, `created_at` ne maišomas su `owner_id`).
+- **Workflow** `.cursor/rules/always-on-workflow.mdc`:** aiškiai įrašyta privaloma migracijų / `ownerScope` patikra.
+
+---
+
+## 2026-04-10 — Debesies Playwright (`test:cloud`) + verify
+
+- **Atskiras konfigas** `playwright.cloud.config.ts`, build `--mode cloud-e2e`, šablonas `.env.cloud-e2e.example`, runner `scripts/run-cloud-e2e.mjs`; pagrindinis `playwright.config.ts` ignoruoja `cloud-smoke.spec.ts`.
+- **`tests/cloud-smoke.spec.ts`:** be „Reikalinga duomenų bazė“; be sesijos — landing / darbuotojo prisijungimas; konsolė — `strictConsole`.
+- **CI:** pasirenkamas job `cloud-e2e` (`vars.CLOUD_E2E_ENABLED` + secrets); **README** / **docs/env-matrix.md**.
+- **Lokaliai:** `.env.cloud-e2e.local` — `npm run test:cloud` žalias.
+- **`test:journey`:** per `retry-cmd` (Windows E2E stabilumas).
+
+---
+
 ## 2026-04-10 — P19: employees RLS migracijos atsparumas
 
 - **`supabase/migrations/20260410160000_employees_owner_id_backfill_and_rls.sql`:** pridėta saugi pakartotinio vykdymo apsauga (`DROP POLICY IF EXISTS employees_workspace_org_all`) ir `ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY`.

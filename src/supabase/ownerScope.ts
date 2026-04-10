@@ -1,7 +1,19 @@
 import { TABLES } from './constants';
-import { extractMissingColumnFromPgError } from './columnFallback';
+import {
+  extractMissingColumnFromPgError,
+  isMissingColumnInPostgrestRequest,
+} from './columnFallback';
 import { supabase } from './client';
 import { logSupabaseDevError } from './logging';
+import type { PgLikeError } from './normalize';
+
+/**
+ * PostgREST kartais grąžina 400/PGRST204 arba kitą kodą, jei filtre naudojamas neegzistuojantis owner_id.
+ * Eksportuota testams — žr. `tests/ownerScope.test.ts` (incidentų regresijos prevencija).
+ */
+export function shouldFallbackFromOwnerIdToUid(error: PgLikeError): boolean {
+  return isMissingColumnInPostgrestRequest(error, 'owner_id');
+}
 
 let resolvedOwnerScopeColumn: Record<string, 'owner_id' | 'uid'> = {};
 
@@ -53,12 +65,22 @@ export async function fetchOwnerScopedRowsRaw(
     let res = await base().order('created_at', { ascending: false });
     if (!res.error) return res;
     const miss0 = extractMissingColumnFromPgError(res.error);
-    if (res.error?.code === 'PGRST204' && miss0 === 'owner_id') return res;
+    if (
+      miss0 === 'owner_id' ||
+      isMissingColumnInPostgrestRequest(res.error as PgLikeError, 'owner_id')
+    ) {
+      return res;
+    }
 
     res = await base().order('createdAt', { ascending: false });
     if (!res.error) return res;
     const miss1 = extractMissingColumnFromPgError(res.error);
-    if (res.error?.code === 'PGRST204' && miss1 === 'owner_id') return res;
+    if (
+      miss1 === 'owner_id' ||
+      isMissingColumnInPostgrestRequest(res.error as PgLikeError, 'owner_id')
+    ) {
+      return res;
+    }
 
     return await base();
   };
@@ -66,8 +88,7 @@ export async function fetchOwnerScopedRowsRaw(
   const { data: d1, error: e1 } = await selectOrdered('owner_id');
 
   if (e1) {
-    const missing = extractMissingColumnFromPgError(e1);
-    if (e1.code === 'PGRST204' && missing === 'owner_id') {
+    if (shouldFallbackFromOwnerIdToUid(e1)) {
       const { data: d2, error: e2 } = await selectOrdered('uid');
       if (e2) {
         logSupabaseDevError(`getData(${tableName})`, e2);

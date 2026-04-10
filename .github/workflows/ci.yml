@@ -62,3 +62,44 @@ jobs:
 
       - name: Full gate (verify)
         run: npm run verify
+
+  # Pasirenkama: repo Settings → Variables → CLOUD_E2E_ENABLED = true + Secrets CLOUD_VITE_SUPABASE_*
+  cloud-e2e:
+    if: vars.CLOUD_E2E_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Debesies E2E env (.env.cloud-e2e.local)
+        env:
+          U: ${{ secrets.CLOUD_VITE_SUPABASE_URL }}
+          K: ${{ secrets.CLOUD_VITE_SUPABASE_ANON_KEY }}
+        run: |
+          echo "VITE_ALLOW_OFFLINE_CRM=false" > .env.cloud-e2e.local
+          echo "VITE_DEMO_MODE=false" >> .env.cloud-e2e.local
+          echo "VITE_SUPABASE_URL=$U" >> .env.cloud-e2e.local
+          echo "VITE_SUPABASE_ANON_KEY=$K" >> .env.cloud-e2e.local
+
+      - name: Cloud smoke (Playwright)
+        run: npm run test:cloud

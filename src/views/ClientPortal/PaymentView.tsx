@@ -20,6 +20,7 @@ import {
 } from '../../services/paymentService';
 import { motion } from 'motion/react';
 import { useToast } from '../../hooks/useToast';
+import { formatNetworkErrorForUser } from '../../utils/networkErrors';
 
 interface PaymentViewProps {
   order: Order;
@@ -39,13 +40,24 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [invoicesBusy, setInvoicesBusy] = useState(true);
+  const [invoicesLoadError, setInvoicesLoadError] = useState<string | null>(null);
 
   const loadInvoices = useCallback(async () => {
+    setInvoicesBusy(true);
+    setInvoicesLoadError(null);
     try {
       const invoiceList = await getInvoices(order.clientId);
       setInvoices(invoiceList.filter((inv) => inv.order_id === order.id));
-    } catch {
-      // Failed to load invoices silently
+    } catch (err) {
+      setInvoicesLoadError(
+        formatNetworkErrorForUser(
+          err,
+          'Nepavyko įkelti sąskaitų. Patikrinkite ryšį arba bandykite vėliau.'
+        )
+      );
+    } finally {
+      setInvoicesBusy(false);
     }
   }, [order.clientId, order.id]);
 
@@ -87,8 +99,7 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
         onPaymentComplete();
       }
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Mokėjimas nepavyko';
-      showToast.error(msg);
+      showToast.error(formatNetworkErrorForUser(error, 'Mokėjimas nepavyko.'));
     } finally {
       setPaymentProcessing(false);
     }
@@ -131,8 +142,8 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-    } catch {
-      showToast.error('Nepavyko atsisiųsti sąskaitos');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko atsisiųsti sąskaitos.'));
     }
   };
 
@@ -356,52 +367,90 @@ export default function PaymentView({ order, onPaymentComplete }: PaymentViewPro
         transition={{ delay: 0.2 }}
         className="bg-white rounded-lg shadow p-6"
       >
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Sąskaitos</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">Sąskaitos</h2>
+          {invoicesLoadError && (
+            <button
+              type="button"
+              onClick={() => void loadInvoices()}
+              disabled={invoicesBusy}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800 disabled:opacity-50 self-start sm:self-auto"
+            >
+              {invoicesBusy ? 'Kraunama…' : 'Bandyti įkelti dar kartą'}
+            </button>
+          )}
+        </div>
 
-        {invoices.length === 0 ? (
-          <div className="text-center py-8">
-            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Sąskaitų nerasta</p>
+        {invoicesBusy && invoices.length === 0 && !invoicesLoadError ? (
+          <div className="text-center py-10">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-4" />
+            <p className="text-gray-600 text-sm">Kraunamos sąskaitos…</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {invoices.map((invoice) => (
-              <div key={invoice.id} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <FileText className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium">Sąskaita #{invoice.id.slice(-8)}</p>
-                        <p className="text-sm text-gray-500">
-                          Sukurta: {new Date(invoice.created_at).toLocaleDateString('lt-LT')}
-                        </p>
+          <>
+            {invoicesLoadError && (
+              <div
+                className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 mb-4"
+                role="alert"
+              >
+                <p className="font-medium text-amber-950 mb-1">
+                  Nepavyko atnaujinti sąskaitų sąrašo
+                </p>
+                <p className="text-amber-900/90">{invoicesLoadError}</p>
+                {invoices.length > 0 ? (
+                  <p className="text-amber-800/80 text-xs mt-2">
+                    Žemiau rodomas paskutinis sėkmingai įkeltas sąrašas — gali būti ne naujausias.
+                  </p>
+                ) : null}
+              </div>
+            )}
+            {!invoicesBusy && invoices.length === 0 && !invoicesLoadError ? (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Šiam užsakymui sąskaitų dar nėra</p>
+                <p className="text-gray-400 text-sm mt-1">Po apmokėjimo sąskaita atsiras čia.</p>
+              </div>
+            ) : invoices.length > 0 ? (
+              <div className="space-y-3">
+                {invoices.map((invoice) => (
+                  <div key={invoice.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <FileText className="w-5 h-5 text-gray-400" />
+                          <div>
+                            <p className="font-medium">Sąskaita #{invoice.id.slice(-8)}</p>
+                            <p className="text-sm text-gray-500">
+                              Sukurta: {new Date(invoice.created_at).toLocaleDateString('lt-LT')}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusColor(invoice.status)}`}
+                          >
+                            {getInvoiceStatusText(invoice.status)}
+                          </span>
+                          <p className="text-lg font-semibold mt-1">
+                            {formatAmountFromEur(invoice.amount)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <button
+                          onClick={() => downloadInvoice(invoice)}
+                          className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Atsisiųsti PDF"
+                        >
+                          <Download className="w-5 h-5" />
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusColor(invoice.status)}`}
-                      >
-                        {getInvoiceStatusText(invoice.status)}
-                      </span>
-                      <p className="text-lg font-semibold mt-1">
-                        {formatAmountFromEur(invoice.amount)}
-                      </p>
-                    </div>
                   </div>
-                  <div className="ml-4">
-                    <button
-                      onClick={() => downloadInvoice(invoice)}
-                      className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Atsisiųsti PDF"
-                    >
-                      <Download className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            ) : null}
+          </>
         )}
       </motion.div>
     </div>

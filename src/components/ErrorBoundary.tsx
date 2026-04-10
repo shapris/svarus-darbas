@@ -57,10 +57,15 @@ export default class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="text-red-600" size={32} />
             </div>
 
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Kažkas nepavyko</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              {'\u012evyko nenumatyta klaida'}
+            </h2>
 
-            <p className="text-slate-600 mb-6">
-              Atsiprašome už triktis. Aplikacija susidūrė su klaida.
+            <p className="text-slate-600 mb-6 text-left text-sm leading-relaxed">
+              Vienas iš puslapio elementų užstrigo. Jūsų įvesti duomenys dažniausiai lieka saugūs
+              serveryje. Spauskite žemiau „Bandyti dar kartą“ arba atnaujinkite langą (
+              <kbd className="px-1 bg-slate-100 rounded text-xs">F5</kbd>
+              ). Jei tai kartojasi — užfiksuokite veiksmą ir kreipkitės į administratorių.
             </p>
 
             {process.env.NODE_ENV === 'development' && this.state.error && (

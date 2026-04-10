@@ -19,8 +19,10 @@ import {
   ExtendedIntention,
 } from './hybridClassifier';
 import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority';
-import { getData, TABLES } from '../supabase';
-import type { Client, Order, Expense, Memory, InventoryItem } from '../types';
+import { addData, deleteData, getData, TABLES, updateData } from '../supabase';
+import type { BuildingType, Client, Expense, InventoryItem, Memory, Order } from '../types';
+import { DEFAULT_SETTINGS } from '../types';
+import { calculateOrderPrice } from '../utils';
 
 // Types for context and execution
 export interface ToolExecutionResult {
@@ -42,6 +44,537 @@ export interface RoutingContext {
   /** Workspace savininkas — jei perduota, galima užkrauti inventorių be iš anksto paruošto masyvo */
   dataOwnerId?: string;
   inventory?: InventoryItem[];
+}
+
+function routingDataOwnerId(context: RoutingContext): string | null {
+  const o = context.dataOwnerId?.trim() || context.userId?.trim();
+  return o || null;
+}
+
+/** Tikri CRM įrašai (planavimo variklis, hybrid router) — anksčiau buvo tuščias „success“. */
+async function crudAddClient(
+  params: Record<string, unknown>,
+  context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const owner = routingDataOwnerId(context);
+  if (!owner) {
+    return {
+      success: false,
+      error: 'Trūksta workspace (dataOwnerId / userId) — negalima pridėti kliento.',
+      toolName: 'add_client',
+      intention: 'add_client',
+      confidence: 0,
+    };
+  }
+  try {
+    const name = String(params.name ?? 'Naujas klientas');
+    const inserted = await addData(TABLES.CLIENTS, owner, {
+      name,
+      phone: String(params.phone ?? 'nesutarta'),
+      address: String(params.address ?? 'nesutarta'),
+      buildingType: ((params.buildingType as BuildingType) || 'nesutarta') as BuildingType,
+      notes: String(params.notes ?? ''),
+      createdAt: new Date().toISOString(),
+    });
+    const id = (inserted as { id?: string }).id ?? '';
+    return {
+      success: true,
+      data: { clientId: id, id, message: `Klientas „${name}“ pridėtas.` },
+      toolName: 'add_client',
+      intention: 'add_client',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'add_client',
+      intention: 'add_client',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudUpdateClient(
+  params: Record<string, unknown>,
+  _context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const clientId = typeof params.clientId === 'string' ? params.clientId : '';
+  if (!clientId) {
+    return {
+      success: false,
+      error: 'Trūksta clientId.',
+      toolName: 'update_client',
+      intention: 'update_client',
+      confidence: 0,
+    };
+  }
+  try {
+    const { clientId: _c, ...updates } = params;
+    await updateData(TABLES.CLIENTS, clientId, updates as Partial<Client>);
+    return {
+      success: true,
+      data: { clientId, message: 'Klientas atnaujintas.' },
+      toolName: 'update_client',
+      intention: 'update_client',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'update_client',
+      intention: 'update_client',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudDeleteClient(
+  params: Record<string, unknown>,
+  _context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const clientId = typeof params.clientId === 'string' ? params.clientId : '';
+  if (!clientId) {
+    return {
+      success: false,
+      error: 'Trūksta clientId.',
+      toolName: 'delete_client',
+      intention: 'delete_client',
+      confidence: 0,
+    };
+  }
+  try {
+    await deleteData(TABLES.CLIENTS, clientId);
+    return {
+      success: true,
+      data: { clientId, message: 'Klientas pašalintas.' },
+      toolName: 'delete_client',
+      intention: 'delete_client',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'delete_client',
+      intention: 'delete_client',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudAddOrder(
+  params: Record<string, unknown>,
+  context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const owner = routingDataOwnerId(context);
+  if (!owner) {
+    return {
+      success: false,
+      error: 'Trūksta workspace (dataOwnerId / userId).',
+      toolName: 'add_order',
+      intention: 'add_order',
+      confidence: 0,
+    };
+  }
+  const clients = context.clients ?? [];
+  const clientName = String(params.clientName ?? '');
+  const client = clients.find((c) =>
+    (c.name || '').toLowerCase().includes(clientName.toLowerCase())
+  );
+  if (!client) {
+    return {
+      success: false,
+      error: `Klientas pagal „${clientName}“ nerastas kontekste — pirmiausia pridėkite klientą arba naudokite tikslų vardą.`,
+      toolName: 'add_order',
+      intention: 'add_order',
+      confidence: 0,
+    };
+  }
+  try {
+    const additionalServices = {
+      balkonai: Boolean(
+        params.additionalServices && (params.additionalServices as Record<string, boolean>).balkonai
+      ),
+      vitrinos: Boolean(
+        params.additionalServices && (params.additionalServices as Record<string, boolean>).vitrinos
+      ),
+      terasa: Boolean(
+        params.additionalServices && (params.additionalServices as Record<string, boolean>).terasa
+      ),
+      kiti: Boolean(
+        params.additionalServices && (params.additionalServices as Record<string, boolean>).kiti
+      ),
+    };
+    const wc = Number(params.windowCount) || 0;
+    const fl = Number(params.floor) || 0;
+    const totalPrice = calculateOrderPrice(wc, fl, additionalServices, DEFAULT_SETTINGS);
+    const inserted = await addData(TABLES.ORDERS, owner, {
+      clientId: client.id,
+      clientName: client.name,
+      address: String(params.address ?? client.address ?? 'nesutarta'),
+      date: String(params.date ?? 'nesutarta'),
+      time: String(params.time ?? 'nesutarta'),
+      windowCount: wc,
+      floor: fl,
+      estimatedDuration: Number(params.estimatedDuration) || 0,
+      additionalServices,
+      totalPrice,
+      status: 'suplanuota',
+      notes: String(params.notes ?? ''),
+      createdAt: new Date().toISOString(),
+    });
+    const orderId = (inserted as { id?: string }).id ?? '';
+    return {
+      success: true,
+      data: { orderId, id: orderId, clientId: client.id, message: 'Užsakymas sukurtas.' },
+      toolName: 'add_order',
+      intention: 'add_order',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'add_order',
+      intention: 'add_order',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudUpdateOrder(
+  params: Record<string, unknown>,
+  context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const orderId = typeof params.orderId === 'string' ? params.orderId : '';
+  if (!orderId) {
+    return {
+      success: false,
+      error: 'Trūksta orderId.',
+      toolName: 'update_order',
+      intention: 'update_order',
+      confidence: 0,
+    };
+  }
+  const orders = context.orders ?? [];
+  const existing = orders.find((o) => o.id === orderId);
+  try {
+    const { orderId: _o, ...updates } = params;
+    const partial = { ...updates } as Partial<Order>;
+    if (
+      existing &&
+      (partial.windowCount !== undefined ||
+        partial.floor !== undefined ||
+        partial.additionalServices !== undefined)
+    ) {
+      const newWindowCount = partial.windowCount ?? existing.windowCount;
+      const newFloor = partial.floor ?? existing.floor;
+      const newServices = {
+        ...existing.additionalServices,
+        ...(partial.additionalServices || {}),
+      };
+      if (partial.totalPrice === undefined) {
+        partial.totalPrice = calculateOrderPrice(
+          newWindowCount,
+          newFloor,
+          newServices,
+          DEFAULT_SETTINGS
+        );
+      }
+      partial.additionalServices = newServices;
+    }
+    await updateData(TABLES.ORDERS, orderId, partial);
+    return {
+      success: true,
+      data: { orderId, message: 'Užsakymas atnaujintas.' },
+      toolName: 'update_order',
+      intention: 'update_order',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'update_order',
+      intention: 'update_order',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudDeleteOrder(
+  params: Record<string, unknown>,
+  _context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const orderId = typeof params.orderId === 'string' ? params.orderId : '';
+  if (!orderId) {
+    return {
+      success: false,
+      error: 'Trūksta orderId.',
+      toolName: 'delete_order',
+      intention: 'delete_order',
+      confidence: 0,
+    };
+  }
+  try {
+    await deleteData(TABLES.ORDERS, orderId);
+    return {
+      success: true,
+      data: { orderId, message: 'Užsakymas pašalintas.' },
+      toolName: 'delete_order',
+      intention: 'delete_order',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'delete_order',
+      intention: 'delete_order',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudAddExpense(
+  params: Record<string, unknown>,
+  context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const owner = routingDataOwnerId(context);
+  if (!owner) {
+    return {
+      success: false,
+      error: 'Trūksta workspace (dataOwnerId / userId).',
+      toolName: 'add_expense',
+      intention: 'add_expense',
+      confidence: 0,
+    };
+  }
+  try {
+    const inserted = await addData(TABLES.EXPENSES, owner, {
+      title: String(params.title ?? 'nesutarta'),
+      amount: Number(params.amount) || 0,
+      date: String(params.date ?? 'nesutarta'),
+      category: (params.category as Expense['category']) || 'kita',
+      notes: String(params.notes ?? ''),
+      createdAt: new Date().toISOString(),
+    });
+    const id = (inserted as { id?: string }).id ?? '';
+    return {
+      success: true,
+      data: { expenseId: id, id, message: 'Išlaida įrašyta.' },
+      toolName: 'add_expense',
+      intention: 'add_expense',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'add_expense',
+      intention: 'add_expense',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudUpdateExpense(
+  params: Record<string, unknown>,
+  _context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const expenseId = typeof params.expenseId === 'string' ? params.expenseId : '';
+  if (!expenseId) {
+    return {
+      success: false,
+      error: 'Trūksta expenseId.',
+      toolName: 'update_expense',
+      intention: 'update_expense',
+      confidence: 0,
+    };
+  }
+  try {
+    const { expenseId: _e, ...updates } = params;
+    await updateData(TABLES.EXPENSES, expenseId, updates);
+    return {
+      success: true,
+      data: { expenseId, message: 'Išlaida atnaujinta.' },
+      toolName: 'update_expense',
+      intention: 'update_expense',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'update_expense',
+      intention: 'update_expense',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudDeleteExpense(
+  params: Record<string, unknown>,
+  _context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const expenseId = typeof params.expenseId === 'string' ? params.expenseId : '';
+  if (!expenseId) {
+    return {
+      success: false,
+      error: 'Trūksta expenseId.',
+      toolName: 'delete_expense',
+      intention: 'delete_expense',
+      confidence: 0,
+    };
+  }
+  try {
+    await deleteData(TABLES.EXPENSES, expenseId);
+    return {
+      success: true,
+      data: { expenseId, message: 'Išlaida pašalinta.' },
+      toolName: 'delete_expense',
+      intention: 'delete_expense',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'delete_expense',
+      intention: 'delete_expense',
+      confidence: 0,
+    };
+  }
+}
+
+async function crudMemory(
+  toolName: 'add_memory' | 'update_memory' | 'delete_memory',
+  params: Record<string, unknown>,
+  context: RoutingContext
+): Promise<ToolExecutionResult> {
+  const owner = routingDataOwnerId(context);
+  if (!owner) {
+    return {
+      success: false,
+      error: 'Trūksta workspace (dataOwnerId / userId).',
+      toolName,
+      intention: toolName,
+      confidence: 0,
+    };
+  }
+  try {
+    if (toolName === 'add_memory') {
+      const inserted = await addData('memories', owner, {
+        ...params,
+        createdAt: new Date().toISOString(),
+      });
+      const id = (inserted as { id?: string }).id ?? '';
+      return {
+        success: true,
+        data: { memoryId: id, id, message: 'Atmintis įrašyta.' },
+        toolName: 'add_memory',
+        intention: 'add_memory',
+        confidence: 1.0,
+      };
+    }
+    if (toolName === 'update_memory') {
+      const memoryId = typeof params.memoryId === 'string' ? params.memoryId : '';
+      if (!memoryId) {
+        return {
+          success: false,
+          error: 'Trūksta memoryId.',
+          toolName,
+          intention: toolName,
+          confidence: 0,
+        };
+      }
+      const { memoryId: _m, ...updates } = params;
+      await updateData('memories', memoryId, updates);
+      return {
+        success: true,
+        data: { memoryId, message: 'Atmintis atnaujinta.' },
+        toolName: 'update_memory',
+        intention: 'update_memory',
+        confidence: 1.0,
+      };
+    }
+    const memoryId = typeof params.memoryId === 'string' ? params.memoryId : '';
+    if (!memoryId) {
+      return {
+        success: false,
+        error: 'Trūksta memoryId.',
+        toolName: 'delete_memory',
+        intention: 'delete_memory',
+        confidence: 0,
+      };
+    }
+    await deleteData('memories', memoryId);
+    return {
+      success: true,
+      data: { memoryId, message: 'Atmintis pašalinta.' },
+      toolName: 'delete_memory',
+      intention: 'delete_memory',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName,
+      intention: toolName,
+      confidence: 0,
+    };
+  }
+}
+
+async function crudBatchUpdateOrderStatus(
+  params: Record<string, unknown>
+): Promise<ToolExecutionResult> {
+  const raw = params.orderIds;
+  const orderIds = Array.isArray(raw)
+    ? raw.filter((id): id is string => typeof id === 'string' && id.length > 0)
+    : [];
+  const status = params.status;
+  if (orderIds.length === 0 || typeof status !== 'string') {
+    return {
+      success: false,
+      error: 'Reikia orderIds (string[]) ir status (tekstas).',
+      toolName: 'batch_update_order_status',
+      intention: 'batch_update_status',
+      confidence: 0,
+    };
+  }
+  try {
+    await Promise.all(orderIds.map((id) => updateData(TABLES.ORDERS, id, { status })));
+    return {
+      success: true,
+      data: { updated: orderIds.length, status },
+      toolName: 'batch_update_order_status',
+      intention: 'batch_update_status',
+      confidence: 1.0,
+    };
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      success: false,
+      error: msg,
+      toolName: 'batch_update_order_status',
+      intention: 'batch_update_status',
+      confidence: 0,
+    };
+  }
 }
 
 /**
@@ -160,75 +693,54 @@ async function executeToolByName(
     case 'get_revenue_trends':
       return await executeGetRevenueTrends(params, context);
 
-    // Client management (would need actual database operations)
     case 'add_client':
+      return await crudAddClient(params, context);
     case 'update_client':
+      return await crudUpdateClient(params, context);
     case 'delete_client':
-      return {
-        success: true,
-        data: {
-          message: `Tool ${toolName} would be executed with params: ${JSON.stringify(params)}`,
-        },
-        toolName,
-        intention: toolName as Intention,
-        confidence: 1.0,
-      };
+      return await crudDeleteClient(params, context);
 
-    // Order management
     case 'add_order':
+      return await crudAddOrder(params, context);
     case 'update_order':
+      return await crudUpdateOrder(params, context);
     case 'delete_order':
-      return {
-        success: true,
-        data: {
-          message: `Tool ${toolName} would be executed with params: ${JSON.stringify(params)}`,
-        },
-        toolName,
-        intention: toolName as Intention,
-        confidence: 1.0,
-      };
+      return await crudDeleteOrder(params, context);
 
-    // Expense management
     case 'add_expense':
+      return await crudAddExpense(params, context);
     case 'update_expense':
+      return await crudUpdateExpense(params, context);
     case 'delete_expense':
-      return {
-        success: true,
-        data: {
-          message: `Tool ${toolName} would be executed with params: ${JSON.stringify(params)}`,
-        },
-        toolName,
-        intention: toolName as Intention,
-        confidence: 1.0,
-      };
+      return await crudDeleteExpense(params, context);
 
-    // Memory operations
     case 'add_memory':
+      return await crudMemory('add_memory', params, context);
     case 'update_memory':
+      return await crudMemory('update_memory', params, context);
     case 'delete_memory':
-      return {
-        success: true,
-        data: {
-          message: `Tool ${toolName} would be executed with params: ${JSON.stringify(params)}`,
-        },
-        toolName,
-        intention: toolName as Intention,
-        confidence: 1.0,
-      };
+      return await crudMemory('delete_memory', params, context);
 
-    // Workflow automation
     case 'create_recurring_order':
-    case 'generate_reminder_message':
-    case 'batch_update_order_status':
       return {
-        success: true,
-        data: {
-          message: `Tool ${toolName} would be executed with params: ${JSON.stringify(params)}`,
-        },
+        success: false,
+        error:
+          'Pasikartojantys užsakymai per planą dar nekonfigūruoti — sukurkite užsakymą rankiniu būdu arba naudokite pokalbio asistentą.',
         toolName,
-        intention: toolName as Intention,
-        confidence: 1.0,
+        intention: 'create_recurring_order',
+        confidence: 0,
       };
+    case 'generate_reminder_message':
+      return {
+        success: false,
+        error:
+          'Priminimo šablonas per šį maršrutą dar neįgyvendintas — naudokite nustatymus / asistentą.',
+        toolName,
+        intention: 'generate_reminder',
+        confidence: 0,
+      };
+    case 'batch_update_order_status':
+      return await crudBatchUpdateOrderStatus(params);
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);

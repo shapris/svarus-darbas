@@ -21,6 +21,7 @@
 
 ## P1 — sauga, patikimumas, kokybė
 
+- [x] **Supabase owner scope kontraktas:** po incidento (400 ant `orders`, `owner_id` vs legacy `uid`) — `tests/ownerScope.test.ts` + ADR `decisions.md` (2026-04-10) + workflow taisyklė apie schema drift. *2026-04-10*
 - [x] **`server.cjs` sukietinimas:** CORS ne `*`, o leidžiamų origino sąrašas per env; dokumentuoti `STRIPE_SECRET_KEY`; nepalikti nutekėjusių placeholder flow produkcijoje be įspėjimo. *2026-03-31: `CORS_ORIGINS`, numatytieji localhost portai, production warn be Stripe; `.env.example`.*
 - [x] **Konsolės triukšmas:** peržiūrėti dažniausius `console.error` CRM srautuose (`src/supabase.ts` ir pan.) — palikti tik naudingus; likusius pakeisti į sąmoningą `warn` / tylus failas su toast vartotojui kur reikia. *2026-04-04: `logSupabaseDevError` — logai tik `import.meta.env.DEV` arba `VITE_DEBUG_SUPABASE=true`.*
 - [x] **„Demo“ paskyros rizika:** jei `demo@example.com` naudojama jūsų Supabase — dokumentuoti `.env.example` / viduje, kad produkcijoje reikia pakeisti slaptažodį ar apriboti registraciją. *2026-04-04: `.env.example` pastaba + `VITE_DEBUG_SUPABASE`.*

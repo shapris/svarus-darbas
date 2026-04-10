@@ -14,14 +14,24 @@ export function isLikelyNetworkError(error: unknown): boolean {
   );
 }
 
+function extractRawErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (error && typeof error === 'object' && 'message' in error) {
+    const m = (error as { message: unknown }).message;
+    if (typeof m === 'string' && m.trim()) return m.trim();
+  }
+  return '';
+}
+
 export function formatNetworkErrorForUser(error: unknown, fallback: string): string {
   if (isLikelyNetworkError(error)) {
     return `${fallback} Patikrinkite interneto ryšį ir bandykite dar kartą.`;
   }
-  if (error instanceof Error && error.message.trim()) {
-    return `${fallback} ${error.message.trim()}`;
-  }
-  return fallback;
+  const raw = extractRawErrorMessage(error);
+  if (!raw) return fallback;
+  const safe = sanitizeSupabaseErrorForDisplay(raw);
+  const tail = safe?.trim() ? safe.trim() : raw;
+  return `${fallback} ${tail}`.trim();
 }
 
 /**

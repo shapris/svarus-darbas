@@ -557,8 +557,8 @@ export default function OrdersView({
       );
       showToast.success(`Atnaujinta užsakymų: ${selectedOrderIds.length}`);
       setSelectedOrderIds([]);
-    } catch {
-      showToast.error('Nepavyko masiškai atnaujinti būsenos');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko masiškai atnaujinti būsenos.'));
     } finally {
       setIsBulkUpdating(false);
     }

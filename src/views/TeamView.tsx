@@ -9,6 +9,7 @@ import { addData, updateData, deleteData, TABLES } from '../supabase';
 import { Users, Plus, Edit2, Trash2, X, Phone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../hooks/useToast';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 
@@ -64,9 +65,7 @@ export default function TeamView({ employees }: TeamViewProps) {
       setEditingId(null);
       setFormData({ name: '', phone: '', color: COLORS[0], isActive: true });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const short = msg.length > 120 ? `${msg.slice(0, 117)}…` : msg;
-      showToast.error(short ? `Nepavyko išsaugoti: ${short}` : 'Klaida išsaugant darbuotoją');
+      showToast.error(formatNetworkErrorForUser(e, 'Nepavyko išsaugoti darbuotojo.'));
     }
   };
 
@@ -83,12 +82,12 @@ export default function TeamView({ employees }: TeamViewProps) {
 
   const handleDelete = async (id: string) => {
     if (isRestrictedStaff) return;
-    if (window.confirm('Ar tikrai norite ištrinti šį darbuotoją?')) {
-      try {
-        deleteData(TABLES.EMPLOYEES, id);
-      } catch {
-        // Silent fail - already alerted
-      }
+    if (!window.confirm('Ar tikrai norite ištrinti šį darbuotoją?')) return;
+    try {
+      await deleteData(TABLES.EMPLOYEES, id);
+      showToast.success('Darbuotojas pašalintas');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko ištrinti darbuotojo.'));
     }
   };
 

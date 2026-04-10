@@ -6,6 +6,8 @@ const baseURL = `http://127.0.0.1:${port}`;
 export default defineConfig({
   testDir: './tests',
   testMatch: /.*\.spec\.ts/,
+  /** Debesies smoke — tik `playwright.cloud.config.ts` + `npm run test:cloud` */
+  testIgnore: ['**/cloud-smoke.spec.ts'],
   timeout: 30_000,
   fullyParallel: false,
   use: {

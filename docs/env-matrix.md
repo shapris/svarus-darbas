@@ -70,6 +70,12 @@ Legenda: **B** = būtina tam kontekste · **N** = neprivaloma · **T** = tik kū
 
 - Vercel + Render env kontraktas ir **known gaps:** [`VERCEL_RENDER_ENV_PARITY.md`](VERCEL_RENDER_ENV_PARITY.md).
 
+## Playwright debesies smoke (`npm run test:cloud`)
+
+- Šablonas: **`.env.cloud-e2e.example`** → nukopijuokite į **`.env.cloud-e2e.local`** (nepridedamas į git) su tikrais `VITE_SUPABASE_URL` ir `VITE_SUPABASE_ANON_KEY`.
+- Build naudoja režimą `cloud-e2e` (`VITE_ALLOW_OFFLINE_CRM=false`), kad naršyklėje būtų tikras Supabase klientas.
+- **GitHub Actions:** repository **Variables** — `CLOUD_E2E_ENABLED` = `true`; **Secrets** — `CLOUD_VITE_SUPABASE_URL`, `CLOUD_VITE_SUPABASE_ANON_KEY` (tinka testiniam Supabase projektui).
+
 ## Patikros
 
 ```bash

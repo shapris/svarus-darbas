@@ -41,7 +41,27 @@ export function extractMissingColumnFromPgError(error: PgLikeError): string | nu
   if (match?.[1]) return match[1];
   match = msg.match(/column "([^"]+)" does not exist/i);
   if (match?.[1]) return match[1];
+  match = msg.match(/column\s+[\w.]+\.([\w_]+)\s+does not exist/i);
+  if (match?.[1]) return match[1];
   return null;
+}
+
+function escapeRegexChars(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Filtras / užklausos parametras nurodo stulpelį, kurio PostgREST schemoje nėra (įsk. 400, ne tik PGRST204).
+ * Naudoti „fallback“ į legacy stulpelį (pvz. `client_id` → `clientId`).
+ */
+export function isMissingColumnInPostgrestRequest(error: PgLikeError, columnName: string): boolean {
+  if (!error) return false;
+  const missing = extractMissingColumnFromPgError(error);
+  if (missing === columnName) return true;
+  const msg = String(error.message ?? '');
+  const re = new RegExp(`(^|[^\\w])${escapeRegexChars(columnName)}([^\\w]|$)`, 'i');
+  if (!re.test(msg)) return false;
+  return /(schema cache|does not exist|could not find|not find the)/i.test(msg);
 }
 
 export async function insertWithColumnFallback(

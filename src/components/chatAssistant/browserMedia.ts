@@ -36,3 +36,36 @@ export function getSpeechRecognitionCtor(): BrowserSpeechRecognitionCtor | undef
     };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
+
+/** Greita diagnostika telefone — kodėl mic gali neveikti (UI patarimams). */
+export type MicDictationChecklist = {
+  secureContext: boolean;
+  hasWebSpeech: boolean;
+  /** Viena eilutė lietuviškai — ką daryti pirmiausia */
+  primaryHintLt: string;
+};
+
+export function getMicDictationChecklist(): MicDictationChecklist {
+  if (typeof window === 'undefined') {
+    return {
+      secureContext: false,
+      hasWebSpeech: false,
+      primaryHintLt: '—',
+    };
+  }
+  const secureContext = window.isSecureContext;
+  const hasWebSpeech = getSpeechRecognitionCtor() !== undefined;
+
+  let primaryHintLt =
+    'Paspauskite mikrofoną ir leiskite prieigą. Jei nutrūksta — „Tęsti klausymą“. Reikia interneto (debesų atpažinimas).';
+
+  if (!secureContext) {
+    primaryHintLt =
+      'Atidarykite tą patį puslapį per HTTPS (pvz. jūsų Vercel nuorodą), ne kaip failą ir ne http://.';
+  } else if (!hasWebSpeech) {
+    primaryHintLt =
+      'Ši naršyklė neturi Web Speech API. Android: Chrome. iPhone: Chrome iš App Store (Safari dažnai neįrašo balso).';
+  }
+
+  return { secureContext, hasWebSpeech, primaryHintLt };
+}

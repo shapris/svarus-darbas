@@ -47,6 +47,7 @@ import { ToastContainer } from './components/Toast';
 import { Button } from './components/ui/Button';
 import { useToast } from './hooks/useToast';
 import { formatAuthErrorForUser, AUTH_FALLBACK, AUTH_INVITE_HELP } from './utils/authMessages';
+import { formatNetworkErrorForUser } from './utils/networkErrors';
 import { crmDataOwnerId } from './utils/crmDataScope';
 import { formatNewOrderAlert, showNewOrderBrowserNotification } from './utils/bookingNotifications';
 
@@ -279,9 +280,10 @@ export default function App() {
           .catch((e) => {
             if (cancelled) return;
             showToastRef.current.error(
-              e instanceof Error
-                ? e.message
-                : 'Nepavyko sukurti naudotojo profilio. Patikrinkite Supabase / RLS.'
+              formatNetworkErrorForUser(
+                e,
+                'Nepavyko sukurti naudotojo profilio. Patikrinkite Supabase / RLS.'
+              )
             );
           });
       }

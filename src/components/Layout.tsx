@@ -24,6 +24,9 @@ interface LayoutProps {
   onLogout?: () => void;
 }
 
+/** Skiltys, atidaromos iš „Daugiau“ arba Apžvalgos greitųjų veiksmų — apačioje paryškiname „Daugiau“. */
+const MORE_HUB_TAB_IDS = new Set(['more', 'analytics', 'logistics', 'team', 'inventory']);
+
 export default function Layout({ children, activeTab, setActiveTab, onLogout }: LayoutProps) {
   const tabs = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Apžvalga' },
@@ -73,7 +76,8 @@ export default function Layout({ children, activeTab, setActiveTab, onLogout }: 
         <div className="flex justify-around items-stretch min-h-[4rem] px-1 pt-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+            const isActive =
+              tab.id === 'more' ? MORE_HUB_TAB_IDS.has(activeTab) : activeTab === tab.id;
             return (
               <button
                 type="button"

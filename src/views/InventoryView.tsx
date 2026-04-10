@@ -4,6 +4,7 @@ import { addData, updateData, deleteData, subscribeToData, TABLES } from '../sup
 import { Package, Plus, Search, AlertTriangle, Edit2, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../hooks/useToast';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 
 export default function InventoryView() {
@@ -53,17 +54,18 @@ export default function InventoryView() {
       setEditingItem(null);
       setFormData({ name: '', quantity: 0, unit: 'vnt', minQuantity: 5, category: 'valikliai' });
       showToast.success(editingItem ? 'Inventorius atnaujintas' : 'Inventorius išsaugotas');
-    } catch {
-      showToast.error('Klaida išsaugant inventorių.');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Klaida išsaugant inventorių.'));
     }
   };
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Ar tikrai norite ištrinti šią prekę?')) {
       try {
-        deleteData(TABLES.INVENTORY, id);
-      } catch {
-        // Silent fail
+        await deleteData(TABLES.INVENTORY, id);
+        showToast.success('Prekė pašalinta');
+      } catch (err) {
+        showToast.error(formatNetworkErrorForUser(err, 'Nepavyko ištrinti prekės.'));
       }
     }
   };
@@ -87,8 +89,8 @@ export default function InventoryView() {
         quantity: newQuantity,
         lastRestocked: amount > 0 ? new Date().toISOString() : item.lastRestocked,
       });
-    } catch {
-      // Silent fail on stock update
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko atnaujinti likučio.'));
     }
   };
 

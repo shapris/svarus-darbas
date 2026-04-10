@@ -15,6 +15,7 @@ import {
 } from '../supabase';
 import { AppSettings, DEFAULT_SETTINGS, BuildingType, OrderStatus, Client } from '../types';
 import { calculateOrderPrice, formatCurrency, geocodeAddress } from '../utils';
+import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { Calendar, User, CheckCircle2, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -54,8 +55,10 @@ export default function BookingPage({ userId }: BookingPageProps) {
       try {
         const next = await fetchPublicBookingSettings(userId);
         if (!cancelled) setSettings(next);
-      } catch {
-        // Error fetching settings silently
+      } catch (err) {
+        if (!cancelled) {
+          setErrorBanner(formatNetworkErrorForUser(err, 'Nepavyko įkelti rezervacijos nustatymų.'));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -180,9 +183,7 @@ export default function BookingPage({ userId }: BookingPageProps) {
         setErrorBanner('Vieša rezervacija išjungta. Susisiekite su įmonę tiesiogiai.');
       } else {
         setErrorBanner(
-          import.meta.env.DEV
-            ? msg
-            : 'Apgailestaujame, įvyko klaida. Bandykite dar kartą. (Detalės tik dev režime.)'
+          formatNetworkErrorForUser(error, 'Apgailestaujame, įvyko klaida. Bandykite dar kartą.')
         );
       }
     } finally {

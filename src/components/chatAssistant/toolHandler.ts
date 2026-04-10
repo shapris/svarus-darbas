@@ -441,7 +441,7 @@ export async function runAssistantToolCall(
     }
   } catch (error) {
     logDevError('Tool execution error:', error);
-    return `Klaida vykdant veiksmą: ${error instanceof Error ? error.message : 'Nežinoma klaida'}`;
+    return `Klaida vykdant veiksmą: ${error instanceof Error ? error.message : 'techninė klaida be papildomos žinutės — bandykite dar kartą arba kitą komandą'}`;
   }
-  return 'Nežinomas veiksmas.';
+  return 'Nežinomas veiksmas — patikrinkite, ar komanda palaikoma, ir bandykite dar kartą.';
 }

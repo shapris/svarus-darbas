@@ -130,7 +130,10 @@ npm test         # Vitest vienetiniai / integraciniai testai
 npm run test:smoke # Playwright smoke testas prieš preview
 npm run test:console # Konsolė be netikėtų klaidų (pagrindinis meniu)
 npm run test:invoice # /health JSON (sąskaitų API kelias)
-npm run verify       # lint + build + test + smoke + console + invoice
+npm run test:cloud   # Playwright su tikru Supabase (.env.cloud-e2e.local) — žr. .env.cloud-e2e.example
+npm run test:journey:headed # E2E build + matomas Chromium: eina per skiltis (žr. tests/user-journey.spec.ts)
+npm run test:tour:headed    # journey + smoke, vienas po kito, --headed (stebėjimui)
+npm run verify       # pilnas vartai (be test:cloud; cloud — pasirinktinai CI arba ranka)
 npm run check:cloud # Patikrina ar netrūksta cloud/env nustatymų
 ```
 
