@@ -292,20 +292,25 @@ export default function SettingsView({
           const token = session?.access_token?.trim();
           if (token) headers.Authorization = `Bearer ${token}`;
         }
-        const r = await fetch(`${base}/api/ai/chat`, {
-          method: 'POST',
+        const r = await fetch(`${base}/api/ai/health`, {
+          method: 'GET',
           headers,
-          body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }], timeoutMs: 8000 }),
         });
-        if (r.status === 200 || r.status === 400) {
+        let j: { aiConfigured?: boolean } = {};
+        try {
+          j = (await r.json()) as { aiConfigured?: boolean };
+        } catch {
+          /* ignore parse error */
+        }
+        if (r.status === 200 && j.aiConfigured === true) {
           aiStatus = 'ok';
           aiStatusHint = 'OpenCode serveris pasiekiamas.';
+        } else if (r.status === 200 && j.aiConfigured === false) {
+          aiStatus = 'offline';
+          aiStatusHint = 'Serveryje trūksta OPENCODE_API_KEY.';
         } else if (r.status === 429) {
           aiStatus = 'degraded';
           aiStatusHint = 'AI laikinai ribojamas (429).';
-        } else if (r.status === 503) {
-          aiStatus = 'offline';
-          aiStatusHint = 'Serveryje trūksta OPENCODE_API_KEY.';
         } else if (r.status === 401) {
           aiStatus = 'degraded';
           aiStatusHint = 'Sesija nebegalioja — prisijunkite iš naujo.';

@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-04-10 — AI health endpoint vietoje „chat ping“
+
+- **Serveris:** pridėtas `GET /api/ai/health` (su JWT auth), kuris grąžina `aiConfigured`, `variant`, `model` ir AI rate-limit parametrus.
+- **UI:** `SettingsView` AI būsenos indikatorius nebekviečia `/api/ai/chat` diagnostikai — dabar naudoja `GET /api/ai/health`.
+- **Nauda:** diagnostika nebekuria nereikalingų OpenCode užklausų, neteršia usage ir yra stabilesnė komandos kasdieniam darbui.
+- **Patikra:** `build + test + smoke + test:console + test:invoice` — žalia.
+
+---
+
 ## 2026-04-10 — UI: AI būsenos indikatorius nustatymuose
 
 - **`SettingsView`:** „Production Readiness“ papildytas `AI būsena` (`ok/degraded/offline`) ir trumpu paaiškinimu.

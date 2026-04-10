@@ -937,6 +937,32 @@ app.use(express.json({ limit: '12mb' }));
  *
  * Frontend (Vercel) kviečia šį endpoint per Render base URL (VITE_INVOICE_API_BASE_URL) arba per dev proxy.
  */
+app.get('/api/ai/health', async (req, res) => {
+  try {
+    const auth = await verifySupabaseUserJwt(req.headers.authorization);
+    if (!auth.ok) {
+      return apiError(res, auth.status || 401, 'auth_failed', auth.message);
+    }
+    const apiKey = String(process.env.OPENCODE_API_KEY || '').trim();
+    const variantEnv = String(process.env.OPENCODE_VARIANT || '')
+      .trim()
+      .toLowerCase();
+    const modelEnv = String(process.env.OPENCODE_MODEL || '').trim() || 'glm-5';
+    return res.json({
+      ok: true,
+      aiConfigured: !!apiKey,
+      variant: variantEnv === 'zen' ? 'zen' : 'go',
+      model: modelEnv,
+      rateLimit: {
+        windowMs: AI_PROXY_WINDOW_MS,
+        maxRequests: AI_PROXY_MAX_REQUESTS,
+      },
+    });
+  } catch (e) {
+    return apiError(res, 500, 'ai_health_error', e?.message || 'AI health klaida');
+  }
+});
+
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const auth = await verifySupabaseUserJwt(req.headers.authorization);
