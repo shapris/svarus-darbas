@@ -6,7 +6,7 @@
  * with rollback capabilities and progress tracking.
  */
 
-import type { Client, Expense, InventoryItem, Memory, Order } from '../types';
+import type { Client, Employee, Expense, InventoryItem, Memory, Order } from '../types';
 import { ExtendedIntention, ClassificationResult } from './hybridClassifier';
 import { executeToolDirect, type RoutingContext } from './toolRouter';
 
@@ -60,6 +60,8 @@ export interface PlanContext {
   orders?: Order[];
   expenses?: Expense[];
   memories?: Memory[];
+  /** Darbuotojai — tas pats kontekstas kaip `AssistantDataContext` (planų žingsniai / routeris). */
+  employees?: Employee[];
   inventory?: InventoryItem[];
   businessData: {
     totalClients: number;
@@ -117,6 +119,7 @@ function planContextToRoutingContext(ctx: PlanContext): RoutingContext {
     orders: ctx.orders ?? [],
     expenses: ctx.expenses ?? [],
     memories: ctx.memories ?? [],
+    employees: ctx.employees ?? [],
     userId: ctx.userId,
     dataOwnerId: ctx.dataOwnerId,
     inventory: ctx.inventory,

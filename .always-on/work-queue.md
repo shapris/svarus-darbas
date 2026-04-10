@@ -261,6 +261,12 @@
 
 ---
 
+## P22 — AI planavimo konteksto nuoseklumas
+
+- [x] **`employees` per `PlanContext` → `RoutingContext`:** `assistantContextToPlanContext` perduoda `ctx.employees`; `planContextToRoutingContext` mapina į `RoutingContext.employees` (tuščias masyvas, jei nėra). *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -315,5 +321,6 @@
 | 2026-04-10 | P19 employees RLS migracija | Idempotentiškumas: `DROP POLICY IF EXISTS employees_workspace_org_all` + `ENABLE RLS`; `RLS_SUMMARY` papildytas kanonine migracija. |
 | 2026-04-10 | P20 priskyrimas užsakymui | `columnFallback` + UUID regex + `OrdersView` klaidos toast; unit testas `normalize-order-employee.test.ts`. |
 | 2026-04-10 | P21 columnFallback INSERT + legacy orders | INSERT tuščio payload blokas; teisingas legacy `addData(orders)`; platesnis legacy fallback po modern insert klaidos. |
+| 2026-04-10 | P22 AI planavimas — komanda kontekste | `PlanContext` / `RoutingContext` papildyti `employees`; `aiService` `assistantContextToPlanContext` perduoda sąrašą; `npm run verify` OK. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

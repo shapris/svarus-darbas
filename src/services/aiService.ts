@@ -188,6 +188,7 @@ function assistantContextToPlanContext(
     orders: ctx.orders,
     expenses: ctx.expenses,
     memories: ctx.memories,
+    employees: ctx.employees,
     businessData: {
       totalClients: ctx.clients.length,
       totalOrders: ctx.orders.length,

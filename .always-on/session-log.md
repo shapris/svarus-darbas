@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-10 — P22: darbuotojai planavimo kontekste
+
+- **Kas:** `AssistantDataContext.employees` dabar perduodami į `PlanContext` ir toliau į `RoutingContext` (`planningEngine` / `toolRouter`), kad kelias per planavimo sluoksnį sutaptų su sistemos promptu.
+- **Patikra:** `npm run verify` žalia.
+
+---
+
 ## 2026-04-10 — „On air“: PostgREST stulpelių fallback sutvarkymas
 
 - **Kaip ieškota:** `grep PGRST204` per `src` → `authSession.getClientOrders` tik `error.code === 'PGRST204'` prieš `clientId` fallback (ta pati rizika kaip `owner_id`).

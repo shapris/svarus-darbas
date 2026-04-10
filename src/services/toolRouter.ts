@@ -20,7 +20,15 @@ import {
 } from './hybridClassifier';
 import { prioritizeMemories, formatMemoriesForContext, MemoryContext } from './memoryPriority';
 import { addData, deleteData, getData, TABLES, updateData } from '../supabase';
-import type { BuildingType, Client, Expense, InventoryItem, Memory, Order } from '../types';
+import type {
+  BuildingType,
+  Client,
+  Employee,
+  Expense,
+  InventoryItem,
+  Memory,
+  Order,
+} from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 import { calculateOrderPrice } from '../utils';
 
@@ -40,6 +48,7 @@ export interface RoutingContext {
   orders?: Order[];
   expenses?: Expense[];
   memories?: Memory[];
+  employees?: Employee[];
   userId?: string;
   /** Workspace savininkas — jei perduota, galima užkrauti inventorių be iš anksto paruošto masyvo */
   dataOwnerId?: string;
