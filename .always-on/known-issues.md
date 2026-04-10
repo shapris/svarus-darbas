@@ -82,7 +82,7 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
   - `npm i -D vite@^8 @vitejs/plugin-react@^6` grąžina `ERESOLVE could not resolve`.
 - Priežastis:
   - **`vite-plugin-pwa@1.2.0`** (`peerDependencies.vite`) leidžia tik **`^3–^7`**, ne `^8` — net ir su `@vitejs/plugin-react@6` + `vite@8` vienu prisėdimu npm vis dar nutraukia rezoliuciją.
-  - Papildomai: senesnė `@tailwindcss/vite@4.1.x` leido tik iki `^7`; **`@tailwindcss/vite@4.2.2`** jau deklaruoja `vite: '^5.2.0 || ^6 || ^7 || ^8'` (t. y. Tailwind pusė nebėra kietasis blokas po atnaujinimo).
+  - **`@tailwindcss/vite` + `tailwindcss` repo `^4.2.2`** — Tailwind peer jau leidžia `vite@^8`; kietasis blokas liko tik **PWA** pluginas.
 - Sprendimas / mitigacija:
   - Laikyti `vite@6` + `@vitejs/plugin-react@5` kol **`vite-plugin-pwa`** (ar pakaitalas) oficialiai palaikys `vite@^8`, arba suplanuotas atskiras PWA perkėlimo etapas.
   - `@vitejs/plugin-react` laikyti `devDependencies` (ne `dependencies`) — sutvarkyta.

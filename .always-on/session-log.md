@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-10 — Tailwind 4.2.2 (pasirengimas Vite 8 peer linijai)
+
+- **`@tailwindcss/vite` / `tailwindcss` → `^4.2.2`** (Vite 8 peer jau deklaruotas upstream; projektas vis dar ant Vite 6 iki PWA atnaujinimo).
+- **Patikra:** `npm run dev:kill && npm run verify` — žalia.
+
+---
+
 ## 2026-04-10 — Deps: eslint-plugin-react-hooks 7 + useToast ref taisyklė
 
 - **npm:** `eslint-plugin-react-hooks@7.0.1`, `prettier@3.8.2`, `@types/node@25.6.0`, `playwright@^1.59.1` (sulyginta su `@playwright/test`).

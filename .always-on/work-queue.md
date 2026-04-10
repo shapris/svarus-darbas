@@ -266,5 +266,6 @@
 | 2026-04-09 | Verify offline-crm stabilumas | `free-ports` (`kill-port`) prieš `test:offline-crm`; mažiau Windows flakiness. |
 | 2026-04-10 | E2E darbuotojo priskyrimas (offline) | `tests/offline-crm.spec.ts` — priskyrimas + perkrovimas; demo profilis teste pakeltas į `admin` (kad veiktų „Pridėti darbuotoją“); `npm run verify` žalia. |
 | 2026-04-10 | Tooling: react-hooks 7 + useToast | `eslint-plugin-react-hooks@7`, `useToast` ref per `useEffect`; playwright/prettier/types patch; `verify` po `dev:kill` Windows stabiliau. |
+| 2026-04-10 | Tailwind 4.2.2 | `@tailwindcss/vite` + `tailwindcss` ^4.2.2; KI-004 Tailwind blokas nuimtas, lieka PWA peer. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
