@@ -52,7 +52,6 @@ import {
 } from './chatAssistant/types';
 import {
   getAiStudio,
-  getMicDictationChecklist,
   getSpeechRecognitionCtor,
   type BrowserSpeechRecognition,
 } from './chatAssistant/browserMedia';
@@ -135,8 +134,6 @@ export default function ChatAssistant({
   const [isLoading, setIsLoading] = useState(false);
   const [isAiOffline, setIsAiOffline] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  /** Telefonas + Gemini: įrašas į Blob; kitur — Web Speech. */
-  const [micCaptureMode, setMicCaptureMode] = useState<'none' | 'gemini' | 'webspeech'>('none');
   const [isTranscribingMic, setIsTranscribingMic] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [customApiKey, setCustomApiKey] = useState<string>(
@@ -208,11 +205,6 @@ export default function ChatAssistant({
     isLikelyMobile &&
     typeof MediaRecorder !== 'undefined' &&
     Boolean(getGeminiApiKeyForSdk().trim());
-  const micPhoneChecklist = useMemo(
-    () => (isLikelyMobile ? getMicDictationChecklist() : null),
-    [isLikelyMobile]
-  );
-
   const checkApiKey = async () => {
     const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
     if (hasServerApiBase) {
@@ -330,7 +322,6 @@ export default function ChatAssistant({
       tempTranscriptRef.current = '';
       finalTranscriptRef.current = '';
       latestTranscriptRef.current = '';
-      setMicCaptureMode('none');
       return;
     }
     const finalResult =
@@ -345,7 +336,6 @@ export default function ChatAssistant({
     tempTranscriptRef.current = '';
     finalTranscriptRef.current = '';
     latestTranscriptRef.current = '';
-    setMicCaptureMode('none');
   };
 
   const continueMobileSpeechRecognition = useCallback(() => {
@@ -395,7 +385,6 @@ export default function ChatAssistant({
     setIsRecording(false);
     if (blob.size < 200) {
       micSessionWantedRef.current = false;
-      setMicCaptureMode('none');
       showToast.error('Įrašas per trumpas — kalbėkite ilgiau arba patikrinkite mikrofoną.');
       return;
     }
@@ -403,13 +392,11 @@ export default function ChatAssistant({
     const gk = getGeminiApiKeyForSdk();
     if (!gk.trim()) {
       micSessionWantedRef.current = false;
-      setMicCaptureMode('none');
       showToast.error('Trūksta Google Gemini rakto transkripcijai.');
       return;
     }
     if (shouldApplyClientAiDailyBudget(gk) && !consumeAiBudget(1)) {
       micSessionWantedRef.current = false;
-      setMicCaptureMode('none');
       showToast.error('Pasiektas AI dienos limitas. Transkripcija neįvyko.');
       return;
     }
@@ -432,7 +419,6 @@ export default function ChatAssistant({
     } finally {
       setIsTranscribingMic(false);
       micSessionWantedRef.current = false;
-      setMicCaptureMode('none');
     }
   };
 
@@ -467,7 +453,6 @@ export default function ChatAssistant({
       };
       rec.start(250);
       geminiMediaRecorderRef.current = rec;
-      setMicCaptureMode('gemini');
       setIsRecording(true);
 
       clearGeminiMicTimer();
@@ -478,7 +463,6 @@ export default function ChatAssistant({
     } catch (e) {
       logDevError('startGeminiDictation', e);
       micSessionWantedRef.current = false;
-      setMicCaptureMode('none');
       showToast.error('Nepavyko pasiekti mikrofono — leiskite prieigą nustatymuose.');
     }
   };
@@ -518,12 +502,10 @@ export default function ChatAssistant({
         } catch (e) {
           logDevError('Error stopping recognition', e);
           setIsRecording(false);
-          setMicCaptureMode('none');
           recognitionRef.current = null;
         }
       } else {
         setIsRecording(false);
-        setMicCaptureMode('none');
       }
     } else {
       if (!window.isSecureContext) {
@@ -541,7 +523,6 @@ export default function ChatAssistant({
         if (!Ctor) {
           micSessionWantedRef.current = false;
           setIsRecording(false);
-          setMicCaptureMode('none');
           return;
         }
         try {
@@ -558,7 +539,6 @@ export default function ChatAssistant({
           }
 
           recognition.onstart = () => {
-            setMicCaptureMode('webspeech');
             setMicNeedsGestureContinue(false);
             micDictationBaseRef.current = inputRef.current;
             tempTranscriptRef.current = '';
@@ -613,8 +593,6 @@ export default function ChatAssistant({
             micSessionWantedRef.current = false;
             setMicNeedsGestureContinue(false);
             setIsRecording(false);
-            setMicCaptureMode('none');
-
             const errorMessages: Record<string, string> = {
               'not-allowed':
                 'Mikrofono prieiga neleista. Spauskite akutės ikoną URL juostoje ir leiskite prieigą.',
@@ -688,7 +666,6 @@ export default function ChatAssistant({
           micSessionWantedRef.current = false;
           setMicNeedsGestureContinue(false);
           setIsRecording(false);
-          setMicCaptureMode('none');
           showToast.error(
             'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
           );
@@ -1613,13 +1590,7 @@ export default function ChatAssistant({
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                   placeholder={
-                    isTranscribingMic
-                      ? 'Transkribuoju balsą…'
-                      : isRecording && micCaptureMode === 'gemini'
-                        ? 'Kalbėkite — bakstelėkite raudoną sustabdyti'
-                        : isRecording
-                          ? 'Klausausi…'
-                          : 'Rašykite čia…'
+                    isTranscribingMic ? '…' : isRecording ? 'Klausausi…' : 'Rašykite čia…'
                   }
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
@@ -1636,14 +1607,10 @@ export default function ChatAssistant({
                     } ${isTranscribingMic ? 'opacity-50 pointer-events-none' : ''}`}
                     title={
                       isTranscribingMic
-                        ? 'Transkripcija vyksta…'
-                        : isRecording && micCaptureMode === 'gemini'
-                          ? 'Sustabdyti ir transkribuoti (Gemini)'
-                          : isRecording
-                            ? 'Sustabdyti įrašymą (raudonas)'
-                            : useGeminiMobileMic
-                              ? 'Įrašyti balsu (įrašas bus transkribuotas per Gemini)'
-                              : 'Įrašyti balsu — mobilus Chrome gali trumpam perleisti klausymą; kalbėkite tol, kol sustabdysite'
+                        ? 'Palaukite…'
+                        : isRecording
+                          ? 'Sustabdyti'
+                          : 'Įrašyti balsu'
                     }
                   >
                     {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
@@ -1675,26 +1642,6 @@ export default function ChatAssistant({
                   )}
                 </div>
               </div>
-              {micPhoneChecklist && (
-                <div className="mt-3 space-y-1 text-[10px] leading-snug text-slate-500">
-                  <p>
-                    <span className="font-semibold text-slate-600">Telefonas / mic: </span>
-                    {micPhoneChecklist.primaryHintLt}
-                  </p>
-                  {useGeminiMobileMic && (
-                    <p className="text-emerald-700/90">
-                      Šiame įrenginyje naudojamas <strong>Gemini</strong> transkripcijai (ne
-                      naršyklės Web Speech) — reikia interneto ir galiojančio Gemini rakto.
-                    </p>
-                  )}
-                  {micPhoneChecklist.secureContext && micPhoneChecklist.hasWebSpeech && (
-                    <p className="text-slate-400">
-                      Ką tik keitėte kodą? Telefone matysite tik po{' '}
-                      <strong className="text-slate-500">git push</strong> (Vercel naujas deploy).
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
           </motion.div>
         )}
