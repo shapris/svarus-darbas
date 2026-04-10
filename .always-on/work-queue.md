@@ -252,6 +252,14 @@
 
 ---
 
+## P21 — prevencija (panašūs „tyli“ DB nesklandumai)
+
+- [x] **`insertWithColumnFallback`:** ta pati apsauga kaip UPDATE — nebeįterpiama „tuščia“ eilutė, jei visi duomenų stulpeliai išmesti dėl cache / PGRST204. *2026-04-10*
+- [x] **`addData(orders)` legacy:** įrašas sutapdinintas su `20250322120000` schema (`uid`, `clientId`, `windowCount`, `employeeId`, `createdAt`, …); modern INSERT nepavykus — `shouldTryLegacyOrderUpdateAfterModernFailure`, ne tik `PGRST204`. *2026-04-10*
+- [x] **`OrdersView`:** išsaugojimas / trynimas — `formatNetworkErrorForUser` vietoj bendro `catch`. *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -305,5 +313,6 @@
 | 2026-04-10 | P18 E2E retry | `retry-cmd.mjs`; keturi `test:*` Playwright skriptai su 2 bandymais. |
 | 2026-04-10 | P19 employees RLS migracija | Idempotentiškumas: `DROP POLICY IF EXISTS employees_workspace_org_all` + `ENABLE RLS`; `RLS_SUMMARY` papildytas kanonine migracija. |
 | 2026-04-10 | P20 priskyrimas užsakymui | `columnFallback` + UUID regex + `OrdersView` klaidos toast; unit testas `normalize-order-employee.test.ts`. |
+| 2026-04-10 | P21 columnFallback INSERT + legacy orders | INSERT tuščio payload blokas; teisingas legacy `addData(orders)`; platesnis legacy fallback po modern insert klaidos. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

@@ -6,8 +6,15 @@ const tableMissingColumnsCache = new Map<string, Set<string>>();
 /** Stulpeliai, kurių „išmetimas“ iš UPDATE vis dar laikomas „tuščiu“ atnaujinimu. */
 const UPDATE_META_KEYS = new Set(['updated_at']);
 
+/** INSERT: tik laiko žymos — jei liko tik jos, o buvo realių laukų, tai nebetęsiame „tuščio“ įrašymo. */
+const INSERT_META_KEYS = new Set(['created_at', 'updated_at', 'createdAt', 'updatedAt']);
+
 function countNonMetaUpdateKeys(payload: Record<string, unknown>): number {
   return Object.keys(payload).filter((k) => !UPDATE_META_KEYS.has(k)).length;
+}
+
+function countNonMetaInsertKeys(payload: Record<string, unknown>): number {
+  return Object.keys(payload).filter((k) => !INSERT_META_KEYS.has(k)).length;
 }
 
 export function precacheRemoveMissingColumns(tableName: string, payload: Record<string, unknown>) {
@@ -42,7 +49,18 @@ export async function insertWithColumnFallback(
   initialPayload: Record<string, unknown>
 ): Promise<{ data: unknown; error: PgLikeError }> {
   const payload: Record<string, unknown> = { ...initialPayload };
+  const initialDataKeys = countNonMetaInsertKeys(initialPayload);
   precacheRemoveMissingColumns(tableName, payload);
+  if (countNonMetaInsertKeys(payload) === 0 && initialDataKeys > 0) {
+    return {
+      data: null,
+      error: {
+        code: 'PGRST204',
+        message:
+          'Could not find a column from the insert payload in the schema cache (all data columns were skipped).',
+      },
+    };
+  }
   let attempts = 0;
   while (attempts < 12) {
     attempts += 1;
@@ -56,6 +74,16 @@ export async function insertWithColumnFallback(
       recordMissingColumn(tableName, missing);
     }
     delete payload[missing];
+    if (countNonMetaInsertKeys(payload) === 0 && initialDataKeys > 0) {
+      return {
+        data: null,
+        error: {
+          code: 'PGRST204',
+          message:
+            'Could not find a column from the insert payload in the schema cache (all data columns were skipped).',
+        },
+      };
+    }
   }
   return { data: null, error: { code: 'PGRST204', message: 'Too many missing-column retries' } };
 }

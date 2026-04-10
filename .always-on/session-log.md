@@ -11,6 +11,14 @@
 
 ---
 
+## 2026-04-10 — P21: prevencija po P20 (INSERT + legacy užsakymo kūrimas)
+
+- **`insertWithColumnFallback`:** neleidžia „sėkmės“ su tik laiko žymomis, jei buvo realūs laukai ir jie išmesti.
+- **`addData(orders)` legacy payload:** suderintas su Track B migracija (`clientId`, `employeeId`, `windowCount`, …); modern insert klaidai — legacy bandymas per `shouldTryLegacyOrderUpdateAfterModernFailure`.
+- **`OrdersView`:** `formatNetworkErrorForUser` išsaugojimui / trynimui.
+
+---
+
 ## 2026-04-10 — P20: negalima priskirti darbuotojo (gamyba / legacy `employeeId`)
 
 - **Priežastis:** jei DB neturi `employee_id`, o tik `"employeeId"`, `updateWithColumnFallback` išmesdavo stulpelį ir „sėkmingai“ atnaujindavo tik `updated_at` — priskyrimas neįrašytas.

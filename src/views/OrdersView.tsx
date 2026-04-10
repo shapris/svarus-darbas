@@ -297,8 +297,8 @@ export default function OrdersView({
       setOrderPriceOverride('');
       setNewClientData({ name: '', phone: '', email: '', address: '', buildingType: 'nesutarta' });
       showToast.success('Užsakymas išsaugotas');
-    } catch {
-      showToast.error('Klaida išsaugant užsakymą');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Klaida išsaugant užsakymą'));
     } finally {
       setIsSaving(false);
     }
@@ -468,8 +468,8 @@ export default function OrdersView({
     try {
       await deleteData(TABLES.ORDERS, id);
       showToast.success('Užsakymas sėkmingai ištrintas');
-    } catch {
-      showToast.error('Nepavyko ištrinti užsakymo');
+    } catch (err) {
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko ištrinti užsakymo'));
     } finally {
       setIsDeleting(null);
     }

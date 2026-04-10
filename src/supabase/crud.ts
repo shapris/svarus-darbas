@@ -229,20 +229,34 @@ export async function addData<T extends Record<string, unknown>>(
       owner_id: userId,
       created_at: String(o.createdAt ?? o.created_at ?? new Date().toISOString()),
     };
+    const dateForLegacy = (() => {
+      const d = coerceOrderDateForDbWrite(o.date ?? todayIso);
+      const s = d != null && d !== '' ? String(d) : todayIso;
+      const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : todayIso;
+    })();
+
     const legacyInsert: Record<string, unknown> = {
-      client_id: normalizeNullableId(o.clientId ?? o.client_id),
-      date: coerceOrderDateForDbWrite(o.date ?? todayIso) ?? `${todayIso}T00:00:00.000Z`,
-      time: o.time ?? '10:00',
-      windows: Number(o.windowCount ?? o.window_count ?? 0),
-      floors: Number(o.floor ?? 1),
-      balkonai: services.balkonai ? 1 : 0,
-      vitrinos: services.vitrinos ? 1 : 0,
-      terasa: services.terasa ? 1 : 0,
-      kiti: services.kiti ? 'taip' : '',
-      status: o.status ?? 'pending',
-      price: Number(o.totalPrice ?? o.total_price ?? o.price ?? 0),
+      uid: userId,
       owner_id: userId,
-      created_at: String(o.createdAt ?? o.created_at ?? new Date().toISOString()),
+      clientId: normalizeNullableId(o.clientId ?? o.client_id) ?? '',
+      clientName: String(o.clientName ?? o.client_name ?? ''),
+      address: String(o.address ?? ''),
+      lat: o.lat ?? null,
+      lng: o.lng ?? null,
+      date: dateForLegacy,
+      time: String(o.time ?? '10:00'),
+      windowCount: Number(o.windowCount ?? o.window_count ?? 0),
+      floor: Number(o.floor ?? 1),
+      additionalServices: services,
+      totalPrice: Number(o.totalPrice ?? o.total_price ?? o.price ?? 0),
+      status: String(o.status ?? 'suplanuota'),
+      estimatedDuration: o.estimatedDuration ?? o.estimated_duration ?? 60,
+      isRecurring: o.isRecurring ?? o.is_recurring ?? false,
+      recurringInterval: o.recurringInterval ?? o.recurring_interval ?? null,
+      notes: o.notes != null ? String(o.notes) : '',
+      employeeId: normalizeNullableId(o.employeeId ?? o.employee_id),
+      createdAt: String(o.createdAt ?? o.created_at ?? new Date().toISOString()),
     };
 
     let data: unknown = null;
@@ -253,7 +267,10 @@ export async function addData<T extends Record<string, unknown>>(
         ordersSchemaState.mode = 'modern';
       }
     }
-    if (ordersSchemaState.mode === 'legacy' || (error && error.code === 'PGRST204')) {
+    if (
+      ordersSchemaState.mode === 'legacy' ||
+      (error && shouldTryLegacyOrderUpdateAfterModernFailure(error))
+    ) {
       ({ data, error } = await insertWithColumnFallback('orders', legacyInsert));
       if (!error) {
         ordersSchemaState.mode = 'legacy';
