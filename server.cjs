@@ -392,10 +392,16 @@ async function verifySupabaseUserJwt(authHeader) {
     };
   }
 
-  // Fallback: jei Render'e dar nesuvesti SUPABASE_URL/SUPABASE_ANON_KEY,
-  // priimame tik pagrindinius JWT claim'us (sub/exp) ir leidžiame AI endpointams veikti.
-  // Tai tarpinė degradacija iki pilnos Supabase auth verifikacijos.
+  // Fallback leidžiamas tik ne-production aplinkose (lokali diagnostika).
+  // Production'e be SUPABASE_URL/SUPABASE_ANON_KEY auth NEleidžiamas.
   if (!SUPABASE_URL_RAW || !SUPABASE_ANON_KEY) {
+    if (process.env.NODE_ENV === 'production') {
+      return {
+        ok: false,
+        status: 503,
+        message: 'Serverio auth nesukonfigūruotas: trūksta SUPABASE_URL arba SUPABASE_ANON_KEY.',
+      };
+    }
     try {
       const parts = token.split('.');
       if (parts.length < 2) throw new Error('Invalid JWT');
