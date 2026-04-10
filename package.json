@@ -52,6 +52,10 @@
     "check:cloud": "node scripts/cloud-readiness-check.mjs",
     "check:cloud:frontend": "node scripts/cloud-readiness-check.mjs --frontend-only",
     "check:env": "node scripts/check-vite-env.mjs",
+    "probe:api": "node scripts/probe-api.mjs",
+    "probe:api:local": "node scripts/probe-api.mjs --local",
+    "probe:api:ps1": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/probe-api.ps1\"",
+    "probe:api:ps1:local": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/probe-api.ps1\" -Local",
     "setup:vercel-env": "powershell -NoProfile -ExecutionPolicy Bypass -File \"scripts/setup-vercel-env.ps1\"",
     "prepare": "husky"
   },
