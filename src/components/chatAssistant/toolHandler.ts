@@ -1,7 +1,15 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { addData, updateData, deleteData, getData, TABLES } from '../../supabase';
 import { calculateOrderPrice } from '../../utils';
-import type { Client, Order, Expense, AppSettings, Memory, InventoryItem } from '../../types';
+import type {
+  Client,
+  Order,
+  Expense,
+  AppSettings,
+  Memory,
+  InventoryItem,
+  Employee,
+} from '../../types';
 import { logDevError } from '../../utils/devConsole';
 import type { AssistantToolCall } from './types';
 
@@ -39,6 +47,11 @@ type AssistantToolArgs = {
   by?: 'orders' | 'revenue';
   intervalMonths?: number;
   orderIds?: string[];
+  employeeId?: string;
+  employeeName?: string;
+  color?: string;
+  isActive?: boolean;
+  activeOnly?: boolean;
   additionalServices?: {
     balkonai?: boolean;
     vitrinos?: boolean;
@@ -54,16 +67,46 @@ export type AssistantToolHandlerContext = {
   clients: Client[];
   orders: Order[];
   expenses: Expense[];
+  employees: Employee[];
   settings: AppSettings;
   isRestrictedStaff: boolean;
   setMemories: Dispatch<SetStateAction<Memory[]>>;
 };
 
+function resolveEmployeeRecord(
+  args: AssistantToolArgs,
+  employees: Employee[]
+): Employee | undefined {
+  const id = typeof args.employeeId === 'string' ? args.employeeId.trim() : '';
+  if (id) {
+    const byId = employees.find((e) => e.id === id);
+    if (byId) return byId;
+  }
+  const search =
+    (typeof args.name === 'string' && args.name.trim()) ||
+    (typeof args.employeeName === 'string' && args.employeeName.trim()) ||
+    '';
+  if (!search) return undefined;
+  const lower = search.toLowerCase();
+  const exact = employees.find((e) => e.name.toLowerCase() === lower);
+  if (exact) return exact;
+  return employees.find((e) => e.name.toLowerCase().includes(lower));
+}
+
 export async function runAssistantToolCall(
   call: unknown,
   ctx: AssistantToolHandlerContext
 ): Promise<string> {
-  const { dataOwnerId, clients, orders, expenses, settings, isRestrictedStaff, setMemories } = ctx;
+  const {
+    dataOwnerId,
+    clients,
+    orders,
+    expenses,
+    employees,
+    settings,
+    isRestrictedStaff,
+    setMemories,
+  } = ctx;
 
   if (!call || typeof call !== 'object' || !('name' in call)) {
     return 'Neteisingas įrankio kvietimas.';
@@ -76,7 +119,7 @@ export async function runAssistantToolCall(
     rawArgs && typeof rawArgs === 'object' && !Array.isArray(rawArgs) ? rawArgs : {}
   ) as AssistantToolArgs;
 
-  if (isRestrictedStaff && name.startsWith('delete_')) {
+  if (isRestrictedStaff && (name.startsWith('delete_') || name === 'add_employee')) {
     return 'Šį veiksmą gali atlikti tik administratorius.';
   }
 
@@ -134,6 +177,57 @@ export async function runAssistantToolCall(
     if (name === 'delete_client') {
       await deleteData(TABLES.CLIENTS, args.clientId);
       return `Klientas ištrintas.`;
+    }
+
+    if (name === 'add_employee') {
+      const empName = String(args.name || '').trim() || 'Darbuotojas';
+      await addData(TABLES.EMPLOYEES, dataOwnerId, {
+        name: empName,
+        phone: String(args.phone || ''),
+        color: String(args.color || '#3b82f6'),
+        isActive: args.isActive !== false,
+      });
+      return `Darbuotojas „${empName}“ pridėtas. Jį galite matyti skiltyje „Komanda“ ir priskirti užsakymams.`;
+    }
+
+    if (name === 'update_employee') {
+      const emp = resolveEmployeeRecord(args, employees);
+      if (!emp) {
+        return 'Darbuotojas nerastas. Nurodykite employeeId (UUID) arba vardą iš komandos sąrašo.';
+      }
+      const patch: Record<string, unknown> = {};
+      if (args.phone !== undefined) patch.phone = String(args.phone);
+      if (args.color !== undefined) patch.color = String(args.color);
+      if (args.name !== undefined && String(args.name).trim())
+        patch.name = String(args.name).trim();
+      if (args.isActive !== undefined) patch.isActive = Boolean(args.isActive);
+      if (Object.keys(patch).length === 0) {
+        return 'Nenurodyti laukai atnaujinimui. Galite keisti: name, phone, color, isActive.';
+      }
+      await updateData(TABLES.EMPLOYEES, emp.id, patch);
+      return `Darbuotojo „${emp.name}“ duomenys atnaujinti.`;
+    }
+
+    if (name === 'delete_employee') {
+      const emp = resolveEmployeeRecord(args, employees);
+      if (!emp) {
+        return 'Darbuotojas nerastas. Nurodykite employeeId arba vardą.';
+      }
+      await deleteData(TABLES.EMPLOYEES, emp.id);
+      return `Darbuotojas „${emp.name}“ pašalintas iš komandos.`;
+    }
+
+    if (name === 'list_employees') {
+      const activeOnly = args.activeOnly === true;
+      const list = activeOnly ? employees.filter((e) => e.isActive) : employees;
+      if (list.length === 0) {
+        return 'Komandoje dar nėra darbuotojų. Pridėkite juos skiltyje „Komanda“ arba naudokite add_employee.';
+      }
+      const lines = list.map(
+        (e) =>
+          `• ${e.name} (id: ${e.id}) — tel. ${e.phone || '—'}, ${e.isActive ? 'aktyvus' : 'neaktyvus'}, spalva ${e.color}`
+      );
+      return `**Komanda (${list.length}):**\n${lines.join('\n')}`;
     }
 
     if (name === 'add_order') {
@@ -199,7 +293,18 @@ export async function runAssistantToolCall(
         updates.additionalServices = newServices;
       }
 
-      await updateData(TABLES.ORDERS, orderId, updates as Partial<Order>);
+      const payload = { ...updates } as Partial<Order> & { employeeId?: string };
+      if (payload.employeeId !== undefined) {
+        const raw = String(payload.employeeId || '').trim();
+        if (raw) {
+          const emp = employees.find((e) => e.id === raw);
+          if (!emp) {
+            return `Darbuotojas su ID „${raw}“ nerastas. Naudokite list_employees ir nukopijuokite tikrą UUID.`;
+          }
+        }
+      }
+
+      await updateData(TABLES.ORDERS, orderId, payload as Partial<Order>);
       return `Užsakymas atnaujintas.`;
     }
 

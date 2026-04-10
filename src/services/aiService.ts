@@ -4,7 +4,7 @@
  */
 
 import { GoogleGenAI, FunctionDeclaration } from '@google/genai';
-import { Order, Client, Expense, Memory } from '../types.js';
+import { Order, Client, Expense, Memory, Employee } from '../types.js';
 import { prioritizeMemories, formatMemoriesForContext } from './memoryPriority.js';
 import { isOpenRouterKey, callOpenRouter, getOpenRouterKey } from './openRouterService.js';
 import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
@@ -158,6 +158,7 @@ export type AssistantDataContext = {
   clients: Client[];
   orders: Order[];
   expenses: Expense[];
+  employees: Employee[];
   memories: Memory[];
   /** Pvz. „Užsakymai“ — vartotojas gali klausti apie tai, ką mato šioje skiltyje */
   activeViewLabel?: string;
@@ -214,6 +215,16 @@ function buildSystemInstruction(
     ? `\nKONTEKSTAS IŠ ATMINTIES:\n${memoriesContext}\n`
     : '';
 
+  const team = context.employees || [];
+  const teamActive = team.filter((e) => e.isActive);
+  const teamLine =
+    team.length > 0
+      ? teamActive
+          .slice(0, 12)
+          .map((e) => `${e.name} (id: ${e.id})`)
+          .join('; ') + (teamActive.length > 12 ? `; … +${teamActive.length - 12}` : '')
+      : 'komandoje dar nieko nėra — naudokite add_employee arba skiltį „Komanda“.';
+
   const uiContext =
     context.activeViewLabel?.trim() &&
     `DABARTINĖ CRM SKILTIS: ${context.activeViewLabel.trim()}. Vartotojas naršo tarp skilčių; pokalbis išlieka atviras. Kai klausia apie „čia“, „šį ekraną“ ar konkrečią eilutę — laikykite, kad tai susiję su šia skiltimi ir matomais sąrašais / forma.\n\n`;
@@ -225,6 +236,7 @@ ${uiContext || ''}JŪSŲ ŠIUOŠIO KONTEKSTO:
 - Klientai: ${context.clients.length} žmonių
 - Aktyvūs užsakymai: ${context.orders.filter((o) => o.status !== 'atlikta').length}
 - Išlaidų įrašai: ${context.expenses.length}
+- Komanda (darbuotojai): ${teamActive.length} aktyvūs iš ${team.length} įrašų — ${teamLine}
 - Svarbios atmintys: ${relevantMemories.length}
 - Pelnas: €${businessMetrics.profit.toFixed(2)}
 ${memoriesBlock}
@@ -238,7 +250,8 @@ JŪSŲ UŽDUOTIS:
 
 FUNKCIJOS (iškvieskite, kai reikia — ne tik siūlykite):
 - Klientai: add_client, update_client, delete_client
-- Užsakymai: add_order, update_order, delete_order, batch_update_order_status, create_recurring_order
+- Komanda: add_employee, update_employee, delete_employee, list_employees
+- Užsakymai: add_order, update_order (su employeeId priskyrimui), delete_order, batch_update_order_status, create_recurring_order
 - Išlaidos: add_expense, update_expense, delete_expense
 - Atmintis: add_memory, update_memory, delete_memory
 - Geokodavimas: geocode_address

@@ -139,6 +139,11 @@ export const updateOrderTool: FunctionDeclaration = {
           kiti: { type: Type.BOOLEAN },
         },
       },
+      employeeId: {
+        type: Type.STRING,
+        description:
+          'Darbuotojo UUID priskyrimui užsakymui (iš komandos sąrašo). Tuščia — nuimti priskyrimą.',
+      },
     },
     required: [],
   },
@@ -186,6 +191,70 @@ export const deleteClientTool: FunctionDeclaration = {
       clientId: { type: Type.STRING, description: 'Kliento ID' },
     },
     required: ['clientId'],
+  },
+};
+
+export const addEmployeeTool: FunctionDeclaration = {
+  name: 'add_employee',
+  parameters: {
+    type: Type.OBJECT,
+    description:
+      'Pridėti darbuotoją į komandą (CRM skiltis „Komanda“). Naudokite priskyrimui užsakymams ir kalendoriui.',
+    properties: {
+      name: { type: Type.STRING, description: 'Vardas ir pavardė' },
+      phone: { type: Type.STRING, description: 'Telefono numeris' },
+      color: {
+        type: Type.STRING,
+        description: 'Spalvos kodas kalendoriui (pvz. #3b82f6), nebūtina',
+      },
+      isActive: { type: Type.BOOLEAN, description: 'Ar aktyvus (numatytai taip)' },
+    },
+    required: ['name'],
+  },
+};
+
+export const updateEmployeeTool: FunctionDeclaration = {
+  name: 'update_employee',
+  parameters: {
+    type: Type.OBJECT,
+    description:
+      'Atnaujinti darbuotojo duomenis. Galite nurodyti employeeId arba vardą (jei unikalus).',
+    properties: {
+      employeeId: { type: Type.STRING, description: 'Darbuotojo ID (UUID)' },
+      name: { type: Type.STRING, description: 'Paieškai pagal vardą, jei nėra employeeId' },
+      phone: { type: Type.STRING, description: 'Naujas telefonas' },
+      color: { type: Type.STRING, description: 'Nauja spalva (#hex)' },
+      isActive: { type: Type.BOOLEAN, description: 'Ar aktyvus' },
+    },
+    required: [],
+  },
+};
+
+export const deleteEmployeeTool: FunctionDeclaration = {
+  name: 'delete_employee',
+  parameters: {
+    type: Type.OBJECT,
+    description: 'Pašalinti darbuotoją iš komandos.',
+    properties: {
+      employeeId: { type: Type.STRING, description: 'Darbuotojo ID' },
+      name: { type: Type.STRING, description: 'Vardas paieškai, jei nėra ID' },
+    },
+    required: [],
+  },
+};
+
+export const listEmployeesTool: FunctionDeclaration = {
+  name: 'list_employees',
+  parameters: {
+    type: Type.OBJECT,
+    description: 'Gauti komandos sąrašą su ID, vardais ir telefonais (tik skaitymas).',
+    properties: {
+      activeOnly: {
+        type: Type.BOOLEAN,
+        description: 'Jei true — tik aktyvūs darbuotojai',
+      },
+    },
+    required: [],
   },
 };
 
@@ -421,6 +490,10 @@ export const ALL_TOOLS: FunctionDeclaration[] = [
   deleteOrderTool,
   updateClientTool,
   deleteClientTool,
+  addEmployeeTool,
+  updateEmployeeTool,
+  deleteEmployeeTool,
+  listEmployeesTool,
   updateExpenseTool,
   deleteExpenseTool,
   addMemoryTool,

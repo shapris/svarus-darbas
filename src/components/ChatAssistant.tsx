@@ -33,7 +33,7 @@ import { getOpenCodeKey, isOpenCodeKey } from '../services/opencodeService';
 import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { shouldSuggestMemory } from '../services/memoryPriority';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
-import { Client, Order, Expense, AppSettings, Memory } from '../types';
+import { Client, Order, Expense, AppSettings, Memory, Employee } from '../types';
 import { addData, TABLES } from '../supabase';
 
 import ReactMarkdown from 'react-markdown';
@@ -70,6 +70,7 @@ interface ChatAssistantProps {
   clients: Client[];
   orders: Order[];
   expenses: Expense[];
+  employees: Employee[];
   settings: AppSettings;
   /** AI „memories“ sinchronizuojami su App.tsx (viena realtime prenumerata — be Supabase kanalo konflikto). */
   memories: Memory[];
@@ -83,6 +84,7 @@ export default function ChatAssistant({
   clients,
   orders,
   expenses,
+  employees,
   settings,
   memories,
   setMemories,
@@ -166,12 +168,13 @@ export default function ChatAssistant({
       clients,
       orders,
       expenses,
+      employees,
       memories,
       activeViewLabel,
       dataOwnerId,
       userId: user.uid,
     }),
-    [clients, orders, expenses, memories, activeViewLabel, dataOwnerId, user.uid]
+    [clients, orders, expenses, employees, memories, activeViewLabel, dataOwnerId, user.uid]
   );
 
   const lastUserMessageRef = useRef<string>('');
@@ -722,11 +725,22 @@ export default function ChatAssistant({
         clients,
         orders,
         expenses,
+        employees,
         settings,
         isRestrictedStaff,
         setMemories,
       }),
-    [user, dataOwnerId, clients, orders, expenses, settings, isRestrictedStaff, setMemories]
+    [
+      user,
+      dataOwnerId,
+      clients,
+      orders,
+      expenses,
+      employees,
+      settings,
+      isRestrictedStaff,
+      setMemories,
+    ]
   );
 
   const handleOpenKeySelector = async () => {

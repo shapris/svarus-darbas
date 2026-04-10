@@ -1082,6 +1082,7 @@ export default function App() {
                     clients={clients}
                     orders={orders}
                     expenses={expenses}
+                    employees={employees}
                     settings={settings}
                     memories={memories}
                     setMemories={setMemories}
