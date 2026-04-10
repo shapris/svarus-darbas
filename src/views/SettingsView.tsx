@@ -9,6 +9,7 @@ import {
   updateData,
   getData,
   TABLES,
+  supabase,
   usesLocalStorageBackend,
   checkOrdersSchemaHealth,
   testConnection,
@@ -33,8 +34,9 @@ import {
   Mail,
   Users,
 } from 'lucide-react';
-import { getAiBudgetStatus } from '../services/aiService';
+import { getAiBudgetStatus, shouldApplyClientAiDailyBudget } from '../services/aiService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
+import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useToast } from '../hooks/useToast';
 
@@ -68,8 +70,11 @@ export default function SettingsView({
   const [readiness, setReadiness] = useState({
     backend: 'checking' as 'checking' | 'ok' | 'fail',
     aiKey: false,
+    aiStatus: 'checking' as 'checking' | 'ok' | 'degraded' | 'offline',
+    aiStatusHint: 'Tikrinama...',
     aiBudgetRemaining: 0,
     aiBudgetLimit: 0,
+    aiBudgetApplies: true,
     bookingUrl: false,
     mode: usesLocalStorageBackend ? 'local-offline' : 'supabase',
   });
@@ -270,11 +275,61 @@ export default function SettingsView({
     const ai = getAiBudgetStatus();
     const envGem = getGeminiKeyFromEnv();
     const custom = localStorage.getItem('custom_api_key') || '';
+    const base = getInvoiceApiBaseUrl().trim();
+    const apiKey = custom || envGem || '';
+    const aiBudgetApplies = shouldApplyClientAiDailyBudget(apiKey);
+
+    let aiStatus: 'ok' | 'degraded' | 'offline' = 'offline';
+    let aiStatusHint = 'AI kelias nerastas.';
+
+    if (base) {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (!usesLocalStorageBackend && supabase) {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+          const token = session?.access_token?.trim();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        }
+        const r = await fetch(`${base}/api/ai/chat`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }], timeoutMs: 8000 }),
+        });
+        if (r.status === 200 || r.status === 400) {
+          aiStatus = 'ok';
+          aiStatusHint = 'OpenCode serveris pasiekiamas.';
+        } else if (r.status === 429) {
+          aiStatus = 'degraded';
+          aiStatusHint = 'AI laikinai ribojamas (429).';
+        } else if (r.status === 503) {
+          aiStatus = 'offline';
+          aiStatusHint = 'Serveryje trūksta OPENCODE_API_KEY.';
+        } else if (r.status === 401) {
+          aiStatus = 'degraded';
+          aiStatusHint = 'Sesija nebegalioja — prisijunkite iš naujo.';
+        } else {
+          aiStatus = 'degraded';
+          aiStatusHint = `AI proxy atsakė: HTTP ${r.status}.`;
+        }
+      } catch {
+        aiStatus = 'offline';
+        aiStatusHint = 'Nepavyko pasiekti AI serverio.';
+      }
+    } else if (envGem || custom) {
+      aiStatus = 'degraded';
+      aiStatusHint = 'Naudojamas naršyklės raktas (be serverio proxy).';
+    }
+
     setReadiness({
       backend: connected ? 'ok' : 'fail',
       aiKey: !!envGem || !!custom,
+      aiStatus,
+      aiStatusHint,
       aiBudgetRemaining: ai.remaining,
       aiBudgetLimit: ai.limit,
+      aiBudgetApplies,
       bookingUrl: bookingUrl.startsWith('http'),
       mode: usesLocalStorageBackend ? 'local-offline' : 'supabase',
     });
@@ -382,10 +437,27 @@ export default function SettingsView({
               {readiness.aiKey ? 'ok' : 'trūksta'}
             </span>
           </div>
+          <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 md:col-span-2">
+            AI būsena:{' '}
+            <span
+              className={
+                readiness.aiStatus === 'ok'
+                  ? 'text-emerald-700 font-bold'
+                  : readiness.aiStatus === 'offline'
+                    ? 'text-rose-700 font-bold'
+                    : 'text-amber-700 font-bold'
+              }
+            >
+              {readiness.aiStatus}
+            </span>
+            <span className="text-slate-500 ml-2">{readiness.aiStatusHint}</span>
+          </div>
           <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
             AI dienos biudžetas:{' '}
             <span className="font-bold text-slate-700">
-              {readiness.aiBudgetRemaining}/{readiness.aiBudgetLimit}
+              {readiness.aiBudgetApplies
+                ? `${readiness.aiBudgetRemaining}/${readiness.aiBudgetLimit}`
+                : 'netaikomas (OpenCode serveris)'}
             </span>
           </div>
           <div className="bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 md:col-span-2">

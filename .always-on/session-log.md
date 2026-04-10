@@ -4,6 +4,15 @@
 
 ---
 
+## 2026-04-10 — UI: AI būsenos indikatorius nustatymuose
+
+- **`SettingsView`:** „Production Readiness“ papildytas `AI būsena` (`ok/degraded/offline`) ir trumpu paaiškinimu.
+- **Gyvas patikrinimas:** indikatorius testuoja `/api/ai/chat` kelią su sesijos JWT (kai naudojamas serverio OpenCode proxy), todėl komanda mato realią AI būklę be DevTools.
+- **Biudžeto aiškumas:** jei AI eina per OpenCode serverį, rodoma `AI dienos biudžetas: netaikomas (OpenCode serveris)`.
+- **Patikra:** `npm run build`, `npm run test`, `npm run test:smoke`, `npm run test:console`, `npm run test:invoice` — visi žali.
+
+---
+
 ## 2026-04-10 — AI planavimo kelias ir push į `main`
 
 - **`chatWithAssistant`:** sudėtingoms užklausoms (`shouldUsePlanning`) — `executeWithPlanning` su `PlanContext` iš `assistantContextToPlanContext` (`userId`, `dataOwnerId`, klientai/užsakymai/išlaidos/atmintys).
