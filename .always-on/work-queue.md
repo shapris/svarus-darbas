@@ -265,5 +265,6 @@
 | 2026-04-09 | npm audit (basic-ftp) | `npm audit fix` — high → 0; scout **100**; `verify:local` OK. |
 | 2026-04-09 | Verify offline-crm stabilumas | `free-ports` (`kill-port`) prieš `test:offline-crm`; mažiau Windows flakiness. |
 | 2026-04-10 | E2E darbuotojo priskyrimas (offline) | `tests/offline-crm.spec.ts` — priskyrimas + perkrovimas; demo profilis teste pakeltas į `admin` (kad veiktų „Pridėti darbuotoją“); `npm run verify` žalia. |
+| 2026-04-10 | Tooling: react-hooks 7 + useToast | `eslint-plugin-react-hooks@7`, `useToast` ref per `useEffect`; playwright/prettier/types patch; `verify` po `dev:kill` Windows stabiliau. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-10 — Deps: eslint-plugin-react-hooks 7 + useToast ref taisyklė
+
+- **npm:** `eslint-plugin-react-hooks@7.0.1`, `prettier@3.8.2`, `@types/node@25.6.0`, `playwright@^1.59.1` (sulyginta su `@playwright/test`).
+- **`useToast`:** `removeToastRef` atnaujinimas perkeltas į `useEffect` (ESLint `react-hooks/refs`).
+- **Patikra:** `npm run dev:kill && npm run verify` — žalia (pirmas `verify` be kill Windows’e kartais nutrūksta dėl Vite/Playwright webServer).
+
+---
+
 ## 2026-04-10 — E2E: greitas darbuotojo priskyrimas offline + „don’t stop“ ciklas
 
 - **`tests/offline-crm.spec.ts`:** trečias testas — prisijungimas, profilis pakeliamas į `admin` (kad matytųsi „Pridėti darbuotoją“; demo profilis kitaip `staff`), naujas darbuotojas, naujas užsakymas, `selectOption` priskyrimas, **perkrovimas** — `<select>` vis dar ne tuščias (`employeeId` persistencija).

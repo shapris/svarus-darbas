@@ -70,6 +70,7 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
   - `npm run lint:eslint` turi būti žalias esamame toolchain.
 - Pastabos:
   - *2026-04-10:* pakartotinai patvirtinta per `npm view eslint-plugin-react-hooks peerDependencies` — `eslint@10` vis dar neįtrauktas.
+  - *2026-04-10:* projekte įdiegtas **`eslint-plugin-react-hooks@7.0.1`** (su `eslint@9`); nauja taisyklė `react-hooks/refs` — `useToast` ref sinchronizuojamas per `useEffect`.
 
 ---
 

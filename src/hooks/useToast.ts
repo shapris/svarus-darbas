@@ -7,7 +7,7 @@
  * Klaidos UX: naudokite `showToast.error` vartotojui matomoms klaidoms (forma, tinklas).
  * `console.error` gamyboje — tik per `logDevError` / ErrorBoundary kritiniams diagnostiniams atvejams.
  */
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 
 interface Toast {
   id: string;
@@ -23,7 +23,9 @@ export function useToast() {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   }, []);
   const removeToastRef = useRef(removeToast);
-  removeToastRef.current = removeToast;
+  useEffect(() => {
+    removeToastRef.current = removeToast;
+  }, [removeToast]);
 
   const addToast = useCallback(
     (
