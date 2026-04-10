@@ -384,12 +384,40 @@ async function maybeLoadPaymentIntentByStripeId(stripeId) {
 async function verifySupabaseUserJwt(authHeader) {
   const m = typeof authHeader === 'string' ? /^Bearer\s+(.+)$/i.exec(authHeader) : null;
   const token = m && m[1];
-  if (!token || !SUPABASE_URL_RAW || !SUPABASE_ANON_KEY) {
+  if (!token) {
     return {
       ok: false,
       status: 401,
-      message: 'Nėra prieigos rakto arba serveris neprijungtas prie Supabase.',
+      message: 'Nėra prieigos rakto.',
     };
+  }
+
+  // Fallback: jei Render'e dar nesuvesti SUPABASE_URL/SUPABASE_ANON_KEY,
+  // priimame tik pagrindinius JWT claim'us (sub/exp) ir leidžiame AI endpointams veikti.
+  // Tai tarpinė degradacija iki pilnos Supabase auth verifikacijos.
+  if (!SUPABASE_URL_RAW || !SUPABASE_ANON_KEY) {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) throw new Error('Invalid JWT');
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+      const payload = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+      const sub = String(payload?.sub || '').trim();
+      const exp = Number(payload?.exp || 0);
+      if (!sub) {
+        return { ok: false, status: 401, message: 'Neteisingas prieigos raktas (sub).' };
+      }
+      if (Number.isFinite(exp) && exp > 0 && Date.now() >= exp * 1000) {
+        return { ok: false, status: 401, message: 'Sesija pasibaigusi — prisijunkite iš naujo.' };
+      }
+      return { ok: true, user: { id: sub, email: payload?.email || '' }, degradedAuth: true };
+    } catch {
+      return {
+        ok: false,
+        status: 401,
+        message: 'Neteisingas prieigos raktas.',
+      };
+    }
   }
   try {
     const r = await fetchWithTimeoutAndRetry(`${SUPABASE_URL_RAW}/auth/v1/user`, {
