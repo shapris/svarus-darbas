@@ -50,6 +50,9 @@ export default function OrdersView({
   const [focusFilter, setFocusFilter] = useState<'all' | 'today' | 'overdue' | 'unassigned'>('all');
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkEmployeeId, setBulkEmployeeId] = useState<string>('');
+  const [employeeOverrideByOrderId, setEmployeeOverrideByOrderId] = useState<
+    Record<string, string>
+  >({});
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
   const [assigningOrderId, setAssigningOrderId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -98,12 +101,39 @@ export default function OrdersView({
     return () => clearTimeout(t);
   }, [invoiceEmailSentOrderId]);
 
-  const today = new Date().toISOString().split('T')[0];
-  const overdueCount = orders.filter((o) => o.status !== 'atlikta' && o.date < today).length;
-  const todayCount = orders.filter((o) => o.date === today && o.status !== 'atlikta').length;
-  const unassignedCount = orders.filter((o) => o.status !== 'atlikta' && !o.employeeId).length;
+  useEffect(() => {
+    // Kai gauname naujus orders iš parent/realtime, išvalome override'us,
+    // kurie jau sutampa su serverio būsena.
+    setEmployeeOverrideByOrderId((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = { ...prev };
+      for (const o of orders) {
+        const serverValue = o.employeeId || '';
+        if (next[o.id] !== undefined && next[o.id] === serverValue) {
+          delete next[o.id];
+        }
+      }
+      return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+    });
+  }, [orders]);
 
-  const filteredOrders = orders
+  const effectiveOrders = orders.map((o) => {
+    const override = employeeOverrideByOrderId[o.id];
+    return override === undefined ? o : { ...o, employeeId: override || '' };
+  });
+
+  const today = new Date().toISOString().split('T')[0];
+  const overdueCount = effectiveOrders.filter(
+    (o) => o.status !== 'atlikta' && o.date < today
+  ).length;
+  const todayCount = effectiveOrders.filter(
+    (o) => o.date === today && o.status !== 'atlikta'
+  ).length;
+  const unassignedCount = effectiveOrders.filter(
+    (o) => o.status !== 'atlikta' && !o.employeeId
+  ).length;
+
+  const filteredOrders = effectiveOrders
     .filter((o) => {
       const statusMatch = statusFilter === 'all' || o.status === statusFilter;
       const textMatch =
@@ -535,6 +565,14 @@ export default function OrdersView({
 
   const runBulkAssignEmployee = async () => {
     if (selectedOrderIds.length === 0) return;
+    const previousById = Object.fromEntries(
+      selectedOrderIds.map((id) => [id, effectiveOrders.find((o) => o.id === id)?.employeeId || ''])
+    );
+    setEmployeeOverrideByOrderId((prev) => {
+      const next = { ...prev };
+      for (const id of selectedOrderIds) next[id] = bulkEmployeeId || '';
+      return next;
+    });
     setIsBulkUpdating(true);
     try {
       await Promise.all(
@@ -548,6 +586,7 @@ export default function OrdersView({
       setSelectedOrderIds([]);
       setBulkEmployeeId('');
     } catch {
+      setEmployeeOverrideByOrderId((prev) => ({ ...prev, ...previousById }));
       showToast.error('Nepavyko masiškai priskirti darbuotojo');
     } finally {
       setIsBulkUpdating(false);
@@ -555,6 +594,8 @@ export default function OrdersView({
   };
 
   const handleQuickAssign = async (order: Order, employeeId: string) => {
+    const previousEmployeeId = order.employeeId || '';
+    setEmployeeOverrideByOrderId((prev) => ({ ...prev, [order.id]: employeeId || '' }));
     setAssigningOrderId(order.id);
     try {
       await updateData(TABLES.ORDERS, order.id, {
@@ -562,6 +603,7 @@ export default function OrdersView({
       } as Record<string, unknown>);
       showToast.success(employeeId ? 'Darbuotojas priskirtas' : 'Priskyrimas pašalintas');
     } catch {
+      setEmployeeOverrideByOrderId((prev) => ({ ...prev, [order.id]: previousEmployeeId }));
       showToast.error('Nepavyko atnaujinti darbuotojo priskyrimo');
     } finally {
       setAssigningOrderId(null);
