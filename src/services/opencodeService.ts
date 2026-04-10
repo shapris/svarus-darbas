@@ -78,7 +78,7 @@ export async function callOpenCodeChatCompletions(args: {
   // Prevents browser CORS failures and keeps shared key server-side.
   if (base) {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (!usesLocalStorageBackend && supabase) {
+    if (supabase) {
       const {
         data: { session },
       } = await supabase.auth.getSession();

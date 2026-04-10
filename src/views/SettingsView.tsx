@@ -285,7 +285,7 @@ export default function SettingsView({
     if (base) {
       try {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (!usesLocalStorageBackend && supabase) {
+        if (supabase) {
           const {
             data: { session },
           } = await supabase.auth.getSession();
