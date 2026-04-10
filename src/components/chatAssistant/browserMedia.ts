@@ -69,3 +69,38 @@ export function getMicDictationChecklist(): MicDictationChecklist {
 
   return { secureContext, hasWebSpeech, primaryHintLt };
 }
+
+/** Xiaomi / Android Chrome: kartais patikimesnis paprastas „audio/webm“ nei tik su „codecs=opus“. */
+export function isAndroidUserAgent(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/**
+ * Pasirenka geriausią MIME tipą įrašui (MediaRecorder).
+ * Android — pirmiausia bandom paprastą webm, tada opus.
+ */
+export function pickRecorderMimeTypeForDevice(): string {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const android = isAndroidUserAgent();
+  const candidates = android
+    ? ['audio/webm', 'audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus']
+    : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+  for (const c of candidates) {
+    if (MediaRecorder.isTypeSupported(c)) return c;
+  }
+  return '';
+}
+
+/**
+ * getUserMedia garso parametrai — Android dažnai reikalauja aiškesnių ribų (MIUI / Chrome).
+ * Jei naršyklė meta „OverconstrainedError“, kviesti dar kartą su `{ audio: true }`.
+ */
+export function getGeminiDictationAudioConstraints(): MediaTrackConstraints {
+  return {
+    echoCancellation: { ideal: true },
+    noiseSuppression: { ideal: true },
+    autoGainControl: { ideal: true },
+    channelCount: { ideal: 1 },
+  };
+}

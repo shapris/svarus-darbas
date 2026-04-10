@@ -52,7 +52,10 @@ import {
 } from './chatAssistant/types';
 import {
   getAiStudio,
+  getGeminiDictationAudioConstraints,
   getSpeechRecognitionCtor,
+  isAndroidUserAgent,
+  pickRecorderMimeTypeForDevice,
   type BrowserSpeechRecognition,
 } from './chatAssistant/browserMedia';
 import {
@@ -436,22 +439,38 @@ export default function ChatAssistant({
     micLiveUpdatedRef.current = false;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: getGeminiDictationAudioConstraints(),
+        });
+      } catch (e) {
+        const name =
+          e && typeof e === 'object' && 'name' in e ? String((e as DOMException).name) : '';
+        if (name === 'OverconstrainedError') {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } else {
+          throw e;
+        }
+      }
       geminiMediaStreamRef.current = stream;
-      let mime = '';
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
-      else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
-      else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
-      else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus'))
-        mime = 'audio/ogg;codecs=opus';
 
-      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      const mime = pickRecorderMimeTypeForDevice();
+      const recOpts: MediaRecorderOptions = {};
+      if (mime) recOpts.mimeType = mime;
+      if (isAndroidUserAgent() && mime && /webm/i.test(mime)) {
+        recOpts.audioBitsPerSecond = 128000;
+      }
+      const rec =
+        Object.keys(recOpts).length > 0
+          ? new MediaRecorder(stream, recOpts)
+          : new MediaRecorder(stream);
       geminiMimeRef.current = mime || rec.mimeType || 'audio/webm';
       geminiMediaChunksRef.current = [];
       rec.ondataavailable = (e) => {
         if (e.data.size) geminiMediaChunksRef.current.push(e.data);
       };
-      rec.start(250);
+      rec.start(100);
       geminiMediaRecorderRef.current = rec;
       setIsRecording(true);
 

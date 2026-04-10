@@ -2,6 +2,7 @@
  * Balso transkripcija per Google Gemini (multimodal audio) — patikimesnis kelias nei Web Speech API telefone.
  */
 import { getAiInstance } from './aiService';
+import { logDevError } from '../utils/devConsole';
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -14,6 +15,19 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
+}
+
+const TRANSCRIBE_PROMPT =
+  'Transkribuok šį garsą. Atsakyk TIK transkribuotu tekstu: be kabučių, be „Štai transkripcija“. Kalba dažniausiai lietuvių.';
+
+/** API dažnai tikisi paprasto tipo be „;codecs=…“ (ypač WebM iš Android Chrome). */
+function normalizeMimeForGeminiApi(mime: string): string {
+  const t = (mime || '').trim().toLowerCase();
+  if (!t || t === 'application/octet-stream') return 'audio/webm';
+  if (t.startsWith('audio/webm')) return 'audio/webm';
+  if (t.startsWith('audio/ogg')) return 'audio/ogg';
+  if (t.includes('mp4')) return 'audio/mp4';
+  return mime || 'audio/webm';
 }
 
 /**
@@ -29,29 +43,36 @@ export async function transcribeAudioBlobWithGemini(
 
   const ai = getAiInstance(key);
   const data = await blobToBase64(blob);
-  const mimeType = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'audio/webm';
+  const raw = blob.type && blob.type !== 'application/octet-stream' ? blob.type : 'audio/webm';
+  const primaryMime = normalizeMimeForGeminiApi(raw);
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            inlineData: {
-              mimeType,
-              data,
-            },
-          },
-          {
-            text: 'Transkribuok šį garsą. Atsakyk TIK transkribuotu tekstu: be kabučių, be „Štai transkripcija“. Kalba dažniausiai lietuvių.',
-          },
-        ],
-      },
-    ],
-  });
+  const run = async (mimeType: string) => {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [{ inlineData: { mimeType, data } }, { text: TRANSCRIBE_PROMPT }],
+        },
+      ],
+    });
+    return String(response.text ?? '').trim();
+  };
 
-  const text = response.text?.trim();
-  if (!text || text.length < 1) return null;
-  return text;
+  let text = '';
+  try {
+    text = await run(primaryMime);
+  } catch (e) {
+    logDevError('transcribeAudioBlobWithGemini primary', e);
+  }
+  if (text) return text;
+
+  if (primaryMime !== 'audio/webm') {
+    try {
+      text = await run('audio/webm');
+    } catch (e) {
+      logDevError('transcribeAudioBlobWithGemini webm fallback', e);
+    }
+  }
+  return text && text.length > 0 ? text : null;
 }
