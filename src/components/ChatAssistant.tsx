@@ -24,7 +24,10 @@ import {
   getAiInstance,
   getGeminiApiKeyForSdk,
   isOpenRouterKey,
+  consumeAiBudget,
+  shouldApplyClientAiDailyBudget,
 } from '../services/aiService';
+import { transcribeAudioBlobWithGemini } from '../services/speechTranscribeService';
 import { generateSpeech, stopAllAudio } from '../services/ttsService';
 import { getOpenCodeKey, isOpenCodeKey } from '../services/opencodeService';
 import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
@@ -132,6 +135,9 @@ export default function ChatAssistant({
   const [isLoading, setIsLoading] = useState(false);
   const [isAiOffline, setIsAiOffline] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  /** Telefonas + Gemini: įrašas į Blob; kitur — Web Speech. */
+  const [micCaptureMode, setMicCaptureMode] = useState<'none' | 'gemini' | 'webspeech'>('none');
+  const [isTranscribingMic, setIsTranscribingMic] = useState(false);
   const [showApiSettings, setShowApiSettings] = useState(false);
   const [customApiKey, setCustomApiKey] = useState<string>(
     localStorage.getItem('custom_api_key') || ''
@@ -192,7 +198,16 @@ export default function ChatAssistant({
   const micDictationBaseRef = useRef('');
   /** Ar jau atnaujinome lauką gyvai iš onresult (kad finalize nedubliuotų). */
   const micLiveUpdatedRef = useRef(false);
+  const geminiMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const geminiMediaChunksRef = useRef<Blob[]>([]);
+  const geminiMediaStreamRef = useRef<MediaStream | null>(null);
+  const geminiMimeRef = useRef('');
+  const geminiRecordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
+  const useGeminiMobileMic =
+    isLikelyMobile &&
+    typeof MediaRecorder !== 'undefined' &&
+    Boolean(getGeminiApiKeyForSdk().trim());
   const micPhoneChecklist = useMemo(
     () => (isLikelyMobile ? getMicDictationChecklist() : null),
     [isLikelyMobile]
@@ -267,6 +282,19 @@ export default function ChatAssistant({
     return () => {
       stopSpeaking();
       micSessionWantedRef.current = false;
+      if (geminiRecordTimerRef.current) {
+        clearTimeout(geminiRecordTimerRef.current);
+        geminiRecordTimerRef.current = null;
+      }
+      geminiMediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      if (geminiMediaRecorderRef.current && geminiMediaRecorderRef.current.state !== 'inactive') {
+        try {
+          geminiMediaRecorderRef.current.stop();
+        } catch {
+          /* */
+        }
+      }
+      geminiMediaRecorderRef.current = null;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -302,6 +330,7 @@ export default function ChatAssistant({
       tempTranscriptRef.current = '';
       finalTranscriptRef.current = '';
       latestTranscriptRef.current = '';
+      setMicCaptureMode('none');
       return;
     }
     const finalResult =
@@ -316,6 +345,7 @@ export default function ChatAssistant({
     tempTranscriptRef.current = '';
     finalTranscriptRef.current = '';
     latestTranscriptRef.current = '';
+    setMicCaptureMode('none');
   };
 
   const continueMobileSpeechRecognition = useCallback(() => {
@@ -330,10 +360,143 @@ export default function ChatAssistant({
     }
   }, []);
 
+  const clearGeminiMicTimer = () => {
+    if (geminiRecordTimerRef.current) {
+      clearTimeout(geminiRecordTimerRef.current);
+      geminiRecordTimerRef.current = null;
+    }
+  };
+
+  const stopGeminiDictation = async () => {
+    clearGeminiMicTimer();
+    const rec = geminiMediaRecorderRef.current;
+    const stream = geminiMediaStreamRef.current;
+    geminiMediaRecorderRef.current = null;
+    geminiMediaStreamRef.current = null;
+
+    if (rec && rec.state !== 'inactive') {
+      await new Promise<void>((resolve) => {
+        rec.addEventListener('stop', () => resolve(), { once: true });
+        try {
+          if (typeof rec.requestData === 'function') rec.requestData();
+          rec.stop();
+        } catch {
+          resolve();
+        }
+      });
+    }
+    stream?.getTracks().forEach((t) => t.stop());
+
+    const mime = geminiMimeRef.current || 'audio/webm';
+    const chunks = geminiMediaChunksRef.current;
+    geminiMediaChunksRef.current = [];
+    const blob = new Blob(chunks, { type: mime });
+
+    setIsRecording(false);
+    if (blob.size < 200) {
+      micSessionWantedRef.current = false;
+      setMicCaptureMode('none');
+      showToast.error('Įrašas per trumpas — kalbėkite ilgiau arba patikrinkite mikrofoną.');
+      return;
+    }
+
+    const gk = getGeminiApiKeyForSdk();
+    if (!gk.trim()) {
+      micSessionWantedRef.current = false;
+      setMicCaptureMode('none');
+      showToast.error('Trūksta Google Gemini rakto transkripcijai.');
+      return;
+    }
+    if (shouldApplyClientAiDailyBudget(gk) && !consumeAiBudget(1)) {
+      micSessionWantedRef.current = false;
+      setMicCaptureMode('none');
+      showToast.error('Pasiektas AI dienos limitas. Transkripcija neįvyko.');
+      return;
+    }
+
+    setIsTranscribingMic(true);
+    try {
+      const text = await transcribeAudioBlobWithGemini(blob, gk);
+      if (text) {
+        const base = micDictationBaseRef.current.replace(/\s+$/, '');
+        setInput(base ? `${base} ${text}`.trim() : text);
+        micLiveUpdatedRef.current = true;
+      } else {
+        showToast.error('Nepavyko atpažinti balso. Bandykite aiškiau arba trumpesnis sakinys.');
+      }
+    } catch (e) {
+      logDevError('transcribeAudioBlobWithGemini', e);
+      showToast.error(
+        'Transkripcijos klaida. Bandykite trumpesnį įrašą arba kitą naršyklę (Chrome).'
+      );
+    } finally {
+      setIsTranscribingMic(false);
+      micSessionWantedRef.current = false;
+      setMicCaptureMode('none');
+    }
+  };
+
+  const startGeminiDictation = async () => {
+    if (!window.isSecureContext) {
+      showToast.error('Balso įvedimas veikia tik per saugų ryšį (HTTPS arba localhost).');
+      return;
+    }
+    if (isTranscribingMic) return;
+
+    stopSpeaking();
+    setMicNeedsGestureContinue(false);
+    micSessionWantedRef.current = true;
+    micDictationBaseRef.current = inputRef.current;
+    micLiveUpdatedRef.current = false;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      geminiMediaStreamRef.current = stream;
+      let mime = '';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus'))
+        mime = 'audio/ogg;codecs=opus';
+
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      geminiMimeRef.current = mime || rec.mimeType || 'audio/webm';
+      geminiMediaChunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size) geminiMediaChunksRef.current.push(e.data);
+      };
+      rec.start(250);
+      geminiMediaRecorderRef.current = rec;
+      setMicCaptureMode('gemini');
+      setIsRecording(true);
+
+      clearGeminiMicTimer();
+      geminiRecordTimerRef.current = setTimeout(() => {
+        geminiRecordTimerRef.current = null;
+        if (geminiMediaRecorderRef.current) void stopGeminiDictation();
+      }, 120_000);
+    } catch (e) {
+      logDevError('startGeminiDictation', e);
+      micSessionWantedRef.current = false;
+      setMicCaptureMode('none');
+      showToast.error('Nepavyko pasiekti mikrofono — leiskite prieigą nustatymuose.');
+    }
+  };
+
   const toggleRecording = () => {
     const now = Date.now();
     if (now - lastMicToggleAtRef.current < MIC_TOGGLE_DEBOUNCE_MS) return;
     lastMicToggleAtRef.current = now;
+
+    if (useGeminiMobileMic) {
+      if (isTranscribingMic) return;
+      if (isRecording) {
+        void stopGeminiDictation();
+      } else {
+        void startGeminiDictation();
+      }
+      return;
+    }
 
     const SpeechRecognition = getSpeechRecognitionCtor();
 
@@ -355,10 +518,12 @@ export default function ChatAssistant({
         } catch (e) {
           logDevError('Error stopping recognition', e);
           setIsRecording(false);
+          setMicCaptureMode('none');
           recognitionRef.current = null;
         }
       } else {
         setIsRecording(false);
+        setMicCaptureMode('none');
       }
     } else {
       if (!window.isSecureContext) {
@@ -376,6 +541,7 @@ export default function ChatAssistant({
         if (!Ctor) {
           micSessionWantedRef.current = false;
           setIsRecording(false);
+          setMicCaptureMode('none');
           return;
         }
         try {
@@ -392,6 +558,7 @@ export default function ChatAssistant({
           }
 
           recognition.onstart = () => {
+            setMicCaptureMode('webspeech');
             setMicNeedsGestureContinue(false);
             micDictationBaseRef.current = inputRef.current;
             tempTranscriptRef.current = '';
@@ -446,6 +613,7 @@ export default function ChatAssistant({
             micSessionWantedRef.current = false;
             setMicNeedsGestureContinue(false);
             setIsRecording(false);
+            setMicCaptureMode('none');
 
             const errorMessages: Record<string, string> = {
               'not-allowed':
@@ -520,6 +688,7 @@ export default function ChatAssistant({
           micSessionWantedRef.current = false;
           setMicNeedsGestureContinue(false);
           setIsRecording(false);
+          setMicCaptureMode('none');
           showToast.error(
             'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
           );
@@ -1443,7 +1612,15 @@ export default function ChatAssistant({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder={isRecording ? 'Klausausi...' : 'Rašykite čia...'}
+                  placeholder={
+                    isTranscribingMic
+                      ? 'Transkribuoju balsą…'
+                      : isRecording && micCaptureMode === 'gemini'
+                        ? 'Kalbėkite — bakstelėkite raudoną sustabdyti'
+                        : isRecording
+                          ? 'Klausausi…'
+                          : 'Rašykite čia…'
+                  }
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
                 <div className="absolute right-2 top-2 bottom-2 flex gap-1">
@@ -1451,15 +1628,22 @@ export default function ChatAssistant({
                     type="button"
                     aria-pressed={isRecording}
                     onClick={toggleRecording}
+                    disabled={isTranscribingMic}
                     className={`touch-manipulation w-10 rounded-xl flex items-center justify-center transition-all ${
                       isRecording
                         ? 'bg-red-500 text-white animate-pulse'
                         : 'bg-slate-100 text-slate-400 hover:text-blue-600'
-                    }`}
+                    } ${isTranscribingMic ? 'opacity-50 pointer-events-none' : ''}`}
                     title={
-                      isRecording
-                        ? 'Sustabdyti įrašymą (raudonas)'
-                        : 'Įrašyti balsu — mobilus Chrome gali trumpam perleisti klausymą; kalbėkite tol, kol sustabdysite'
+                      isTranscribingMic
+                        ? 'Transkripcija vyksta…'
+                        : isRecording && micCaptureMode === 'gemini'
+                          ? 'Sustabdyti ir transkribuoti (Gemini)'
+                          : isRecording
+                            ? 'Sustabdyti įrašymą (raudonas)'
+                            : useGeminiMobileMic
+                              ? 'Įrašyti balsu (įrašas bus transkribuotas per Gemini)'
+                              : 'Įrašyti balsu — mobilus Chrome gali trumpam perleisti klausymą; kalbėkite tol, kol sustabdysite'
                     }
                   >
                     {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
@@ -1497,6 +1681,12 @@ export default function ChatAssistant({
                     <span className="font-semibold text-slate-600">Telefonas / mic: </span>
                     {micPhoneChecklist.primaryHintLt}
                   </p>
+                  {useGeminiMobileMic && (
+                    <p className="text-emerald-700/90">
+                      Šiame įrenginyje naudojamas <strong>Gemini</strong> transkripcijai (ne
+                      naršyklės Web Speech) — reikia interneto ir galiojančio Gemini rakto.
+                    </p>
+                  )}
                   {micPhoneChecklist.secureContext && micPhoneChecklist.hasWebSpeech && (
                     <p className="text-slate-400">
                       Ką tik keitėte kodą? Telefone matysite tik po{' '}
