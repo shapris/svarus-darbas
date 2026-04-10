@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-04-10 — P16: KI-003/004 stebėsena (dokumentai, be kodo)
+
+- **`known-issues` KI-004:** nuorodos į [vite-plugin-pwa#918](https://github.com/vite-pwa/vite-plugin-pwa/issues/918) ir [#923](https://github.com/vite-pwa/vite-plugin-pwa/issues/923).
+- **`docs/PERIODIC_MAINTENANCE.md`:** ketvirtinė eilutė — `npm view vite-plugin-pwa` / `eslint-plugin-react-hooks` `peerDependencies` (kol KI-003/004 atviri).
+- **`work-queue.md`:** naujas **P16** blokas su uždarytu punktu.
+
+---
+
 ## 2026-04-10 — npm update (semver ribose) + verify:local
 
 - **`npm update`:** `package-lock.json` atnaujintas wanted versijomis; `npm audit` = 0.

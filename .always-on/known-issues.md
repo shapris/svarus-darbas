@@ -85,6 +85,7 @@ Tikslas: turėti vieną vietą, kur aiškiai matosi **kas žinoma**, **kaip atka
   - **`@tailwindcss/vite` + `tailwindcss` repo `^4.2.2`** — Tailwind peer jau leidžia `vite@^8`; kietasis blokas liko tik **PWA** pluginas.
 - Sprendimas / mitigacija:
   - Laikyti `vite@6` + `@vitejs/plugin-react@5` kol **`vite-plugin-pwa`** (ar pakaitalas) oficialiai palaikys `vite@^8`, arba suplanuotas atskiras PWA perkėlimo etapas.
+  - Upstream sekimas: [vite-pwa/vite-plugin-pwa#918](https://github.com/vite-pwa/vite-plugin-pwa/issues/918), [vite-pwa/vite-plugin-pwa#923](https://github.com/vite-pwa/vite-plugin-pwa/issues/923) (Vite 8 / `peerDependencies`).
   - `@vitejs/plugin-react` laikyti `devDependencies` (ne `dependencies`) — sutvarkyta.
 - Saugiklis (testas/diagnostika):
   - `npm run verify` žalias po dependency korekcijų.

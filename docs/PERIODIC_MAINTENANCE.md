@@ -16,6 +16,7 @@
 ## Kas ketvirtį
 
 - Major versijų planas: React, Vite, `@supabase/supabase-js`, Playwright — atskiras PR su changelog skaitymu.
+- **Tooling blokatoriai:** `npm view vite-plugin-pwa@latest peerDependencies` — ar jau įtrauktas `vite@^8` (žr. [KI-004](../.always-on/known-issues.md)); `npm view eslint-plugin-react-hooks@latest peerDependencies` — ar jau leidžiamas `eslint@^10` ([KI-003](../.always-on/known-issues.md)).
 
 ## Po incidento
 

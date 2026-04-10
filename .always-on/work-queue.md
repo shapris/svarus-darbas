@@ -220,6 +220,12 @@
 
 ---
 
+## P16 — tuščios eilės užpildymas (kai P0–P15 uždaryta)
+
+- [x] **KI-003 / KI-004 stebėsena repo:** `known-issues` nuorodos į upstream GH (Vite 8 + PWA peer); `docs/PERIODIC_MAINTENANCE.md` ketvirtinė `npm view … peerDependencies` eilutė. *2026-04-10*
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -268,5 +274,6 @@
 | 2026-04-10 | Tooling: react-hooks 7 + useToast | `eslint-plugin-react-hooks@7`, `useToast` ref per `useEffect`; playwright/prettier/types patch; `verify` po `dev:kill` Windows stabiliau. |
 | 2026-04-10 | Tailwind 4.2.2 | `@tailwindcss/vite` + `tailwindcss` ^4.2.2; KI-004 Tailwind blokas nuimtas, lieka PWA peer. |
 | 2026-04-10 | verify free-ports start | `verify` pradeda nuo `free-ports` — mažiau Windows/Playwright webServer flakiness; CI tas pats `npm run verify`. |
+| 2026-04-10 | P16 KI stebėsena | `known-issues` KI-004 GH #918/#923; `PERIODIC_MAINTENANCE` ketvirtis — `npm view` peer patikros. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*
