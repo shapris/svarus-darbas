@@ -18,7 +18,37 @@ function blobToBase64(blob: Blob): Promise<string> {
 }
 
 const TRANSCRIBE_PROMPT =
-  'Transkribuok šį garsą. Atsakyk TIK transkribuotu tekstu: be kabučių, be „Štai transkripcija“. Kalba dažniausiai lietuvių.';
+  'Transkribuok tik tai, ką žmogus ištaria žodžiais. Kalba dažniausiai lietuvių. ' +
+  'Nerašyk angliškų meta-aprašų (pvz. „silence“, „silent“, „no speech“, „[inaudible]“). ' +
+  'Jei aiškaus kalbėjimo nėra ar negirdi žodžių — grąžink tiksliai vieną simbolį: §';
+
+/** Gemini kartais vis tiek grąžina „silence“ ar pan. — to neįkeliame į lauką. */
+function normalizeTranscriptOrNull(raw: string): string | null {
+  const t = String(raw ?? '').trim();
+  if (!t) return null;
+  if (t === '§') return null;
+
+  const lower = t.toLowerCase();
+  const garbageExact = new Set([
+    'silence',
+    'silent',
+    'no speech',
+    'tyla',
+    'tylos',
+    '[inaudible]',
+    '(silence)',
+    '(tyla)',
+    '…',
+    '...',
+    '—',
+    '-',
+  ]);
+  if (garbageExact.has(lower)) return null;
+  if (/^(silence|silent|tyla)\.?$/i.test(t)) return null;
+  if (/^\[?(silence|inaudible|music)\]?$/i.test(t)) return null;
+
+  return t;
+}
 
 /** API dažnai tikisi paprasto tipo be „;codecs=…“ (ypač WebM iš Android Chrome). */
 function normalizeMimeForGeminiApi(mime: string): string {
@@ -65,7 +95,8 @@ export async function transcribeAudioBlobWithGemini(
   } catch (e) {
     logDevError('transcribeAudioBlobWithGemini primary', e);
   }
-  if (text) return text;
+  const firstOk = normalizeTranscriptOrNull(text);
+  if (firstOk) return firstOk;
 
   if (primaryMime !== 'audio/webm') {
     try {
@@ -74,5 +105,5 @@ export async function transcribeAudioBlobWithGemini(
       logDevError('transcribeAudioBlobWithGemini webm fallback', e);
     }
   }
-  return text && text.length > 0 ? text : null;
+  return normalizeTranscriptOrNull(text);
 }
