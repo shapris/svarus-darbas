@@ -1,4 +1,5 @@
 import type { FunctionDeclaration } from '@google/genai';
+import { supabase, usesLocalStorageBackend } from '../supabase';
 import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
 import { convertToOpenAITool } from './openRouterService';
 
@@ -76,13 +77,21 @@ export async function callOpenCodeChatCompletions(args: {
   // If API base is configured (Vercel -> Render), always use server proxy.
   // Prevents browser CORS failures and keeps shared key server-side.
   if (base) {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (!usesLocalStorageBackend && supabase) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token?.trim();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
     const controller = new AbortController();
     const timeoutMs = Math.max(5_000, args.timeoutMs ?? 60_000);
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(`${base}/api/ai/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           messages: args.messages,
           tools: args.tools,

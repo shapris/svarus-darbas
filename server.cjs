@@ -406,6 +406,39 @@ async function verifySupabaseUserJwt(authHeader) {
   }
 }
 
+const AI_PROXY_WINDOW_MS = Math.max(5_000, Number(process.env.AI_PROXY_WINDOW_MS || 60_000));
+const AI_PROXY_MAX_REQUESTS = Math.max(5, Number(process.env.AI_PROXY_MAX_REQUESTS || 60));
+const aiProxyRateState = new Map();
+
+function getClientIp(req) {
+  const xff = String(req.headers['x-forwarded-for'] || '').trim();
+  if (xff) return xff.split(',')[0].trim();
+  return String(req.ip || req.socket?.remoteAddress || 'unknown');
+}
+
+function checkAiProxyRateLimit(key) {
+  const now = Date.now();
+  const prev = aiProxyRateState.get(key);
+  if (!prev || now >= prev.resetAt) {
+    aiProxyRateState.set(key, { count: 1, resetAt: now + AI_PROXY_WINDOW_MS });
+    return { ok: true, remaining: AI_PROXY_MAX_REQUESTS - 1, resetInMs: AI_PROXY_WINDOW_MS };
+  }
+  if (prev.count >= AI_PROXY_MAX_REQUESTS) {
+    return {
+      ok: false,
+      remaining: 0,
+      resetInMs: Math.max(0, prev.resetAt - now),
+    };
+  }
+  prev.count += 1;
+  aiProxyRateState.set(key, prev);
+  return {
+    ok: true,
+    remaining: Math.max(0, AI_PROXY_MAX_REQUESTS - prev.count),
+    resetInMs: Math.max(0, prev.resetAt - now),
+  };
+}
+
 function buildSupabaseHeaders(authHeader) {
   return {
     Authorization: authHeader,
@@ -906,6 +939,25 @@ app.use(express.json({ limit: '12mb' }));
  */
 app.post('/api/ai/chat', async (req, res) => {
   try {
+    const auth = await verifySupabaseUserJwt(req.headers.authorization);
+    if (!auth.ok) {
+      return apiError(res, auth.status || 401, 'auth_failed', auth.message);
+    }
+    const uid = String(auth.user?.id || '').trim();
+    const ip = getClientIp(req);
+    const limitKey = `${uid}:${ip}`;
+    const limit = checkAiProxyRateLimit(limitKey);
+    if (!limit.ok) {
+      res.setHeader('retry-after', String(Math.ceil(limit.resetInMs / 1000)));
+      return apiError(
+        res,
+        429,
+        'ai_rate_limited',
+        'Per daug AI užklausų per trumpą laiką. Pabandykite po minutės.',
+        { resetInMs: limit.resetInMs }
+      );
+    }
+
     const apiKey = String(process.env.OPENCODE_API_KEY || '').trim();
     if (!apiKey) {
       return apiError(
