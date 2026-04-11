@@ -1,10 +1,10 @@
 # Nuolatinė darbotvarkė (agentui ir komandai)
 
-**Tikslas:** kai nėra konkrečios vartotojo užduoties arba prašoma tik „tęsk / dirbk toliau“, vykdyti **pirmą nepažymėtą** punktą pagal **P0 → P1 → P2 → P3 → P4** eilę, iki galo su patikra, tada čia pažymėti atlikta ir data.
+**Tikslas:** kai nėra konkrečios vartotojo užduoties arba prašoma tik „tęsk / dirbk toliau“, vykdyti **pirmą nepažymėtą** punktą pagal **P0 → … → P22 → P23** eilę, iki galo su patikra, tada čia pažymėti atlikta ir data. Jei P0–P22 jau uždaryti — žr. **P23** žemiau ir [OPERATOR_SCHEDULE.md](OPERATOR_SCHEDULE.md).
 
 ## Kaip vykdyti (kiekviena sesija)
 
-1. Perskaityti šį failą ir rasti pirmą `- [ ]` **P0** bloke; jei visi P0 atlikti — **P1** → **P2** → **P3** → **P4** (eilės tvarka).
+1. Perskaityti šį failą ir rasti pirmą `- [ ]` **P0** bloke; jei visi P0 atlikti — **P1** → … → **P22**; jei ir tie uždaryti — **P23**. (Kartotiniams P23 punktams: uždarius periodą pažymėti `[x]`, datą ir žurnalo eilutę; kitam periodui galima pridėti naują to paties tipo `- [ ]` eilutę.)
 2. **Įgyvendinti** (kodas, SQL instrukcija, konfigūracija) arba, jei blokuoja tik projekto savininkas (pvz. Supabase prisijungimas), paruošti viską, ką galima repo viduje, ir trumpai užrašyti „Žurnalai“ skiltyje, ką dar turi padaryti žmogus.
 3. Paleisti **`npm run lint`**; jei keistas UI/backend elgesys — **`npm run build`** (ir smoke, jei tinka).
 4. Atnaujinti šį failą: pažymėti `- [x]`, įrašyti datą į „Žurnalai“.
@@ -267,6 +267,16 @@
 
 ---
 
+## P23 — kartotinė priežiūra
+
+*Kartojama pagal periodą; uždarius — žurnalo eilutė. Detalė — [OPERATOR_SCHEDULE.md](OPERATOR_SCHEDULE.md).*
+
+- [ ] **P23.1 (≥1× per mėnesį):** `npm run scout:improvements`; peržiūrėti [improvement-backlog.md](improvement-backlog.md); jei score &lt; 95 arba atsirado naujas signalas — trumpas įrašas į [session-log.md](session-log.md).
+- [ ] **P23.2 (≥1× per ketvirtį):** pagal [docs/PERIODIC_MAINTENANCE.md](../docs/PERIODIC_MAINTENANCE.md) skyrių „Kas ketvirtį“ — `npm view … peerDependencies` (Vite/PWA, eslint/react-hooks); būseną sutikrinti su [known-issues.md](known-issues.md) (KI-003, KI-004); atnaujinti `known-issues` arba vieną pastraipą `session-log.md`, jei pasikeitė upstream.
+- [ ] **P23.3 (pasirinktinai, bet 1× per ketvirtį verta):** didžiausio failo iš scout sąrašo (pvz. `ChatAssistant.tsx`) įvertinimas — ar verta skaidyti; jei taip — viena eilutė [decisions.md](decisions.md) arba ADR nuoroda; **ne** privalomas refaktorius toje pačioje sesijoje.
+
+---
+
 ## Žurnalai (atlikta / pastabos)
 
 | Data       | Punktas | Kas padaryta |
@@ -322,5 +332,6 @@
 | 2026-04-10 | P20 priskyrimas užsakymui | `columnFallback` + UUID regex + `OrdersView` klaidos toast; unit testas `normalize-order-employee.test.ts`. |
 | 2026-04-10 | P21 columnFallback INSERT + legacy orders | INSERT tuščio payload blokas; teisingas legacy `addData(orders)`; platesnis legacy fallback po modern insert klaidos. |
 | 2026-04-10 | P22 AI planavimas — komanda kontekste | `PlanContext` / `RoutingContext` papildyti `employees`; `aiService` `assistantContextToPlanContext` perduoda sąrašą; `npm run verify` OK. |
+| 2026-04-11 | P23 + OPERATOR_SCHEDULE | Pridėtas P23 (kartotinė priežiūra), `OPERATOR_SCHEDULE.md`, README + workflow nuorodos į P23 kai P0–P22 uždaryti. |
 
 *(Agentai: pridėkite eilutę kiekvieną kartą, kai uždarote eilės punktą.)*

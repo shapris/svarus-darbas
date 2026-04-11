@@ -6,7 +6,8 @@
 
 | Failas | Kam skirta | Kada atnaujinti |
 |--------|------------|------------------|
-| [`work-queue.md`](work-queue.md) | P0/P1 užduočių eilė agentui | Po kiekvieno uždaro punkto (checkmark + žurnalas) |
+| [`work-queue.md`](work-queue.md) | P0–P23 užduočių eilė agentui (P23 — kartotinė priežiūra) | Po kiekvieno uždaro punkto (checkmark + žurnalas) |
+| [`OPERATOR_SCHEDULE.md`](OPERATOR_SCHEDULE.md) | Savaitės / mėnesio / ketvirčio eiga + 1 eilutės šablonai agentui | Kai reikia proceso be ilgo pokalbio; po proceso pakeitimo |
 | [`session-log.md`](session-log.md) | Sesijų santraukos: ką sutarėte, ką padarėte, kas liko | Po reikšmingos sesijos arba bent 1× per savaitę |
 | [`decisions.md`](decisions.md) | Stabilūs sprendimai („kodėl taip“) | Kai priimate architektūrinį ar produkto sprendimą |
 | [`milestones.md`](milestones.md) | Datos, release, susitikimai, išoriniai terminai | Kai atsiranda data ar įvykis vertas sekti |
@@ -17,10 +18,10 @@
 
 ## Darbo eiga (žmogui ir agentui)
 
-1. **Sesijos pradžioje (šaltas startas):** peržvelgti paskutines 2–3 eilutes [`session-log.md`](session-log.md), atidaryti [`work-queue.md`](work-queue.md), trumpai — [`TASK_MEMORY.md`](../TASK_MEMORY.md).
+1. **Sesijos pradžioje (šaltas startas):** peržvelgti paskutines 2–3 eilutes [`session-log.md`](session-log.md), atidaryti [`work-queue.md`](work-queue.md); jei visi P0–P22 jau `[x]` — žr. **P23** ir [`OPERATOR_SCHEDULE.md`](OPERATOR_SCHEDULE.md); trumpai — [`TASK_MEMORY.md`](../TASK_MEMORY.md).
 2. **Sesijos pabaigoje:** į [`session-log.md`](session-log.md) įrašyti 5–10 sakinių (tikslas, kas padaryta, blokatoriai, kitas žingsnis).
 3. **Sprendimas „daugiau nebekeisime be priežasties“:** įrašyti į [`decisions.md`](decisions.md).
-4. **Be konkrečios užduoties:** vykdyti [`work-queue.md`](work-queue.md) pagal `.cursor/rules/always-on-workflow.mdc` ir `AGENT_PROTOCOL.md`.
+4. **Be konkrečios užduoties:** vykdyti [`work-queue.md`](work-queue.md) pagal `.cursor/rules/always-on-workflow.mdc` ir `AGENT_PROTOCOL.md` (pirmas `- [ ]` nuo P0; jei P0–P22 tuščią / uždaryta — **P23** ir [`OPERATOR_SCHEDULE.md`](OPERATOR_SCHEDULE.md)).
 
 ## Incident → atmintis → testas (privaloma taisyklė)
 

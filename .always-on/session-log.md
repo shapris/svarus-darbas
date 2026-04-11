@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-04-11 — P23 + OPERATOR_SCHEDULE (darbas be ilgo pokalbio)
+
+- **Kas:** `work-queue.md` papildytas skyriumi **P23 — kartotinė priežiūra** (3 nepažymėti `- [ ]`: scout/mėn., peer/ketv., didžiausias failas). Naujas [OPERATOR_SCHEDULE.md](OPERATOR_SCHEDULE.md) — savaitė / mėnuo / ketvirtis + įklijuojami agento šablonai. [README.md](README.md) ir [always-on-workflow.mdc](../.cursor/rules/always-on-workflow.mdc) nukreipia į P23, kai P0–P22 uždaryti.
+- **Kitas žingsnis:** užbaigus periodą — pažymėti P23 punktą `[x]`, žurnalą; kitam periodui galima pridėti naują `- [ ]` eilutę pagal [OPERATOR_SCHEDULE.md](OPERATOR_SCHEDULE.md).
+
+---
+
 ## 2026-04-10 — P22: darbuotojai planavimo kontekste
 
 - **Kas:** `AssistantDataContext.employees` dabar perduodami į `PlanContext` ir toliau į `RoutingContext` (`planningEngine` / `toolRouter`), kad kelias per planavimo sluoksnį sutaptų su sistemos promptu.

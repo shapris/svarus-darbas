@@ -29,7 +29,7 @@ alwaysApply: true
 **Kai vartotojas neįvardija konkrečios užduoties** (pvz. „tęsk“, „dirbk savarankiškai“, tyliai tęsiama sesija) **arba** prašoma nuolatinio progreso be single-task fokuso:
 
 1. Atverti **`.always-on/work-queue.md`**.
-2. Vykdyti **pirmą nepažymėtą** `- [ ]` punktą nuo **P0**; jei P0 tuščią ar visi atlikti — **P1**.
+2. Vykdyti **pirmą nepažymėtą** `- [ ]` punktą nuo **P0**; jei P0 tuščią ar visi atlikti — **P1** → … → **P22**; jei ir tie uždaryti — **P23** (kartotinė priežiūra). Papildomai: **`.always-on/OPERATOR_SCHEDULE.md`** (savaitės/mėnesio eiga ir įklijuojami šablonai).
 3. Užduotį užbaigti pagal skyrių „Kaip vykdyti“ tame faile (lint/build, atnaujinimas, žurnalas).
 4. **Nebeiškoti leidimo** pradėti eilės punktą — tai numatytasis darbas, kol eilė neištuštėjo.
 
