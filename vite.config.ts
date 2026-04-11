@@ -127,8 +127,9 @@ export default defineConfig(({ mode }) => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           navigateFallback: '/index.html',
         },
+        // Dev: neįjungti SW — pasenę cache chunk'ai po HMR dažnai laužo modulių įkrovimą naršyklėje.
         devOptions: {
-          enabled: true,
+          enabled: false,
         },
       }),
     ],

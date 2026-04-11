@@ -1,6 +1,10 @@
 import React from 'react';
 import type { Order, Employee, Client, OrderStatus } from '../../types';
 import { formatCurrency } from '../../utils';
+import {
+  resolveClientRecordForOrder,
+  resolveOrderClientNameDisplay,
+} from '../../utils/orderDisplayHelpers';
 import { Save, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { lt } from 'date-fns/locale';
@@ -99,9 +103,10 @@ export function DayDetailsModal({
           <div className="space-y-3">
             {filteredSelectedOrders.map((order) => {
               const employee = employees.find((e) => e.id === order.employeeId);
-              const client = clientsById.get(order.clientId);
+              const allClients = Array.from(clientsById.values());
+              const client = resolveClientRecordForOrder(order, allClients);
               const displayClientName =
-                (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
+                resolveOrderClientNameDisplay(order, allClients).trim() || 'Klientas nenurodytas';
               const displayAddress =
                 (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
               const displayPhone = (client?.phone || '').trim() || 'nesutarta';

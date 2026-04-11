@@ -16,9 +16,10 @@ import {
   looksLikeValidEmail,
   compressImageToJpegDataUrl,
 } from '../utils';
+import { resolveOrderClientNameDisplay } from '../utils/orderDisplayHelpers';
 import { sendOrderStatusEmail } from '../services/clientNotificationService';
 import { useToast } from '../hooks/useToast';
-import { formatNetworkErrorForUser } from '../utils/networkErrors';
+import { formatNetworkErrorForUser, sanitizeSupabaseErrorForDisplay } from '../utils/networkErrors';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
 import { Plus, Search, Download, HelpCircle } from 'lucide-react';
@@ -197,13 +198,9 @@ export default function OrdersView({
     [clients]
   );
 
-  /** Rodoma eilutėje: jei užsakyme `clientName` tuščias (seni/ vieši įrašai), imama iš kliento kortelės. */
+  /** Rodoma eilutėje: vardas iš užsakymo, iš kliento pagal id, arba pagal sutampantį adresą — žr. `resolveOrderClientNameDisplay`. */
   const resolveOrderClientName = useCallback(
-    (order: Order): string => {
-      const fromOrder = (order.clientName ?? '').trim();
-      if (fromOrder) return fromOrder;
-      return (clients.find((c) => c.id === order.clientId)?.name ?? '').trim();
-    },
+    (order: Order): string => resolveOrderClientNameDisplay(order, clients),
     [clients]
   );
 
@@ -327,12 +324,11 @@ export default function OrdersView({
             time: order.time,
           });
         } catch (notifyError) {
-          const msg = notifyError instanceof Error ? notifyError.message : '';
-          showToast.warning(
-            msg
-              ? `Būsena išsaugota, bet el. paštas neišsiųstas: ${msg}`
-              : 'Būsena išsaugota, bet el. paštas neišsiųstas.'
-          );
+          const raw =
+            notifyError instanceof Error ? notifyError.message : String(notifyError ?? '');
+          const cleaned =
+            sanitizeSupabaseErrorForDisplay(raw.trim()) || raw.trim() || 'Nežinoma klaida';
+          showToast.warning(`Būsena išsaugota, bet el. paštas neišsiųstas: ${cleaned}`);
         }
       }
 
@@ -370,11 +366,7 @@ export default function OrdersView({
         showToast.success('Užsakymas pažymėtas kaip atliktas');
       }
     } catch (err: unknown) {
-      const details =
-        err && typeof err === 'object' && 'message' in err
-          ? ` (${String((err as { message: unknown }).message)})`
-          : '';
-      showToast.error(`Nepavyko išsaugoti būsenos${details}`);
+      showToast.error(formatNetworkErrorForUser(err, 'Nepavyko išsaugoti būsenos'));
     } finally {
       setStatusUpdatingOrderId(null);
     }

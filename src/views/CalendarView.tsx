@@ -6,6 +6,10 @@
 import React, { useMemo, useState } from 'react';
 import { Order, Employee, Client, OrderStatus } from '../types';
 import { formatCurrency } from '../utils';
+import {
+  resolveClientRecordForOrder,
+  resolveOrderClientNameDisplay,
+} from '../utils/orderDisplayHelpers';
 import { Calendar as CalendarIcon, MapPin, Clock, Users, Save, Trash2 } from 'lucide-react';
 import { formatSupabaseUserError, updateData, deleteData, TABLES } from '../supabase';
 import { useToast } from '../hooks/useToast';
@@ -375,9 +379,9 @@ export default function CalendarView({
           <div className="space-y-3">
             {filteredSelectedOrders.map((order) => {
               const employee = employees.find((e) => e.id === order.employeeId);
-              const client = clientsById.get(order.clientId);
+              const client = resolveClientRecordForOrder(order, clients);
               const displayClientName =
-                (order.clientName || client?.name || '').trim() || 'Klientas nenurodytas';
+                resolveOrderClientNameDisplay(order, clients).trim() || 'Klientas nenurodytas';
               const displayAddress =
                 (order.address || client?.address || '').trim() || 'Adresas nenurodytas';
               const displayPhone = (client?.phone || '').trim() || 'nesutarta';

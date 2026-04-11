@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Order, Client, Expense, Memory, AppSettings, DEFAULT_SETTINGS } from '../types';
 import { AuthUser } from '../supabase';
 import { formatCurrency } from '../utils';
@@ -35,6 +35,11 @@ import {
   type DashboardInsight,
 } from '../services/insightsService';
 import { computeDashboardKpis } from '../utils/dashboardKpis';
+import {
+  extractIsoDatePrefix,
+  isMemoryShownAsImportantOnDashboard,
+  todayIsoLocal,
+} from '../utils/dashboardMemories';
 import { smsService } from '../services/smsService';
 import { Volume2, VolumeX } from 'lucide-react';
 
@@ -72,6 +77,11 @@ export default function Dashboard({
   settings,
 }: DashboardProps) {
   const smsSettings = settings ?? DEFAULT_SETTINGS;
+  /** Svarbios atmintys skydelyje: pasenusios pagal įvykio datą arba „be datos“ >14 d. neberodomos. */
+  const importantMemories = useMemo(() => {
+    const todayIso = todayIsoLocal();
+    return memories.filter((m) => isMemoryShownAsImportantOnDashboard(m, todayIso));
+  }, [memories]);
   const [insights, setInsights] = useState<DashboardInsight[]>([]);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
@@ -496,38 +506,37 @@ export default function Dashboard({
         </div>
       </section>
 
-      {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length > 0 && (
+      {importantMemories.length > 0 && (
         <section className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl">
           <div className="flex items-center gap-2 mb-4">
             <Bell size={18} className="text-amber-600 shrink-0" aria-hidden />
             <h2 className="text-lg font-bold text-amber-900">Svarbūs priminimai</h2>
             <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-200 px-2 py-1 rounded-full">
-              {memories.filter((m) => (m.importance || 3) >= 4 && m.isActive !== false).length}
+              {importantMemories.length}
             </span>
           </div>
           <div className="space-y-3">
-            {memories
-              .filter((m) => (m.importance || 3) >= 4 && m.isActive !== false)
-              .slice(0, 3)
-              .map((mem) => (
-                <div
-                  key={mem.id}
-                  className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm"
-                >
-                  <p className="text-sm font-medium text-slate-900">{mem.content}</p>
-                  <p className="text-[10px] text-amber-700 mt-1">
-                    {mem.category === 'verslas'
-                      ? 'Verslas'
-                      : mem.category === 'klientas'
-                        ? 'Klientas'
-                        : mem.category === 'procesas'
-                          ? 'Procesas'
-                          : 'Kita'}
-                    {' · '}
-                    {mem.createdAt?.split('T')[0] || '—'}
-                  </p>
-                </div>
-              ))}
+            {importantMemories.slice(0, 3).map((mem) => (
+              <div
+                key={mem.id}
+                className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm"
+              >
+                <p className="text-sm font-medium text-slate-900">{mem.content}</p>
+                <p className="text-[10px] text-amber-700 mt-1">
+                  {mem.category === 'verslas'
+                    ? 'Verslas'
+                    : mem.category === 'klientas'
+                      ? 'Klientas'
+                      : mem.category === 'procesas'
+                        ? 'Procesas'
+                        : 'Kita'}
+                  {' · '}
+                  {extractIsoDatePrefix(mem.eventDate)
+                    ? `Įvykis: ${extractIsoDatePrefix(mem.eventDate)}`
+                    : `Įrašyta: ${mem.createdAt?.split('T')[0] || '—'}`}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
       )}
