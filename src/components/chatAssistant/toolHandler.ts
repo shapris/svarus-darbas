@@ -4,6 +4,7 @@ import { calculateOrderPrice } from '../../utils';
 import type {
   Client,
   Order,
+  OrderStatus,
   Expense,
   AppSettings,
   Memory,
@@ -71,6 +72,9 @@ export type AssistantToolHandlerContext = {
   settings: AppSettings;
   isRestrictedStaff: boolean;
   setMemories: Dispatch<SetStateAction<Memory[]>>;
+  patchOrder?: (id: string, patch: Partial<Order>) => void;
+  removeOrderFromState?: (id: string) => void;
+  upsertOrder?: (order: Order) => void;
 };
 
 function resolveEmployeeRecord(
@@ -106,6 +110,9 @@ export async function runAssistantToolCall(
     settings,
     isRestrictedStaff,
     setMemories,
+    patchOrder,
+    removeOrderFromState,
+    upsertOrder,
   } = ctx;
 
   if (!call || typeof call !== 'object' || !('name' in call)) {
@@ -252,7 +259,7 @@ export async function runAssistantToolCall(
         settings
       );
 
-      await addData(TABLES.ORDERS, dataOwnerId, {
+      const inserted = (await addData(TABLES.ORDERS, dataOwnerId, {
         clientId: client.id,
         clientName: client.name,
         address: args.address || client.address || 'nesutarta',
@@ -266,7 +273,8 @@ export async function runAssistantToolCall(
         status: 'suplanuota',
         notes: args.notes || '',
         createdAt: new Date().toISOString(),
-      });
+      })) as unknown as Order;
+      upsertOrder?.(inserted);
       return `Užsakymas klientui ${client.name} sėkmingai sukurtas.`;
     }
 
@@ -305,11 +313,19 @@ export async function runAssistantToolCall(
       }
 
       await updateData(TABLES.ORDERS, orderId, payload as Partial<Order>);
+      if (existingOrder) {
+        patchOrder?.(orderId, { ...existingOrder, ...payload });
+      } else {
+        patchOrder?.(orderId, payload as Partial<Order>);
+      }
       return `Užsakymas atnaujintas.`;
     }
 
     if (name === 'delete_order') {
       await deleteData(TABLES.ORDERS, args.orderId);
+      if (typeof args.orderId === 'string' && args.orderId) {
+        removeOrderFromState?.(args.orderId);
+      }
       return `Užsakymas ištrintas.`;
     }
 
@@ -497,7 +513,7 @@ export async function runAssistantToolCall(
         settings
       );
 
-      await addData(TABLES.ORDERS, dataOwnerId, {
+      const recurring = (await addData(TABLES.ORDERS, dataOwnerId, {
         clientId: client.id,
         clientName: client.name,
         address: args.address,
@@ -513,7 +529,8 @@ export async function runAssistantToolCall(
         recurringInterval: args.intervalMonths,
         notes: `Kartotinis užs kas ${args.intervalMonths} mėn.`,
         createdAt: new Date().toISOString(),
-      });
+      })) as unknown as Order;
+      upsertOrder?.(recurring);
 
       return `🔄 Kartotinis užsakymas sukurtas klientui ${client.name} kas ${args.intervalMonths} mėnesį!`;
     }
@@ -541,7 +558,11 @@ export async function runAssistantToolCall(
       if (orderIds.length === 0 || typeof status !== 'string') {
         return 'Neteisingi parametrai: reikia orderIds (ne tuščias stringų masyvas) ir status (tekstas).';
       }
+      const statusTyped = status as OrderStatus;
       await Promise.all(orderIds.map((orderId) => updateData(TABLES.ORDERS, orderId, { status })));
+      for (const oid of orderIds) {
+        patchOrder?.(oid, { status: statusTyped });
+      }
       return `✅ ${orderIds.length} užsakymų būsena pakeista į "${status}".`;
     }
   } catch (error) {

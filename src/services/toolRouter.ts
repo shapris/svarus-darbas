@@ -28,6 +28,7 @@ import type {
   InventoryItem,
   Memory,
   Order,
+  OrderStatus,
 } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 import { calculateOrderPrice } from '../utils';
@@ -53,6 +54,10 @@ export interface RoutingContext {
   /** Workspace savininkas — jei perduota, galima užkrauti inventorių be iš anksto paruošto masyvo */
   dataOwnerId?: string;
   inventory?: InventoryItem[];
+  /** CRM `App` užsakymų būsena — po mutacijos be Realtime vėlavimo */
+  patchOrder?: (id: string, patch: Partial<Order>) => void;
+  removeOrderFromState?: (id: string) => void;
+  upsertOrder?: (order: Order) => void;
 }
 
 function routingDataOwnerId(context: RoutingContext): string | null {
@@ -222,7 +227,7 @@ async function crudAddOrder(
     const wc = Number(params.windowCount) || 0;
     const fl = Number(params.floor) || 0;
     const totalPrice = calculateOrderPrice(wc, fl, additionalServices, DEFAULT_SETTINGS);
-    const inserted = await addData(TABLES.ORDERS, owner, {
+    const inserted = (await addData(TABLES.ORDERS, owner, {
       clientId: client.id,
       clientName: client.name,
       address: String(params.address ?? client.address ?? 'nesutarta'),
@@ -236,8 +241,9 @@ async function crudAddOrder(
       status: 'suplanuota',
       notes: String(params.notes ?? ''),
       createdAt: new Date().toISOString(),
-    });
-    const orderId = (inserted as { id?: string }).id ?? '';
+    })) as unknown as Order;
+    context.upsertOrder?.(inserted);
+    const orderId = inserted.id ?? '';
     return {
       success: true,
       data: { orderId, id: orderId, clientId: client.id, message: 'Užsakymas sukurtas.' },
@@ -299,6 +305,11 @@ async function crudUpdateOrder(
       partial.additionalServices = newServices;
     }
     await updateData(TABLES.ORDERS, orderId, partial);
+    if (existing) {
+      context.patchOrder?.(orderId, { ...existing, ...partial });
+    } else {
+      context.patchOrder?.(orderId, partial);
+    }
     return {
       success: true,
       data: { orderId, message: 'Užsakymas atnaujintas.' },
@@ -320,7 +331,7 @@ async function crudUpdateOrder(
 
 async function crudDeleteOrder(
   params: Record<string, unknown>,
-  _context: RoutingContext
+  context: RoutingContext
 ): Promise<ToolExecutionResult> {
   const orderId = typeof params.orderId === 'string' ? params.orderId : '';
   if (!orderId) {
@@ -334,6 +345,7 @@ async function crudDeleteOrder(
   }
   try {
     await deleteData(TABLES.ORDERS, orderId);
+    context.removeOrderFromState?.(orderId);
     return {
       success: true,
       data: { orderId, message: 'Užsakymas pašalintas.' },
@@ -549,7 +561,8 @@ async function crudMemory(
 }
 
 async function crudBatchUpdateOrderStatus(
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  context: RoutingContext
 ): Promise<ToolExecutionResult> {
   const raw = params.orderIds;
   const orderIds = Array.isArray(raw)
@@ -566,7 +579,11 @@ async function crudBatchUpdateOrderStatus(
     };
   }
   try {
+    const statusTyped = status as OrderStatus;
     await Promise.all(orderIds.map((id) => updateData(TABLES.ORDERS, id, { status })));
+    for (const id of orderIds) {
+      context.patchOrder?.(id, { status: statusTyped });
+    }
     return {
       success: true,
       data: { updated: orderIds.length, status },
@@ -749,7 +766,7 @@ async function executeToolByName(
         confidence: 0,
       };
     case 'batch_update_order_status':
-      return await crudBatchUpdateOrderStatus(params);
+      return await crudBatchUpdateOrderStatus(params, context);
 
     default:
       throw new Error(`Unknown tool: ${toolName}`);

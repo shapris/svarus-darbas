@@ -114,7 +114,7 @@ export const updateOrderTool: FunctionDeclaration = {
       orderId: { type: Type.STRING, description: 'Užsakymo ID' },
       status: {
         type: Type.STRING,
-        enum: ['suplanuota', 'vykdoma', 'atlikta'],
+        enum: ['suplanuota', 'vykdoma', 'atlikta', 'atšaukta'],
         description: 'Nauja būsena',
       },
       notes: { type: Type.STRING, description: 'Naujos pastabos' },
@@ -474,7 +474,7 @@ export const batchUpdateOrderStatusTool: FunctionDeclaration = {
       },
       status: {
         type: Type.STRING,
-        enum: ['suplanuota', 'vykdoma', 'atlikta'],
+        enum: ['suplanuota', 'vykdoma', 'atlikta', 'atšaukta'],
         description: 'Nauja būsena',
       },
     },

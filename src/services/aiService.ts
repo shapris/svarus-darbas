@@ -14,6 +14,7 @@ import { getGeminiKeyFromEnv } from '../utils/geminiEnv.js';
 import { logDevError } from '../utils/devConsole.js';
 import { classifyIntentHybrid } from './hybridClassifier.js';
 import { executeWithPlanning, shouldUsePlanning, type PlanContext } from './planningEngine.js';
+import { isOrderActive } from '../utils/orderStatus.js';
 
 /**
  * Po įrankių vykdymo antras OpenCode/OpenRouter ratas kviečiamas su tuščia žinute;
@@ -165,6 +166,10 @@ export type AssistantDataContext = {
   /** CRM workspace savininko id — planavimo įrankiams (inventorius ir kt.) */
   dataOwnerId?: string;
   userId?: string;
+  /** Po AI įrankių mutacijų — atnaujinti `App` užsakymus be Realtime vėlavimo */
+  patchOrder?: (id: string, patch: Partial<Order>) => void;
+  removeOrderFromState?: (id: string) => void;
+  upsertOrder?: (order: Order) => void;
 };
 
 function assistantContextToPlanContext(
@@ -189,6 +194,9 @@ function assistantContextToPlanContext(
     expenses: ctx.expenses,
     memories: ctx.memories,
     employees: ctx.employees,
+    patchOrder: ctx.patchOrder,
+    removeOrderFromState: ctx.removeOrderFromState,
+    upsertOrder: ctx.upsertOrder,
     businessData: {
       totalClients: ctx.clients.length,
       totalOrders: ctx.orders.length,
@@ -235,7 +243,7 @@ function buildSystemInstruction(
 
 ${uiContext || ''}JŪSŲ ŠIUOŠIO KONTEKSTO:
 - Klientai: ${context.clients.length} žmonių
-- Aktyvūs užsakymai: ${context.orders.filter((o) => o.status !== 'atlikta').length}
+- Aktyvūs užsakymai: ${context.orders.filter(isOrderActive).length}
 - Išlaidų įrašai: ${context.expenses.length}
 - Komanda (darbuotojai): ${teamActive.length} aktyvūs iš ${team.length} įrašų — ${teamLine}
 - Svarbios atmintys: ${relevantMemories.length}
@@ -291,12 +299,11 @@ function handleAIError(
     errLower.includes('resource_exhausted')
   ) {
     const quotaHint =
-      'Nemokama Google Gemini kvota išnaudota arba laikinai ribota (dažnai ~20 užklausų per dieną vienam modeliui). ' +
-      'Galite: palaukti maždaug minutę ir bandyti vėl — sistema bando kelis modelius; ' +
-      'įvesti OpenRouter raktą pokalbio nustatymuose; arba įjungti mokamą Gemini planą. ' +
-      'Daugiau: https://ai.google.dev/gemini-api/docs/rate-limits';
+      'Nemokama AI kvota išnaudota (dažniausiai ~20 užklausų per dieną). ' +
+      'Galite palaukti minutę, įvesti savo API raktą nustatymuose arba bandyti rytoj.';
+
     return {
-      text: `Atsiprašau, AI užklausa atmesta dėl kvotos (429).\n\n${quotaHint}`,
+      text: `[QUOTA_EXCEEDED] ${quotaHint}`,
       history: [
         ...history,
         { role: 'user', parts: [{ text: message }] },
@@ -629,6 +636,7 @@ export async function chatWithAssistant(
       (typeof studioKey === 'string' ? studioKey : '') ||
       getGeminiKeyFromEnv() ||
       '';
+    const explicitCustomKey = (localStorage.getItem('custom_api_key') || '').trim();
     const apiKey = preferredGeminiKey || fallbackApiKey;
     const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
 
@@ -694,7 +702,9 @@ export async function chatWithAssistant(
     // OpenCode (Zen/Go) — pirmiausia bandome per serverio proxy (bendras raktas visiems),
     // o jei vartotojas įvedė savo `sk-...` — jis irgi veiks.
     const openCodeKey = getOpenCodeKey();
-    const useOpenCodeFirst = hasServerApiBase || openCodeKey || isOpenCodeKey(apiKey);
+    const explicitOpenRouter = isOpenRouterKey(explicitCustomKey);
+    const useOpenCodeFirst =
+      !explicitOpenRouter && (hasServerApiBase || openCodeKey || isOpenCodeKey(apiKey));
     if (useOpenCodeFirst) {
       try {
         return await runOpenCodeAssistantChat(message, history, systemInstruction, tools);

@@ -58,6 +58,10 @@ import {
   pickRecorderMimeTypeForDevice,
   type BrowserSpeechRecognition,
 } from './chatAssistant/browserMedia';
+import { ChatApiSettings } from './chatAssistant/ChatApiSettings';
+import { MessageList } from './chatAssistant/MessageList';
+import { VoiceRecorder } from './chatAssistant/VoiceRecorder';
+import { AssistantVoice } from './chatAssistant/VoiceSettingsPanel';
 import {
   sanitizeHistoryForGemini,
   detectMemoryCategory,
@@ -77,6 +81,26 @@ interface ChatAssistantProps {
   setMemories: React.Dispatch<React.SetStateAction<Memory[]>>;
   /** Aktyvi CRM skiltis — rodoma asistente ir perduodama AI kaip kontekstas */
   activeTab: string;
+  /** Po įrankių mutacijų — tas pats lokalus atnaujinimas kaip užsakymų skiltyje */
+  patchOrder?: (id: string, patch: Partial<Order>) => void;
+  removeOrderFromState?: (id: string) => void;
+  upsertOrder?: (order: Order) => void;
+}
+
+const ASSISTANT_VOICE_OPTIONS: AssistantVoice[] = [
+  'Zephyr',
+  'Puck',
+  'Charon',
+  'Kore',
+  'Fenrir',
+  'Aoede',
+];
+
+function toAssistantVoice(value: string | null): AssistantVoice {
+  if (value && ASSISTANT_VOICE_OPTIONS.includes(value as AssistantVoice)) {
+    return value as AssistantVoice;
+  }
+  return 'Zephyr';
 }
 
 export default function ChatAssistant({
@@ -89,6 +113,9 @@ export default function ChatAssistant({
   memories,
   setMemories,
   activeTab,
+  patchOrder,
+  removeOrderFromState,
+  upsertOrder,
 }: ChatAssistantProps) {
   const { dataOwnerId, authUid } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
@@ -148,14 +175,27 @@ export default function ChatAssistant({
     'google' | 'openrouter' | 'opencode' | 'default'
   >('default');
   const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
-  const [selectedVoice, setSelectedVoice] = useState<string>(
-    localStorage.getItem('selected_voice') || 'Zephyr'
+  const [selectedVoice, setSelectedVoice] = useState<AssistantVoice>(() =>
+    toAssistantVoice(localStorage.getItem('selected_voice'))
   );
   const [voiceRate, setVoiceRate] = useState<number>(
     parseFloat(localStorage.getItem('voice_rate') || '1.0')
   );
   const [selectedLang, setSelectedLang] = useState<string>(
     localStorage.getItem('tts_language') || 'lt-LT'
+  );
+  const [draftVoice, setDraftVoice] = useState<AssistantVoice>(() =>
+    toAssistantVoice(localStorage.getItem('selected_voice'))
+  );
+  const [draftLang, setDraftLang] = useState<string>(
+    localStorage.getItem('tts_language') || 'lt-LT'
+  );
+  const [draftRate, setDraftRate] = useState<number>(
+    parseFloat(localStorage.getItem('voice_rate') || '1.0')
+  );
+  const [voiceSettingsAnchorIndex, setVoiceSettingsAnchorIndex] = useState<number | null>(null);
+  const [draftTtsModel, setDraftTtsModel] = useState<string>(
+    localStorage.getItem('openrouter_tts_model') || 'openai/gpt-4o-mini-tts'
   );
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
@@ -173,8 +213,23 @@ export default function ChatAssistant({
       activeViewLabel,
       dataOwnerId,
       userId: user.uid,
+      patchOrder,
+      removeOrderFromState,
+      upsertOrder,
     }),
-    [clients, orders, expenses, employees, memories, activeViewLabel, dataOwnerId, user.uid]
+    [
+      clients,
+      orders,
+      expenses,
+      employees,
+      memories,
+      activeViewLabel,
+      dataOwnerId,
+      user.uid,
+      patchOrder,
+      removeOrderFromState,
+      upsertOrder,
+    ]
   );
 
   const lastUserMessageRef = useRef<string>('');
@@ -192,7 +247,7 @@ export default function ChatAssistant({
   const micSessionWantedRef = useRef(false);
   /** Apsauga nuo begalinio ciklo, jei naršyklė nuolat kviečia onend. */
   const micMobileRestartCountRef = useRef(0);
-  const MIC_MAX_MOBILE_RECOGNITION_CHUNKS = 320;
+  const MIC_MAX_MOBILE_RECOGNITION_CHUNKS = 5000;
   const lastMicToggleAtRef = useRef(0);
   const MIC_TOGGLE_DEBOUNCE_MS = 280;
   /** Paskutinė startOneInstance funkcija — „Tęsti“ mygtukas kviečia iš tiesioginio paspaudimo. */
@@ -207,24 +262,11 @@ export default function ChatAssistant({
   const geminiMimeRef = useRef('');
   const geminiRecordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
-  const useGeminiMobileMic =
-    isLikelyMobile &&
-    typeof MediaRecorder !== 'undefined' &&
-    Boolean(getGeminiApiKeyForSdk().trim());
+  const canUseGeminiRecorderFallback =
+    typeof MediaRecorder !== 'undefined' && Boolean(getGeminiApiKeyForSdk().trim());
   const checkApiKey = async () => {
-    const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
-    if (hasServerApiBase) {
-      setApiKeyProvider('opencode');
-      return;
-    }
-
-    const envGem = getGeminiKeyFromEnv();
-    if (envGem) {
-      setApiKeyProvider('google');
-      return;
-    }
     const storedKey = localStorage.getItem('custom_api_key');
-    if (storedKey) {
+    if (storedKey?.trim()) {
       setApiKeyProvider(
         storedKey.startsWith('sk-or-v1-')
           ? 'openrouter'
@@ -232,6 +274,24 @@ export default function ChatAssistant({
             ? 'opencode'
             : 'google'
       );
+      return;
+    }
+
+    const hasServerApiBase = !!getInvoiceApiBaseUrl().trim();
+    if (hasServerApiBase) {
+      setApiKeyProvider('opencode');
+      return;
+    }
+
+    const envOpenRouter = import.meta.env.VITE_OPENROUTER_API_KEY;
+    if (envOpenRouter && String(envOpenRouter).trim().startsWith('sk-or-v1-')) {
+      setApiKeyProvider('openrouter');
+      return;
+    }
+
+    const envGem = getGeminiKeyFromEnv();
+    if (envGem) {
+      setApiKeyProvider('google');
       return;
     }
 
@@ -269,7 +329,7 @@ export default function ChatAssistant({
     setSpeakingMessageIndex(index);
 
     try {
-      await generateSpeech(text, selectedVoice as 'Zephyr');
+      await generateSpeech(text, selectedVoice);
     } finally {
       setSpeakingMessageIndex(null);
     }
@@ -302,6 +362,80 @@ export default function ChatAssistant({
       }
     };
   }, [user.uid]);
+
+  useEffect(() => {
+    if (showVoiceSelector) {
+      setDraftVoice(selectedVoice);
+      setDraftLang(selectedLang);
+      setDraftRate(voiceRate);
+    }
+  }, [showVoiceSelector, selectedVoice, selectedLang, voiceRate]);
+
+  useEffect(() => {
+    if (showApiSettings) {
+      setDraftVoice(selectedVoice);
+      setDraftLang(selectedLang);
+      setDraftRate(voiceRate);
+      setDraftTtsModel(localStorage.getItem('openrouter_tts_model') || 'openai/gpt-4o-mini-tts');
+    }
+  }, [showApiSettings, selectedVoice, selectedLang, voiceRate]);
+
+  const saveVoiceSettings = useCallback(() => {
+    const safeRate = Number.isFinite(draftRate) ? Math.min(1.35, Math.max(0.75, draftRate)) : 1;
+    setSelectedVoice(draftVoice);
+    setSelectedLang(draftLang || 'lt-LT');
+    setVoiceRate(safeRate);
+    setDraftVoice(draftVoice);
+    setDraftLang(draftLang || 'lt-LT');
+    setDraftRate(safeRate);
+    localStorage.setItem('selected_voice', draftVoice);
+    localStorage.setItem('tts_language', draftLang || 'lt-LT');
+    localStorage.setItem('voice_rate', String(safeRate));
+    showToast.success('Balso nustatymai išsaugoti');
+  }, [draftVoice, draftLang, draftRate, showToast]);
+
+  const resetVoiceSettings = useCallback(() => {
+    setDraftVoice('Zephyr');
+    setDraftLang('lt-LT');
+    setDraftRate(1);
+  }, []);
+
+  const saveVoiceSettingsWithModel = useCallback(() => {
+    localStorage.setItem(
+      'openrouter_tts_model',
+      (draftTtsModel || 'openai/gpt-4o-mini-tts').trim()
+    );
+    saveVoiceSettings();
+  }, [draftTtsModel, saveVoiceSettings]);
+
+  const dirtyVoiceSettings =
+    draftVoice !== selectedVoice ||
+    draftLang !== selectedLang ||
+    Math.abs(draftRate - voiceRate) > 0.001;
+  const dirtyVoiceSettingsAll =
+    dirtyVoiceSettings ||
+    (draftTtsModel || '').trim() !==
+      (localStorage.getItem('openrouter_tts_model') || 'openai/gpt-4o-mini-tts');
+
+  useEffect(() => {
+    if (!showVoiceSelector) {
+      setVoiceSettingsAnchorIndex(null);
+    }
+  }, [showVoiceSelector]);
+
+  const previewVoice = useCallback(async () => {
+    try {
+      await generateSpeech(
+        draftLang.startsWith('lt')
+          ? 'Sveiki, čia jūsų CRM asistento balso testas.'
+          : 'Hello, this is your CRM assistant voice test.',
+        draftVoice
+      );
+    } catch (e) {
+      logDevError('previewVoice failed', e);
+      showToast.error('Nepavyko paleisti balso testo.');
+    }
+  }, [draftLang, draftVoice, showToast]);
 
   useEffect(() => {
     try {
@@ -478,10 +612,6 @@ export default function ChatAssistant({
       setIsRecording(true);
 
       clearGeminiMicTimer();
-      geminiRecordTimerRef.current = setTimeout(() => {
-        geminiRecordTimerRef.current = null;
-        if (geminiMediaRecorderRef.current) void stopGeminiDictation();
-      }, 120_000);
     } catch (e) {
       logDevError('startGeminiDictation', e);
       micSessionWantedRef.current = false;
@@ -494,19 +624,20 @@ export default function ChatAssistant({
     if (now - lastMicToggleAtRef.current < MIC_TOGGLE_DEBOUNCE_MS) return;
     lastMicToggleAtRef.current = now;
 
-    if (useGeminiMobileMic) {
-      if (isTranscribingMic) return;
-      if (isRecording) {
-        void stopGeminiDictation();
-      } else {
-        void startGeminiDictation();
-      }
-      return;
-    }
-
     const SpeechRecognition = getSpeechRecognitionCtor();
 
+    // Prioritetas: tikras „live“ klausymas kaip ChatGPT.
+    // Recorder+transcribe naudojame tik kaip avarinį fallback, kai Web Speech nėra.
     if (!SpeechRecognition) {
+      if (canUseGeminiRecorderFallback) {
+        if (isTranscribingMic) return;
+        if (isRecording) {
+          void stopGeminiDictation();
+        } else {
+          void startGeminiDictation();
+        }
+        return;
+      }
       showToast.error(
         isLikelyMobile
           ? 'Ši mobilioji naršyklė nepalaiko balso atpažinimo. Rekomenduojama Chrome (Android) arba Safari su įjungtu mikrofono leidimu.'
@@ -660,9 +791,12 @@ export default function ChatAssistant({
           recognition.onend = () => {
             recognitionRef.current = null;
 
-            if (micSessionWantedRef.current && isLikelyMobile) {
+            if (micSessionWantedRef.current) {
               micMobileRestartCountRef.current += 1;
-              if (micMobileRestartCountRef.current > MIC_MAX_MOBILE_RECOGNITION_CHUNKS) {
+              if (
+                isLikelyMobile &&
+                micMobileRestartCountRef.current > MIC_MAX_MOBILE_RECOGNITION_CHUNKS
+              ) {
                 micSessionWantedRef.current = false;
                 setMicNeedsGestureContinue(false);
                 setIsRecording(false);
@@ -672,8 +806,17 @@ export default function ChatAssistant({
                 finalizeMicTranscriptToInput();
                 return;
               }
-              setMicNeedsGestureContinue(true);
-              return;
+
+              try {
+                startSpeechInstanceRef.current?.();
+                return;
+              } catch (e) {
+                logDevError('Auto-restart speech recognition failed', e);
+                if (isLikelyMobile) {
+                  setMicNeedsGestureContinue(true);
+                  return;
+                }
+              }
             }
 
             setIsRecording(false);
@@ -729,6 +872,9 @@ export default function ChatAssistant({
         settings,
         isRestrictedStaff,
         setMemories,
+        patchOrder,
+        removeOrderFromState,
+        upsertOrder,
       }),
     [
       user,
@@ -740,6 +886,9 @@ export default function ChatAssistant({
       settings,
       isRestrictedStaff,
       setMemories,
+      patchOrder,
+      removeOrderFromState,
+      upsertOrder,
     ]
   );
 
@@ -754,11 +903,17 @@ export default function ChatAssistant({
 
   const handleSaveCustomKey = () => {
     if (customApiKey.trim()) {
-      localStorage.setItem('custom_api_key', customApiKey.trim());
+      const trimmed = customApiKey.trim();
+      localStorage.setItem('custom_api_key', trimmed);
+      if (trimmed.startsWith('sk-or-v1-')) {
+        localStorage.setItem('openrouter_api_key', trimmed);
+      } else {
+        localStorage.removeItem('openrouter_api_key');
+      }
       setApiKeyProvider(
-        customApiKey.trim().startsWith('sk-or-v1-')
+        trimmed.startsWith('sk-or-v1-')
           ? 'openrouter'
-          : customApiKey.trim().startsWith('sk-')
+          : trimmed.startsWith('sk-')
             ? 'opencode'
             : 'google'
       );
@@ -920,10 +1075,15 @@ export default function ChatAssistant({
       }
 
       if (finalResponse) {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'model', text: finalResponse!, timestamp: Date.now() },
-        ]);
+        if (finalResponse.startsWith('[QUOTA_EXCEEDED]')) {
+          const cleanMsg = finalResponse.replace('[QUOTA_EXCEEDED]', '').trim();
+          showToast.error(cleanMsg);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'model', text: finalResponse!, timestamp: Date.now() },
+          ]);
+        }
       }
 
       setHistory(currentHistory);
@@ -1169,116 +1329,37 @@ export default function ChatAssistant({
               className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 relative"
             >
               <AnimatePresence>
-                {showApiSettings && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="absolute inset-x-0 top-0 bg-white z-30 border-b border-slate-100 p-6 shadow-xl"
-                  >
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="font-semibold text-slate-900 text-xs flex items-center gap-2">
-                        <Settings2 size={14} className="text-blue-600" />
-                        API nustatymai (Gemini arba OpenRouter)
-                      </h4>
-                      <button
-                        onClick={() => setShowApiSettings(false)}
-                        title="Uždaryti API nustatymus"
-                        className="text-slate-400 hover:text-slate-600"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                        <p className="text-[10px] text-blue-800 leading-relaxed mb-3">
-                          <strong>Google Gemini:</strong> raktas iš{' '}
-                          <a
-                            href="https://aistudio.google.com/apikey"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline"
-                          >
-                            AI Studio
-                          </a>
-                          , paprastai prasideda <code>AIza</code>. <strong>OpenRouter:</strong>{' '}
-                          <code>sk-or-v1-...</code>. Vienas laukas — išsaugoma pagal formato tipą.
-                        </p>
-                        <div className="flex gap-2 mb-3">
-                          <input
-                            type="password"
-                            value={customApiKey}
-                            onChange={(e) => setCustomApiKey(e.target.value)}
-                            placeholder="AIza... arba sk-or-v1-..."
-                            className="flex-1 bg-white border border-blue-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                          />
-                          <button
-                            onClick={handleSaveCustomKey}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
-                          >
-                            Išsaugoti
-                          </button>
-                        </div>
-                        <div className="relative py-2">
-                          <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-blue-200/50"></div>
-                          </div>
-                          <div className="relative flex justify-center text-[10px] text-blue-600 font-medium bg-blue-50 px-2 py-0.5 rounded">
-                            arba numatytasis raktas
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            localStorage.removeItem('custom_api_key');
-                            setCustomApiKey('');
-                            checkApiKey();
-                            setShowApiSettings(false);
-                          }}
-                          className="w-full mt-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-3 rounded-lg text-xs font-medium hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
-                        >
-                          <Bot size={14} />
-                          Naudoti numatytąjį raktą
-                        </button>
-                        <button
-                          onClick={handleOpenKeySelector}
-                          className="w-full mt-2 bg-white text-blue-700 border border-blue-200 px-4 py-3 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-                        >
-                          AI Studio: pasirinkti Google raktą naršyklėje
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[10px] px-2">
-                        <span className="text-slate-400">Dabartinis tiekėjas:</span>
-                        <span
-                          className={`font-bold uppercase tracking-widest ${
-                            apiKeyProvider === 'opencode'
-                              ? 'text-blue-600'
-                              : apiKeyProvider === 'openrouter'
-                                ? 'text-purple-600'
-                                : apiKeyProvider === 'google'
-                                  ? 'text-emerald-600'
-                                  : 'text-slate-400'
-                          }`}
-                        >
-                          {apiKeyProvider === 'opencode'
-                            ? 'OpenCode (server)'
-                            : apiKeyProvider === 'openrouter'
-                              ? 'OpenRouter'
-                              : apiKeyProvider === 'google'
-                                ? 'Gemini (Mano API)'
-                                : 'Standartinis / .env'}
-                        </span>
-                      </div>
-                      {getGeminiKeyFromEnv() && !localStorage.getItem('custom_api_key') && (
-                        <p className="text-[10px] text-slate-500 px-2">
-                          Raktas įkeltas iš <code className="bg-slate-100 px-1 rounded">.env</code>{' '}
-                          — įveskite ir išsaugokite čia tik jei norite pakeisti.
-                        </p>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
+                <ChatApiSettings
+                  showSettings={showApiSettings}
+                  setShowSettings={setShowApiSettings}
+                  customApiKey={customApiKey}
+                  setCustomApiKey={setCustomApiKey}
+                  apiKeyProvider={apiKeyProvider}
+                  onSave={handleSaveCustomKey}
+                  onUseDefault={() => {
+                    localStorage.removeItem('custom_api_key');
+                    localStorage.removeItem('openrouter_api_key');
+                    setCustomApiKey('');
+                    checkApiKey();
+                    setShowApiSettings(false);
+                  }}
+                  onOpenKeySelector={handleOpenKeySelector}
+                  hasEnvKey={
+                    !!getGeminiKeyFromEnv() ||
+                    !!(import.meta.env.VITE_OPENROUTER_API_KEY || '').trim()
+                  }
+                  selectedVoice={draftVoice}
+                  onVoiceChange={setDraftVoice}
+                  selectedLang={draftLang}
+                  onLangChange={setDraftLang}
+                  voiceRate={draftRate}
+                  onRateChange={setDraftRate}
+                  ttsModel={draftTtsModel}
+                  onTtsModelChange={setDraftTtsModel}
+                  onPreviewVoice={previewVoice}
+                  onSaveVoiceSettings={saveVoiceSettingsWithModel}
+                  dirtyVoiceSettings={dirtyVoiceSettingsAll}
+                />
 
                 {showMemories && (
                   <motion.div
@@ -1379,248 +1460,30 @@ export default function ChatAssistant({
                 </div>
               )}
 
-              {messages.map((msg, i) => (
-                <motion.div
-                  initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  key={i}
-                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white'}`}
-                    >
-                      {msg.role === 'user' ? <UserIcon size={14} /> : <Bot size={14} />}
-                    </div>
-                    <div
-                      className={`p-4 rounded-2xl text-sm leading-relaxed relative group ${
-                        msg.role === 'user'
-                          ? 'bg-slate-900 text-white rounded-tr-none'
-                          : 'bg-white text-slate-900 shadow-sm border border-slate-100 rounded-tl-none'
-                      }`}
-                    >
-                      {msg.role === 'model' ? (
-                        <>
-                          <div className="markdown-body prose prose-sm max-w-none">
-                            <ReactMarkdown>{msg.text}</ReactMarkdown>
-                          </div>
-                          <p className="text-[9px] text-slate-300 mt-2">
-                            {new Date(msg.timestamp).toLocaleTimeString('lt-LT', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                          <div className="absolute -right-10 top-0 flex gap-1">
-                            <button
-                              onClick={() => setShowVoiceSelector(!showVoiceSelector)}
-                              className={`p-2 rounded-full transition-all ${
-                                showVoiceSelector
-                                  ? 'bg-blue-100 text-blue-600'
-                                  : 'bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100'
-                              }`}
-                              title="Balso nustatymai"
-                            >
-                              <Bot size={14} />
-                            </button>
-                            <button
-                              onClick={() => speak(msg.text, i)}
-                              className={`p-2 rounded-full transition-all ${
-                                speakingMessageIndex === i
-                                  ? 'bg-blue-100 text-blue-600'
-                                  : 'bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100'
-                              }`}
-                              title={speakingMessageIndex === i ? 'Sustabdyti' : 'Skaityti garsiai'}
-                            >
-                              {speakingMessageIndex === i ? (
-                                <VolumeX size={14} />
-                              ) : (
-                                <Volume2 size={14} />
-                              )}
-                            </button>
-                          </div>
-                          {showVoiceSelector && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className="absolute right-0 top-10 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50"
-                            >
-                              <div className="flex justify-between items-center mb-3">
-                                <h4 className="text-xs font-bold text-slate-900">
-                                  Balso nustatymai
-                                </h4>
-                                <button
-                                  onClick={() => setShowVoiceSelector(false)}
-                                  title="Uždaryti balso nustatymus"
-                                  className="text-slate-400 hover:text-slate-600"
-                                >
-                                  <X size={14} />
-                                </button>
-                              </div>
-                              <div className="space-y-3">
-                                <div>
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                    Tiekėjas
-                                  </label>
-                                  <p className="text-xs font-medium text-slate-900 mt-1">
-                                    {apiKeyProvider === 'opencode'
-                                      ? 'OpenCode (serverio raktas)'
-                                      : apiKeyProvider === 'openrouter'
-                                        ? 'OpenRouter (nemokamas)'
-                                        : apiKeyProvider === 'google'
-                                          ? 'Google Gemini'
-                                          : 'Numatytasis (Google)'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                    Balsas
-                                  </label>
-                                  <select
-                                    value={selectedVoice}
-                                    onChange={(e) => {
-                                      setSelectedVoice(e.target.value);
-                                      localStorage.setItem('selected_voice', e.target.value);
-                                    }}
-                                    title="Pasirinkti balsą"
-                                    className="w-full mt-1 text-xs border border-slate-200 rounded-lg p-2"
-                                  >
-                                    <option value="Zephyr">Zephyr (šiltas)</option>
-                                    <option value="Puck">Puck (vyriškas)</option>
-                                    <option value="Charon">Charon (gilus)</option>
-                                    <option value="Kore">Kore (neutralus)</option>
-                                    <option value="Fenrir">Fenrir (stiprus)</option>
-                                    <option value="Aoede">Aoede (švelnus)</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                    Kalba
-                                  </label>
-                                  <select
-                                    value={selectedLang}
-                                    onChange={(e) => {
-                                      setSelectedLang(e.target.value);
-                                      localStorage.setItem('tts_language', e.target.value);
-                                    }}
-                                    title="Pasirinkti kalbą"
-                                    className="w-full mt-1 text-xs border border-slate-200 rounded-lg p-2"
-                                  >
-                                    <option value="lt-LT">Lietuvių (Lietuva)</option>
-                                    <option value="en-US">English (US)</option>
-                                    <option value="en-GB">English (UK)</option>
-                                    <option value="de-DE">Deutsch</option>
-                                    <option value="fr-FR">Français</option>
-                                    <option value="pl-PL">Polski</option>
-                                    <option value="ru-RU">Русский</option>
-                                  </select>
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="flex justify-between items-center">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                      Greitis
-                                    </label>
-                                    <span className="text-[10px] text-blue-600 font-bold">
-                                      {voiceRate}
-                                    </span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min="0.5"
-                                    max="2"
-                                    step="0.1"
-                                    value={voiceRate}
-                                    onChange={(e) => {
-                                      const val = parseFloat(e.target.value);
-                                      setVoiceRate(val);
-                                      localStorage.setItem('voice_rate', val.toString());
-                                    }}
-                                    title="Nustatyti balso greitį"
-                                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                                  />
-                                  <div className="flex justify-between text-[9px] text-slate-400">
-                                    <span>lėtas</span>
-                                    <span>normalus</span>
-                                    <span>greitas</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          {msg.text}
-                          <p className="text-[9px] text-slate-400 mt-2 text-right">
-                            {new Date(msg.timestamp).toLocaleTimeString('lt-LT', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                          <button
-                            onClick={() => handleSend(msg.text)}
-                            className="absolute -right-10 top-2 p-2 rounded-full bg-white text-slate-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100 transition-all"
-                            title="Siųsti dar kartą"
-                          >
-                            <RefreshCw size={14} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="flex gap-3 max-w-[85%]">
-                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
-                      <Bot size={14} />
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm flex items-center gap-1.5">
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                      <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                    </div>
-                  </div>
-                </div>
-              )}
+              <MessageList
+                messages={messages}
+                isLoading={isLoading}
+                speakingMessageIndex={speakingMessageIndex}
+                onSpeak={speak}
+                showVoiceSelector={showVoiceSelector}
+                setShowVoiceSelector={setShowVoiceSelector}
+                selectedVoice={draftVoice}
+                onVoiceChange={setDraftVoice}
+                selectedLang={draftLang}
+                onLangChange={setDraftLang}
+                voiceRate={draftRate}
+                onRateChange={setDraftRate}
+                dirtyVoiceSettings={dirtyVoiceSettings}
+                onSaveVoiceSettings={saveVoiceSettings}
+                onResetVoiceSettings={resetVoiceSettings}
+                voiceSettingsAnchorIndex={voiceSettingsAnchorIndex}
+                setVoiceSettingsAnchorIndex={setVoiceSettingsAnchorIndex}
+                scrollRef={scrollRef}
+              />
             </div>
 
             {/* Input */}
             <div className="p-6 bg-white border-t border-slate-100">
-              {showPreviewMicHint && (
-                <div className="mb-3 text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 flex items-start justify-between gap-2">
-                  <span>
-                    Balso įvedimą naudokite atskiroje naršyklėje (Chrome/Edge), nes preview lange
-                    jis gali neveikti.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowPreviewMicHint(false)}
-                    className="text-amber-700 hover:text-amber-900"
-                    title="Uždaryti"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-              {micNeedsGestureContinue && (
-                <div className="mb-3 text-[12px] bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-3 py-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span>
-                    Telefone naršyklė nutraukė klausymą. Paspauskite <strong>Tęsti klausymą</strong>{' '}
-                    (reikia rankinio prisilietimo), tada vėl kalbėkite.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={continueMobileSpeechRecognition}
-                    className="shrink-0 rounded-lg bg-blue-600 px-3 py-2 text-white text-sm font-medium active:bg-blue-700"
-                  >
-                    Tęsti klausymą
-                  </button>
-                </div>
-              )}
               <div className="relative">
                 <input
                   type="text"
@@ -1633,26 +1496,15 @@ export default function ChatAssistant({
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-4 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
                 <div className="absolute right-2 top-2 bottom-2 flex gap-1">
-                  <button
-                    type="button"
-                    aria-pressed={isRecording}
-                    onClick={toggleRecording}
-                    disabled={isTranscribingMic}
-                    className={`touch-manipulation w-10 rounded-xl flex items-center justify-center transition-all ${
-                      isRecording
-                        ? 'bg-red-500 text-white animate-pulse'
-                        : 'bg-slate-100 text-slate-400 hover:text-blue-600'
-                    } ${isTranscribingMic ? 'opacity-50 pointer-events-none' : ''}`}
-                    title={
-                      isTranscribingMic
-                        ? 'Palaukite…'
-                        : isRecording
-                          ? 'Sustabdyti'
-                          : 'Įrašyti balsu'
-                    }
-                  >
-                    {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
-                  </button>
+                  <VoiceRecorder
+                    isRecording={isRecording}
+                    isTranscribingMic={isTranscribingMic}
+                    micNeedsGestureContinue={micNeedsGestureContinue}
+                    onToggle={toggleRecording}
+                    onContinueGesture={continueMobileSpeechRecognition}
+                    showPreviewMicHint={showPreviewMicHint}
+                  />
+
                   {isLoading ? (
                     <button
                       onClick={() => {
