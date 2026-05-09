@@ -277,3 +277,30 @@ export function downloadData(): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// Clear all demo/local data (requires confirmation)
+export function clearAllDemoData(): { success: boolean; message: string } {
+  try {
+    // Only clear data collections, not users or settings
+    const keysToClear = ['clients', 'orders', 'expenses', 'employees', 'memories', 'settings'];
+
+    let clearedCount = 0;
+    for (const key of keysToClear) {
+      const fullKey = STORAGE_PREFIX + key;
+      if (localStorage.getItem(fullKey)) {
+        localStorage.removeItem(fullKey);
+        clearedCount++;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Išvalyti ${clearedCount} duomenų rinkiniai. Puslapis bus perkeltas iš naujo.`,
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: 'Nepavyko išvalyti duomenų: ' + (e instanceof Error ? e.message : 'Nežinoma klaida'),
+    };
+  }
+}

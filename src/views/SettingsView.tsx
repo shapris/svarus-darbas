@@ -17,7 +17,7 @@ import {
 } from '../supabase';
 import { useOrgAccess } from '../contexts/OrgAccessContext';
 import { useCrmWorkspace } from '../contexts/CrmWorkspaceContext';
-import { downloadData, importData } from '../localDb';
+import { downloadData, importData, clearAllDemoData } from '../localDb';
 import {
   Settings,
   Save,
@@ -33,10 +33,17 @@ import {
   Bell,
   Mail,
   Users,
+  Moon,
+  Sun,
+  CreditCard,
 } from 'lucide-react';
 import { getAiBudgetStatus, shouldApplyClientAiDailyBudget } from '../services/aiService';
 import { getGeminiKeyFromEnv } from '../utils/geminiEnv';
 import { getInvoiceApiBaseUrl } from '../utils/invoiceApiBase';
+import {
+  persistInvoiceVendorSettingsToLocalStorage,
+  readInvoiceVendorSettingsFromLocalStorage,
+} from '../utils/invoiceVendorSettings';
 import { formatNetworkErrorForUser } from '../utils/networkErrors';
 import { useToast } from '../hooks/useToast';
 
@@ -49,6 +56,8 @@ interface SettingsViewProps {
   setSettings: (settings: AppSettings) => void;
   user: LocalUser;
   memories?: Memory[];
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
 }
 
 export default function SettingsView({
@@ -56,6 +65,8 @@ export default function SettingsView({
   setSettings,
   user: _user,
   memories = [],
+  isDarkMode,
+  onToggleDarkMode,
 }: SettingsViewProps) {
   const { dataOwnerId } = useCrmWorkspace();
   const { isRestrictedStaff } = useOrgAccess();
@@ -85,6 +96,7 @@ export default function SettingsView({
 
   useEffect(() => {
     let inv = settings.invoiceApiBaseUrl?.trim() ?? '';
+    const localVendor = readInvoiceVendorSettingsFromLocalStorage();
     if (!inv) {
       try {
         inv = localStorage.getItem(INVOICE_API_STORAGE_KEY)?.trim() ?? '';
@@ -92,7 +104,13 @@ export default function SettingsView({
         /* */
       }
     }
-    setFormData({ ...settings, invoiceApiBaseUrl: inv });
+    setFormData({
+      ...settings,
+      invoiceApiBaseUrl: inv,
+      companyName: settings.companyName?.trim() || localVendor.companyName || '',
+      iban: settings.iban?.replace(/\s/g, '').toUpperCase() || localVendor.iban || '',
+      bankName: settings.bankName?.trim() || localVendor.bankName || '',
+    });
   }, [settings]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -103,9 +121,14 @@ export default function SettingsView({
     }
     setIsSaving(true);
     try {
-      const { invoiceApiBaseUrl, ...dbPayload } = formData;
+      const { invoiceApiBaseUrl, companyName, iban, bankName, ...dbPayload } = formData;
       try {
         localStorage.setItem(INVOICE_API_STORAGE_KEY, (invoiceApiBaseUrl ?? '').trim());
+        persistInvoiceVendorSettingsToLocalStorage({
+          companyName: companyName ?? '',
+          iban: iban ?? '',
+          bankName: bankName ?? '',
+        });
       } catch {
         /* */
       }
@@ -234,6 +257,21 @@ export default function SettingsView({
     }
   };
 
+  const handleClearDemoData = () => {
+    const confirmed = window.confirm(
+      'Ar tikrai norite išvalyti visus demo duomenis? Šis veiksmas neištrins duomenų iš debesies ir nepaveiks mokėjimų ar el. pašto.'
+    );
+    if (!confirmed) return;
+
+    const result = clearAllDemoData();
+    if (result.success) {
+      showToast.success(result.message);
+      setTimeout(() => window.location.reload(), 1000);
+    } else {
+      showToast.error(result.message);
+    }
+  };
+
   const handleRequestBookingNotifications = async () => {
     if (typeof Notification === 'undefined') {
       showToast.error('Ši naršyklė nepalaiko darbalaukio pranešimų.');
@@ -347,10 +385,52 @@ export default function SettingsView({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-slate-900">Nustatymai</h2>
+      <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Nustatymai</h2>
+
+      {/* Theme Selection Section */}
+      <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+            {isDarkMode ? <Moon size={20} /> : <Sun size={20} />}
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-slate-100">Programėlės tema</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Pasirinkite šviesų arba tamsų režimą
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => !isDarkMode && onToggleDarkMode?.()}
+            className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border transition-all ${
+              !isDarkMode
+                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 dark:shadow-none'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-100 dark:border-slate-700'
+            }`}
+          >
+            <Sun size={18} />
+            Šviesi
+          </button>
+          <button
+            type="button"
+            onClick={() => isDarkMode && onToggleDarkMode?.()}
+            className={`flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm border transition-all ${
+              isDarkMode
+                ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 dark:shadow-none'
+                : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-100 dark:border-slate-700'
+            }`}
+          >
+            <Moon size={18} />
+            Tamsi
+          </button>
+        </div>
+      </section>
 
       {isRestrictedStaff && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-950 text-sm p-4 rounded-2xl">
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-950 dark:text-amber-200 text-sm p-4 rounded-2xl">
           Prisijungėte kaip <strong>darbuotojas</strong>: matote tik dalį nustatymų (be kainų,
           sąskaitų serverio ir debesies eksporto).
         </div>
@@ -385,6 +465,14 @@ export default function SettingsView({
             >
               <Upload size={18} />
               Importuoti
+            </button>
+            <button
+              type="button"
+              onClick={handleClearDemoData}
+              className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-700 py-3 px-4 rounded-xl font-medium border border-red-200 hover:bg-red-100 transition-colors"
+            >
+              <X size={18} />
+              Išvalyti
             </button>
             <input
               ref={fileInputRef}
@@ -586,208 +674,215 @@ export default function SettingsView({
       )}
 
       {!isRestrictedStaff && (
-        <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-              <Euro size={20} />
-            </div>
-            <h3 className="font-bold text-slate-900">Kainodara ir vieša rezervacija</h3>
-          </div>
-
-          <form onSubmit={handleSave} className="space-y-4">
-            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-              <input
-                type="checkbox"
-                checked={formData.publicBookingEnabled !== false}
-                onChange={(e) =>
-                  setFormData({ ...formData, publicBookingEnabled: e.target.checked })
-                }
-                className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span>
-                <span className="block text-sm font-bold text-slate-900">
-                  Vieša rezervacija per /booking nuorodą
-                </span>
-                <span className="block text-xs text-slate-500 mt-0.5">
-                  Išjungus — klientai nematys rezervacijos formos (nuoroda lieka, bet užklausa bus
-                  atmesta serveryje, jei atnaujinta SQL funkcija).
-                </span>
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-              <input
-                type="checkbox"
-                checked={formData.clientSelfRegistrationEnabled === true}
-                onChange={(e) =>
-                  setFormData({ ...formData, clientSelfRegistrationEnabled: e.target.checked })
-                }
-                className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span>
-                <span className="block text-sm font-bold text-slate-900">
-                  Kliento saviregistracija portale
-                </span>
-                <span className="block text-xs text-slate-500 mt-0.5">
-                  Kai išjungta, klientai vis dar gali prisijungti, bet naujų paskyrų patys susikurti
-                  negalės.
-                </span>
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 bg-slate-50/80 p-4">
-              <input
-                type="checkbox"
-                checked={formData.clientStatusNotifications !== false}
-                onChange={(e) =>
-                  setFormData({ ...formData, clientStatusNotifications: e.target.checked })
-                }
-                className="mt-1 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span>
-                <span className="block text-sm font-bold text-slate-900">
-                  Kliento statuso/mokėjimo pranešimai portale
-                </span>
-                <span className="block text-xs text-slate-500 mt-0.5">
-                  Kliento portale rodysime automatinius pranešimus apie užsakymo būseną ir
-                  mokėjimus.
-                </span>
-              </span>
-            </label>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Kaina už langą
-                </label>
-                <input
-                  type="number"
-                  value={formData.pricePerWindow}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pricePerWindow: parseFloat(e.target.value) })
-                  }
-                  title="Kaina už langą"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
+        <form onSubmit={handleSave} className="space-y-6">
+          <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400">
+                <Euro size={20} />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Kaina už aukštą
-                </label>
-                <input
-                  type="number"
-                  value={formData.pricePerFloor}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pricePerFloor: parseFloat(e.target.value) })
-                  }
-                  title="Kaina už aukštą"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                Kainodara ir vieša rezervacija
+              </h3>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Balkonai
-                </label>
+            <div className="space-y-4">
+              <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 p-4">
                 <input
-                  type="number"
-                  value={formData.priceBalkonai}
+                  type="checkbox"
+                  checked={formData.publicBookingEnabled !== false}
                   onChange={(e) =>
-                    setFormData({ ...formData, priceBalkonai: parseFloat(e.target.value) })
+                    setFormData({ ...formData, publicBookingEnabled: e.target.checked })
                   }
-                  title="Kaina balkonams"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="mt-1 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Vitrinų valymas
-                </label>
-                <input
-                  type="number"
-                  value={formData.priceVitrinos}
-                  onChange={(e) =>
-                    setFormData({ ...formData, priceVitrinos: parseFloat(e.target.value) })
-                  }
-                  title="Kaina vitrinų valymui"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Terasa
-                </label>
-                <input
-                  type="number"
-                  value={formData.priceTerasa}
-                  onChange={(e) =>
-                    setFormData({ ...formData, priceTerasa: parseFloat(e.target.value) })
-                  }
-                  title="Kaina terasos valymui"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Kiti paviršiai
-                </label>
-                <input
-                  type="number"
-                  value={formData.priceKiti}
-                  onChange={(e) =>
-                    setFormData({ ...formData, priceKiti: parseFloat(e.target.value) })
-                  }
-                  title="Kaina kitiems paviršiams"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                SMS Priminimo Šablonas
+                <span>
+                  <span className="block text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Vieša rezervacija per /booking nuorodą
+                  </span>
+                  <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Išjungus — klientai nematys rezervacijos formos (nuoroda lieka, bet užklausa bus
+                    atmesta serveryje, jei atnaujinta SQL funkcija).
+                  </span>
+                </span>
               </label>
-              <p className="text-[10px] text-slate-400 mb-2">
-                Galimi kintamieji:{' '}
-                <span className="font-mono bg-slate-100 px-1 rounded">{'{vardas}'}</span>,{' '}
-                <span className="font-mono bg-slate-100 px-1 rounded">{'{data}'}</span>,{' '}
-                <span className="font-mono bg-slate-100 px-1 rounded">{'{laikas}'}</span>,{' '}
-                <span className="font-mono bg-slate-100 px-1 rounded">{'{kaina}'}</span>. LT gairės
-                ir pavyzdžiai: repo faile{' '}
-                <span className="font-mono bg-slate-100 px-1 rounded">
-                  docs/sms-templates-lt.md
+
+              <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 p-4">
+                <input
+                  type="checkbox"
+                  checked={formData.clientSelfRegistrationEnabled === true}
+                  onChange={(e) =>
+                    setFormData({ ...formData, clientSelfRegistrationEnabled: e.target.checked })
+                  }
+                  className="mt-1 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  <span className="block text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Kliento saviregistracija portale
+                  </span>
+                  <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Kai išjungta, klientai vis dar gali prisijungti, bet naujų paskyrų patys
+                    susikurti negalės.
+                  </span>
                 </span>
+              </label>
+
+              <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 p-4">
+                <input
+                  type="checkbox"
+                  checked={formData.clientStatusNotifications !== false}
+                  onChange={(e) =>
+                    setFormData({ ...formData, clientStatusNotifications: e.target.checked })
+                  }
+                  className="mt-1 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500"
+                />
+                <span>
+                  <span className="block text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Kliento statuso/mokėjimo pranešimai portale
+                  </span>
+                  <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Kliento portale rodysime automatinius pranešimus apie užsakymo būseną ir
+                    mokėjimus.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+              {[
+                { id: 'pricePerWindow', label: 'Kaina už langą (€)', key: 'pricePerWindow' },
+                { id: 'pricePerFloor', label: 'Kaina už aukštą (€)', key: 'pricePerFloor' },
+                { id: 'priceBalkonai', label: 'Balkonų valymas (€)', key: 'priceBalkonai' },
+                { id: 'priceVitrinos', label: 'Vitrinų valymas (€)', key: 'priceVitrinos' },
+                { id: 'priceTerasa', label: 'Terasos valymas (€)', key: 'priceTerasa' },
+                { id: 'priceKiti', label: 'Kitos paslaugos (€)', key: 'priceKiti' },
+              ].map((field) => (
+                <div key={field.id}>
+                  <label
+                    htmlFor={field.id}
+                    className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2"
+                  >
+                    {field.label}
+                  </label>
+                  <input
+                    id={field.id}
+                    type="number"
+                    step="0.01"
+                    value={formData[field.key as keyof AppSettings] as number}
+                    onChange={(e) =>
+                      setFormData({ ...formData, [field.key]: parseFloat(e.target.value) || 0 })
+                    }
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:text-slate-100"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* Local Bank Details Section */}
+          <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                <CreditCard size={20} />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100">
+                Vietiniai pavedimai (IBAN)
+              </h3>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                  Gavėjas (Įmonė arba vardas)
+                </label>
+                <input
+                  type="text"
+                  value={formData.companyName || ''}
+                  onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                  placeholder="MB Švarus Darbas"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:text-slate-100"
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                    Banko sąskaita (IBAN)
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.iban || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        iban: e.target.value.replace(/\s/g, '').toUpperCase(),
+                      })
+                    }
+                    placeholder="LT00 7044 0000 0000 0000"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:text-slate-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+                    Bankas
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.bankName || ''}
+                    onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
+                    placeholder="Swedbank, SEB ir kt."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 italic">
+                Ši informacija bus naudojama generuojant sąskaitas-faktūras ir siunčiant SMS
+                priminimus klientams apie mokėjimą.
               </p>
+            </div>
+          </section>
+
+          <section className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-400">
+                <Mail size={20} />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-slate-100">SMS šablonas</h3>
+            </div>
+
+            <div>
+              <label
+                htmlFor="smsTemplate"
+                className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2"
+              >
+                Žinutės tekstas
+              </label>
               <textarea
-                rows={3}
+                id="smsTemplate"
+                rows={4}
                 value={formData.smsTemplate}
                 onChange={(e) => setFormData({ ...formData, smsTemplate: e.target.value })}
-                title="SMS priminimo šablonas"
-                className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 dark:text-slate-100"
               />
+              <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
+                Kintamieji: {'{vardas}'}, {'{data}'}, {'{laikas}'}, {'{kaina}'}
+              </p>
             </div>
+          </section>
 
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-            >
-              {isSaving ? (
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-              ) : (
-                <>
-                  <Save size={18} />
-                  Išsaugoti kainas
-                </>
-              )}
-            </button>
-          </form>
-        </section>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            ) : (
+              <>
+                <Save size={18} />
+                Išsaugoti nustatymus
+              </>
+            )}
+          </button>
+        </form>
       )}
 
       <section className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
