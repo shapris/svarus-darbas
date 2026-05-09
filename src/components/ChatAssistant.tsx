@@ -52,6 +52,7 @@ import {
 } from './chatAssistant/types';
 import {
   getAiStudio,
+  decideVoiceFallback,
   getGeminiDictationAudioConstraints,
   getSpeechRecognitionCtor,
   isAndroidUserAgent,
@@ -76,12 +77,12 @@ interface ChatAssistantProps {
   expenses: Expense[];
   employees: Employee[];
   settings: AppSettings;
-  /** AI „memories“ sinchronizuojami su App.tsx (viena realtime prenumerata — be Supabase kanalo konflikto). */
+  /** AI ā€˛memoriesā€ sinchronizuojami su App.tsx (viena realtime prenumerata ā€” be Supabase kanalo konflikto). */
   memories: Memory[];
   setMemories: React.Dispatch<React.SetStateAction<Memory[]>>;
-  /** Aktyvi CRM skiltis — rodoma asistente ir perduodama AI kaip kontekstas */
+  /** Aktyvi CRM skiltis ā€” rodoma asistente ir perduodama AI kaip kontekstas */
   activeTab: string;
-  /** Po įrankių mutacijų — tas pats lokalus atnaujinimas kaip užsakymų skiltyje */
+  /** Po ÄÆrankiÅ³ mutacijÅ³ ā€” tas pats lokalus atnaujinimas kaip uÅ¾sakymÅ³ skiltyje */
   patchOrder?: (id: string, patch: Partial<Order>) => void;
   removeOrderFromState?: (id: string) => void;
   upsertOrder?: (order: Order) => void;
@@ -200,8 +201,16 @@ export default function ChatAssistant({
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const [showPreviewMicHint, setShowPreviewMicHint] = useState(false);
-  /** Mobilus: naršyklė nutraukė klausymą — reikia naujo paspaudimo (gesto), kad vėl leistų start(). */
+  /** Mobilus: narÅyklÄ— nutraukÄ— klausymÄ… ā€” reikia naujo paspaudimo (gesto), kad vÄ—l leistÅ³ start(). */
   const [micNeedsGestureContinue, setMicNeedsGestureContinue] = useState(false);
+  const [showListeningHint, setShowListeningHint] = useState(false);
+  const [showRetryingHint, setShowRetryingHint] = useState(false);
+  const [showSilenceHint, setShowSilenceHint] = useState(false);
+  const [showNoTranscriptMessage, setShowNoTranscriptMessage] = useState(false);
+  const [showUnsupportedMessage, setShowUnsupportedMessage] = useState(false);
+  const [showPermissionDeniedMessage, setShowPermissionDeniedMessage] = useState(false);
+
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(null);
 
   const assistantDataContext = useMemo(
     () => ({
@@ -233,9 +242,13 @@ export default function ChatAssistant({
   );
 
   const lastUserMessageRef = useRef<string>('');
-  /** Saugiklis nuo kelių Enter / mygtuko paspaudimų iš eilės (ta pati žinutė). */
+  /** Saugiklis nuo keliÅ³ Enter / mygtuko paspaudimÅ³ iÅ eilÄ—s (ta pati Å¾inutÄ—). */
   const lastSendAtMsRef = useRef(0);
   const lastSpeechErrorAlertAtRef = useRef<number>(0);
+  const micRetryCountRef = useRef(0);
+  const micLastErrorRef = useRef<string | null>(null);
+  const micHasTranscriptRef = useRef(false);
+  const MIC_MAX_RETRY_COUNT = 1;
   const SEND_DEBOUNCE_MS = 650;
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -243,18 +256,16 @@ export default function ChatAssistant({
   const tempTranscriptRef = useRef('');
   const finalTranscriptRef = useRef('');
   const latestTranscriptRef = useRef('');
-  /** Vartotojas nori klausyti, kol pats paspaus „stop“ (ne naršyklės automatinis nutraukimas). */
+  /** Vartotojas nori klausyti, kol pats paspaus ā€˛stopā€ (ne narÅyklÄ—s automatinis nutraukimas). */
   const micSessionWantedRef = useRef(false);
-  /** Apsauga nuo begalinio ciklo, jei naršyklė nuolat kviečia onend. */
-  const micMobileRestartCountRef = useRef(0);
-  const MIC_MAX_MOBILE_RECOGNITION_CHUNKS = 5000;
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastMicToggleAtRef = useRef(0);
   const MIC_TOGGLE_DEBOUNCE_MS = 280;
-  /** Paskutinė startOneInstance funkcija — „Tęsti“ mygtukas kviečia iš tiesioginio paspaudimo. */
+  /** PaskutinÄ— startOneInstance funkcija ā€” ā€˛TÄ™stiā€ mygtukas kvieÄ¨ia iÅ tiesioginio paspaudimo. */
   const startSpeechInstanceRef = useRef<(() => void) | null>(null);
-  /** Tekstas laukelyje pradėjus diktuoti (prie jo prijungiame atpažintą tekstą). */
+  /** Tekstas laukelyje pradÄ—jus diktuoti (prie jo prijungiame atpaÅ¾intÄ… tekstÄ…). */
   const micDictationBaseRef = useRef('');
-  /** Ar jau atnaujinome lauką gyvai iš onresult (kad finalize nedubliuotų). */
+  /** Ar jau atnaujinome laukÄ… gyvai iÅ onresult (kad finalize nedubliuotÅ³). */
   const micLiveUpdatedRef = useRef(false);
   const geminiMediaRecorderRef = useRef<MediaRecorder | null>(null);
   const geminiMediaChunksRef = useRef<Blob[]>([]);
@@ -262,8 +273,6 @@ export default function ChatAssistant({
   const geminiMimeRef = useRef('');
   const geminiRecordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLikelyMobile = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent);
-  const canUseGeminiRecorderFallback =
-    typeof MediaRecorder !== 'undefined' && Boolean(getGeminiApiKeyForSdk().trim());
   const checkApiKey = async () => {
     const storedKey = localStorage.getItem('custom_api_key');
     if (storedKey?.trim()) {
@@ -360,6 +369,10 @@ export default function ChatAssistant({
           /* jau sustabdytas */
         }
       }
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
     };
   }, [user.uid]);
 
@@ -391,7 +404,7 @@ export default function ChatAssistant({
     localStorage.setItem('selected_voice', draftVoice);
     localStorage.setItem('tts_language', draftLang || 'lt-LT');
     localStorage.setItem('voice_rate', String(safeRate));
-    showToast.success('Balso nustatymai išsaugoti');
+    showToast.success('Balso nustatymai iÅsaugoti');
   }, [draftVoice, draftLang, draftRate, showToast]);
 
   const resetVoiceSettings = useCallback(() => {
@@ -427,7 +440,7 @@ export default function ChatAssistant({
     try {
       await generateSpeech(
         draftLang.startsWith('lt')
-          ? 'Sveiki, čia jūsų CRM asistento balso testas.'
+          ? 'Sveiki, Ä¨ia jÅ«sÅ³ CRM asistento balso testas.'
           : 'Hello, this is your CRM assistant voice test.',
         draftVoice
       );
@@ -441,7 +454,7 @@ export default function ChatAssistant({
     try {
       sessionStorage.setItem(chatPanelOpenKey(user.uid), isOpen ? '1' : '0');
     } catch {
-      /* naršyklės privatumo režimas */
+      /* narÅyklÄ—s privatumo reÅ¾imas */
     }
   }, [isOpen, user.uid]);
 
@@ -456,6 +469,30 @@ export default function ChatAssistant({
     }
   }, [messages, user.uid]);
 
+  const handleConfirmTranscript = () => {
+    if (pendingTranscript) {
+      const base = micDictationBaseRef.current;
+      const trimmedBase = base.replace(/\s+$/, '');
+      setInput(trimmedBase ? `${trimmedBase} ${pendingTranscript}`.trim() : pendingTranscript);
+      setPendingTranscript(null);
+    }
+  };
+
+  const handleEditTranscript = () => {
+    if (pendingTranscript) {
+      const base = micDictationBaseRef.current;
+      const trimmedBase = base.replace(/\s+$/, '');
+      setInput(trimmedBase ? `${trimmedBase} ${pendingTranscript}`.trim() : pendingTranscript);
+      setPendingTranscript(null);
+    }
+  };
+
+  const handleRetryVoice = () => {
+    setPendingTranscript(null);
+    // Restart voice recording
+    toggleRecording();
+  };
+
   const finalizeMicTranscriptToInput = () => {
     if (micLiveUpdatedRef.current) {
       micLiveUpdatedRef.current = false;
@@ -467,10 +504,13 @@ export default function ChatAssistant({
     const finalResult =
       `${finalTranscriptRef.current} ${tempTranscriptRef.current} ${latestTranscriptRef.current}`.trim();
     if (finalResult) {
-      setInput((prev) => `${prev}${prev ? ' ' : ''}${finalResult}`);
-    } else if (isLikelyMobile) {
+      // Instead of directly setting, show for confirmation
+      setPendingTranscript(finalResult);
+    } else {
+      // Show failure message
+      setPendingTranscript(null);
       showToast.error(
-        'Įrašas nebuvo atpažintas. Kalbėkite aiškiau ir bandykite dar kartą (raudonas mygtukas = sustabdyti).'
+        'Balso atpažinimas nepavyko. Įveskite tekstą ranka arba bandykite dar kartą.'
       );
     }
     tempTranscriptRef.current = '';
@@ -525,19 +565,19 @@ export default function ChatAssistant({
     setIsRecording(false);
     if (blob.size < 200) {
       micSessionWantedRef.current = false;
-      showToast.error('Įrašas per trumpas — kalbėkite ilgiau arba patikrinkite mikrofoną.');
+      showToast.error('Ä®raÅas per trumpas ā€” kalbÄ—kite ilgiau arba patikrinkite mikrofonÄ….');
       return;
     }
 
     const gk = getGeminiApiKeyForSdk();
     if (!gk.trim()) {
       micSessionWantedRef.current = false;
-      showToast.error('Trūksta Google Gemini rakto transkripcijai.');
+      showToast.error('TrÅ«ksta Google Gemini rakto transkripcijai.');
       return;
     }
     if (shouldApplyClientAiDailyBudget(gk) && !consumeAiBudget(1)) {
       micSessionWantedRef.current = false;
-      showToast.error('Pasiektas AI dienos limitas. Transkripcija neįvyko.');
+      showToast.error('Pasiektas AI dienos limitas. Transkripcija neÄÆvyko.');
       return;
     }
 
@@ -549,12 +589,12 @@ export default function ChatAssistant({
         setInput(base ? `${base} ${text}`.trim() : text);
         micLiveUpdatedRef.current = true;
       } else {
-        showToast.error('Nepavyko atpažinti balso. Bandykite aiškiau arba trumpesnis sakinys.');
+        showToast.error('Nepavyko atpaÅ¾inti balso. Bandykite aiÅkiau arba trumpesnis sakinys.');
       }
     } catch (e) {
       logDevError('transcribeAudioBlobWithGemini', e);
       showToast.error(
-        'Transkripcijos klaida. Bandykite trumpesnį įrašą arba kitą naršyklę (Chrome).'
+        'Transkripcijos klaida. Bandykite trumpesnÄÆ ÄÆraÅÄ… arba kitÄ… narÅyklÄ™ (Chrome).'
       );
     } finally {
       setIsTranscribingMic(false);
@@ -564,7 +604,7 @@ export default function ChatAssistant({
 
   const startGeminiDictation = async () => {
     if (!window.isSecureContext) {
-      showToast.error('Balso įvedimas veikia tik per saugų ryšį (HTTPS arba localhost).');
+      showToast.error('Balso ÄÆvedimas veikia tik per saugÅ³ ryÅÄÆ (HTTPS arba localhost).');
       return;
     }
     if (isTranscribingMic) return;
@@ -615,7 +655,7 @@ export default function ChatAssistant({
     } catch (e) {
       logDevError('startGeminiDictation', e);
       micSessionWantedRef.current = false;
-      showToast.error('Nepavyko pasiekti mikrofono — leiskite prieigą nustatymuose.');
+      showToast.error('Nepavyko pasiekti mikrofono ā€” leiskite prieigÄ… nustatymuose.');
     }
   };
 
@@ -626,22 +666,15 @@ export default function ChatAssistant({
 
     const SpeechRecognition = getSpeechRecognitionCtor();
 
-    // Prioritetas: tikras „live“ klausymas kaip ChatGPT.
-    // Recorder+transcribe naudojame tik kaip avarinį fallback, kai Web Speech nėra.
+    // Prioritetas: tikras ā€˛liveā€ klausymas kaip ChatGPT.
+    // Recorder+transcribe naudojame tik kaip avarinÄÆ fallback, kai Web Speech nÄ—ra.
     if (!SpeechRecognition) {
-      if (canUseGeminiRecorderFallback) {
-        if (isTranscribingMic) return;
-        if (isRecording) {
-          void stopGeminiDictation();
-        } else {
-          void startGeminiDictation();
-        }
-        return;
-      }
+      setShowUnsupportedMessage(true);
+      setTimeout(() => setShowUnsupportedMessage(false), 5000);
       showToast.error(
         isLikelyMobile
-          ? 'Ši mobilioji naršyklė nepalaiko balso atpažinimo. Rekomenduojama Chrome (Android) arba Safari su įjungtu mikrofono leidimu.'
-          : 'Jūsų naršyklė nepalaiko balso atpažinimo funkcijos. Naudokite Chrome ar Edge.'
+          ? 'Å i mobilioji narÅyklÄ— nepalaiko balso atpaÅ¾inimo. Rekomenduojama Chrome (Android) arba Safari su ÄÆjungtu mikrofono leidimu.'
+          : 'JÅ«sÅ³ narÅyklÄ— nepalaiko balso atpaÅ¾inimo funkcijos. Naudokite Chrome ar Edge.'
       );
       return;
     }
@@ -649,6 +682,14 @@ export default function ChatAssistant({
     if (isRecording) {
       micSessionWantedRef.current = false;
       setMicNeedsGestureContinue(false);
+      setShowListeningHint(false);
+      setShowRetryingHint(false);
+      setShowSilenceHint(false);
+      setShowNoTranscriptMessage(false);
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -662,14 +703,17 @@ export default function ChatAssistant({
       }
     } else {
       if (!window.isSecureContext) {
-        showToast.error('Balso įvedimas veikia tik per saugų ryšį (HTTPS arba localhost).');
+        showToast.error('Balso ÄÆvedimas veikia tik per saugÅ³ ryÅÄÆ (HTTPS arba localhost).');
         return;
       }
 
       stopSpeaking();
       setMicNeedsGestureContinue(false);
+      setShowRetryingHint(false);
       micSessionWantedRef.current = true;
-      micMobileRestartCountRef.current = 0;
+      micRetryCountRef.current = 0;
+      micLastErrorRef.current = null;
+      micHasTranscriptRef.current = false;
 
       const startOneInstance = () => {
         const Ctor = getSpeechRecognitionCtor();
@@ -680,25 +724,31 @@ export default function ChatAssistant({
         }
         try {
           const recognition = new Ctor();
-          /* Mobilus Chrome: continuous+async prieš start() dažnai duoda tuščią rezultatą — start() turi būti tame pačiame paspaudime. */
+          /* Mobilus Chrome: continuous+async prieÅ start() daÅ¾nai duoda tuÅÄ¨iÄ… rezultatÄ… ā€” start() turi bÅ«ti tame paÄ¨iame paspaudime. */
           recognition.continuous = !isLikelyMobile;
           recognition.interimResults = true;
           recognition.maxAlternatives = 1;
-          if (!isLikelyMobile) {
-            recognition.lang = 'lt-LT';
-          } else {
-            const navLang = (navigator.language || 'lt-LT').toLowerCase();
-            recognition.lang = navLang.startsWith('lt') ? 'lt-LT' : navLang.slice(0, 5) || 'en-US';
-          }
+          const preferredLang = (selectedLang || 'lt-LT').trim() || 'lt-LT';
+          recognition.lang = preferredLang;
 
           recognition.onstart = () => {
             setMicNeedsGestureContinue(false);
+            setShowRetryingHint(micRetryCountRef.current > 0);
+            setShowListeningHint(micRetryCountRef.current === 0);
+            setShowSilenceHint(false);
+            setShowNoTranscriptMessage(false);
+            setShowUnsupportedMessage(false);
+            setShowPermissionDeniedMessage(false);
+            micLastErrorRef.current = null;
             micDictationBaseRef.current = inputRef.current;
             tempTranscriptRef.current = '';
             finalTranscriptRef.current = '';
             latestTranscriptRef.current = '';
             micLiveUpdatedRef.current = false;
             setIsRecording(true);
+            silenceTimeoutRef.current = setTimeout(() => {
+              setShowSilenceHint(true);
+            }, 3000);
           };
 
           recognition.onresult = (event: {
@@ -730,98 +780,71 @@ export default function ChatAssistant({
 
             const spokenPiece = `${finalTranscriptRef.current} ${tempTranscriptRef.current}`.trim();
             if (spokenPiece) {
+              micHasTranscriptRef.current = true;
               micLiveUpdatedRef.current = true;
-              const base = micDictationBaseRef.current;
-              const trimmedBase = base.replace(/\s+$/, '');
-              setInput(trimmedBase ? `${trimmedBase} ${spokenPiece}`.trim() : spokenPiece);
+              setShowRetryingHint(false);
+              setShowSilenceHint(false);
+              // Instead of directly setting input, show for confirmation
+              setPendingTranscript(spokenPiece);
             }
           };
 
           recognition.onerror = (event: { error: string }) => {
-            if (isLikelyMobile && micSessionWantedRef.current && event.error === 'no-speech') {
-              return;
-            }
-
             recognitionRef.current = null;
             micSessionWantedRef.current = false;
             setMicNeedsGestureContinue(false);
             setIsRecording(false);
-            const errorMessages: Record<string, string> = {
-              'not-allowed':
-                'Mikrofono prieiga neleista. Spauskite akutės ikoną URL juostoje ir leiskite prieigą.',
-              'no-speech': 'Nebuvo girdimas joks balsas. Bandykite dar kartą.',
-              network: 'Tinklo klaida. Patikrinkite interneto ryšį.',
-              aborted: 'Įrašymas buvo nutrauktas.',
-              'audio-capture': 'Mikrofonas nerastas. Prijunkite mikrofoną.',
-              'service-not-allowed': 'Balso atpažinimo paslauga neleidžiama.',
-            };
-
-            const userMessage = errorMessages[event.error] || `Klaida: ${event.error}`;
-            const isCursorLikePreview =
-              window.location.hostname === 'localhost' &&
-              (window.self !== window.top || /electron|cursor/i.test(navigator.userAgent));
-            if (
-              isCursorLikePreview &&
-              (event.error === 'network' ||
-                event.error === 'not-allowed' ||
-                event.error === 'service-not-allowed')
-            ) {
-              setShowPreviewMicHint(true);
+            setShowListeningHint(false);
+            setShowRetryingHint(false);
+            micLastErrorRef.current = event.error;
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+              setShowPermissionDeniedMessage(true);
+              return;
             }
-            if (
-              event.error === 'network' ||
-              event.error === 'aborted' ||
-              event.error === 'no-speech' ||
-              event.error === 'not-allowed' ||
-              event.error === 'service-not-allowed'
-            ) {
-              if (isLikelyMobile && event.error !== 'aborted') {
-                showToast.error(
-                  'Mikrofonas nepasiekiamas telefone. Patikrinkite svetainės mikrofono leidimą ir bandykite dar kartą.'
-                );
-              }
+            if (event.error === 'no-speech') {
+              return;
+            }
+            if (event.error === 'network' || event.error === 'aborted') {
               lastSpeechErrorAlertAtRef.current = Date.now();
               return;
             }
-
-            logDevError('Speech recognition error:', event.error);
-            showToast.error(userMessage);
           };
 
           recognition.onend = () => {
             recognitionRef.current = null;
-
-            if (micSessionWantedRef.current) {
-              micMobileRestartCountRef.current += 1;
-              if (
-                isLikelyMobile &&
-                micMobileRestartCountRef.current > MIC_MAX_MOBILE_RECOGNITION_CHUNKS
-              ) {
-                micSessionWantedRef.current = false;
-                setMicNeedsGestureContinue(false);
-                setIsRecording(false);
-                showToast.error(
-                  'Balso įrašas nutrauktas (techninė riba). Jei reikia, vėl paspauskite mikrofoną.'
-                );
-                finalizeMicTranscriptToInput();
-                return;
-              }
-
-              try {
-                startSpeechInstanceRef.current?.();
-                return;
-              } catch (e) {
-                logDevError('Auto-restart speech recognition failed', e);
-                if (isLikelyMobile) {
-                  setMicNeedsGestureContinue(true);
-                  return;
-                }
-              }
+            const finalTranscript =
+              `${finalTranscriptRef.current} ${tempTranscriptRef.current}`.trim();
+            const hasTranscript = micHasTranscriptRef.current || Boolean(finalTranscript);
+            const decision = decideVoiceFallback({
+              retryCount: micRetryCountRef.current,
+              maxRetries: MIC_MAX_RETRY_COUNT,
+              hasTranscript,
+              errorType: micLastErrorRef.current,
+            });
+            if (decision.retry) {
+              micRetryCountRef.current += 1;
+              setShowListeningHint(false);
+              setShowRetryingHint(true);
+              setShowNoTranscriptMessage(false);
+              setShowSilenceHint(false);
+              startSpeechInstanceRef.current?.();
+              return;
             }
-
             setIsRecording(false);
             setMicNeedsGestureContinue(false);
+            setShowListeningHint(false);
+            setShowRetryingHint(false);
+            setShowSilenceHint(false);
+            micSessionWantedRef.current = false;
+            if (silenceTimeoutRef.current) {
+              clearTimeout(silenceTimeoutRef.current);
+              silenceTimeoutRef.current = null;
+            }
             finalizeMicTranscriptToInput();
+            if (decision.finalFallback) {
+              setShowNoTranscriptMessage(true);
+              setTimeout(() => setShowNoTranscriptMessage(false), 5000);
+            }
           };
 
           recognitionRef.current = recognition;
@@ -832,7 +855,7 @@ export default function ChatAssistant({
           setMicNeedsGestureContinue(false);
           setIsRecording(false);
           showToast.error(
-            'Nepavyko pradėti balso atpažinimo. Patikrinkite ar mikrofonas prijungtas.'
+            'Nepavyko pradÄ—ti balso atpaÅ¾inimo. Patikrinkite ar mikrofonas prijungtas.'
           );
           recognitionRef.current = null;
         }
@@ -848,7 +871,7 @@ export default function ChatAssistant({
             stream.getTracks().forEach((t) => t.stop());
           })
           .catch(() => {
-            /* Speech API gali vis tiek veikti; jei ne — onerror parodys */
+            /* Speech API gali vis tiek veikti; jei ne ā€” onerror parodys */
           });
       }
     }
@@ -1010,7 +1033,7 @@ export default function ChatAssistant({
             (typeof apiKey === 'string' && apiKey.trim() !== '' && isOpenCodeKey(apiKey));
 
           if (isOpenRouterKey(apiKey) || useOpenCodeSecond) {
-            // OpenRouter arba OpenCode (serverio proxy / sk-): tas pats kelias kaip pirmame žingsnyje
+            // OpenRouter arba OpenCode (serverio proxy / sk-): tas pats kelias kaip pirmame Å¾ingsnyje
             const secondResult = await chatWithAssistant('', updatedHistory, assistantDataContext);
             finalResponse = secondResult.text;
             currentHistory = secondResult.history;
@@ -1018,7 +1041,7 @@ export default function ChatAssistant({
             const geminiKey = getGeminiApiKeyForSdk();
             if (!geminiKey) {
               finalResponse =
-                finalResponse || 'Trūksta Google Gemini rakto antram užklausos žingsniui.';
+                finalResponse || 'TrÅ«ksta Google Gemini rakto antram uÅ¾klausos Å¾ingsniui.';
             } else {
               const ai = getAiInstance(geminiKey);
               const modelsToTry = [
@@ -1040,7 +1063,7 @@ export default function ChatAssistant({
                     >,
                   });
                   const secondResponse = await secondChat.sendMessage({
-                    message: 'Apdorok veiksmų rezultatus ir patvirtink vartotojui.',
+                    message: 'Apdorok veiksmÅ³ rezultatus ir patvirtink vartotojui.',
                   });
                   secondResponseText = secondResponse.text;
                   secondHistory = await secondChat.getHistory();
@@ -1056,7 +1079,7 @@ export default function ChatAssistant({
               } else {
                 // Fallback if second call fails
                 finalResponse =
-                  'Veiksmai atlikti sėkmingai, bet nepavyko sugeneruoti patvirtinimo teksto. Ar galiu dar kuo nors padėti?';
+                  'Veiksmai atlikti sÄ—kmingai, bet nepavyko sugeneruoti patvirtinimo teksto. Ar galiu dar kuo nors padÄ—ti?';
                 currentHistory = updatedHistory;
               }
             }
@@ -1064,14 +1087,14 @@ export default function ChatAssistant({
         } catch (e) {
           logDevError('Second chat error:', e);
           finalResponse =
-            'Veiksmai atlikti, bet įvyko klaida generuojant atsakymą. Patikrinkite duomenis sąrašuose.';
+            'Veiksmai atlikti, bet ÄÆvyko klaida generuojant atsakymÄ…. Patikrinkite duomenis sÄ…raÅuose.';
           currentHistory = updatedHistory;
         }
       }
 
       if (toolCalls?.length && !String(finalResponse ?? '').trim()) {
         finalResponse =
-          'Įrankiai vykdyti, bet atsakymo tekstas nebuvo sugeneruotas. Bandykite trumpai pakartoti klausimą arba atnaujinkite puslapį.';
+          'Ä®rankiai vykdyti, bet atsakymo tekstas nebuvo sugeneruotas. Bandykite trumpai pakartoti klausimÄ… arba atnaujinkite puslapÄÆ.';
       }
 
       if (finalResponse) {
@@ -1132,7 +1155,7 @@ export default function ChatAssistant({
                 },
                 totalPrice: (orderDetection.windowCount || 5) * 5,
                 status: 'suplanuota' as const,
-                notes: `Sukurta iš pokalbio: ${textToSend.slice(0, 100)}`,
+                notes: `Sukurta iÅ pokalbio: ${textToSend.slice(0, 100)}`,
                 createdAt: new Date().toISOString(),
               };
               await addData(TABLES.ORDERS, dataOwnerId, newOrder);
@@ -1148,8 +1171,8 @@ export default function ChatAssistant({
       const detail =
         error instanceof Error && error.message.trim()
           ? error.message.trim()
-          : 'nenumatyta tinklo ar serverio klaida — patikrinkite ryšį ir API nustatymus';
-      const errorMsg = `Atsiprašau, asistentas šiuo metu neatsakė: ${detail}. Bandykite trumpesnę užklausą arba pakartokite po kelių sekundžių.`;
+          : 'nenumatyta tinklo ar serverio klaida ā€” patikrinkite ryÅÄÆ ir API nustatymus';
+      const errorMsg = `AtsipraÅau, asistentas Åiuo metu neatsakÄ—: ${detail}. Bandykite trumpesnÄ™ uÅ¾klausÄ… arba pakartokite po keliÅ³ sekundÅ¾iÅ³.`;
       setMessages((prev) => [
         ...prev,
         { role: 'model', text: errorMsg, timestamp: Date.now(), failed: true },
@@ -1160,7 +1183,7 @@ export default function ChatAssistant({
     }
   };
 
-  // Timeout fallback — OpenRouter free tier + tool round-trips can exceed 30s
+  // Timeout fallback ā€” OpenRouter free tier + tool round-trips can exceed 30s
   useEffect(() => {
     if (isLoading) {
       const timeout = setTimeout(() => {
@@ -1171,7 +1194,7 @@ export default function ChatAssistant({
             ...prev,
             {
               role: 'model',
-              text: 'Atsiprašau, atsakymas užtruko per ilgai. Bandykite trumpesnę užklausą, palaukite ir bandykite vėl, arba patikrinkite API raktą / tinklą.',
+              text: 'AtsipraÅau, atsakymas uÅ¾truko per ilgai. Bandykite trumpesnÄ™ uÅ¾klausÄ…, palaukite ir bandykite vÄ—l, arba patikrinkite API raktÄ… / tinklÄ….',
               timestamp: Date.now(),
             },
           ]);
@@ -1187,7 +1210,7 @@ export default function ChatAssistant({
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(true)}
-        title="Atidaryti asistentą"
+        title="Atidaryti asistentÄ…"
         className="fixed bottom-20 right-4 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-40 hover:bg-blue-700 transition-colors"
       >
         <Bot size={28} />
@@ -1218,7 +1241,7 @@ export default function ChatAssistant({
                     Asistentas
                   </h3>
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-[10px] opacity-80">Klausimai apie užsakymus ir duomenis</p>
+                    <p className="text-[10px] opacity-80">Klausimai apie uÅ¾sakymus ir duomenis</p>
                     <span
                       className="text-[9px] px-2 py-0.5 rounded-md font-medium bg-white/20 text-white max-w-[11rem] truncate"
                       title={`Dabar atidaryta: ${activeViewLabel}`}
@@ -1250,8 +1273,8 @@ export default function ChatAssistant({
                     </span>
                   </div>
                   <p className="text-[9px] opacity-85 mt-1.5 leading-snug pr-2">
-                    Naršykite kitas skiltis — langas ir pokalbis lieka. Apie „čia matomą“ galite
-                    klausti pagal viršuje rodomą skiltį.
+                    NarÅykite kitas skiltis ā€” langas ir pokalbis lieka. Apie ā€˛Ä¨ia matomÄ…ā€
+                    galite klausti pagal virÅuje rodomÄ… skiltÄÆ.
                   </p>
                 </div>
               </div>
@@ -1259,7 +1282,7 @@ export default function ChatAssistant({
                 <button
                   onClick={stopSpeaking}
                   className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/60 hover:text-white"
-                  title="Sustabdyti visą garsą"
+                  title="Sustabdyti visÄ… garsÄ…"
                 >
                   <VolumeX size={16} />
                 </button>
@@ -1291,7 +1314,7 @@ export default function ChatAssistant({
                       }
                     }}
                     className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/60 hover:text-white"
-                    title="Išvalyti pokalbį"
+                    title="IÅvalyti pokalbÄÆ"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -1308,14 +1331,14 @@ export default function ChatAssistant({
                       }, 100);
                     }}
                     className="p-2 hover:bg-white/10 rounded-full transition-colors text-yellow-300 hover:text-yellow-200"
-                    title="Pakartoti paskutinį"
+                    title="Pakartoti paskutinÄÆ"
                   >
                     <RefreshCw size={16} />
                   </button>
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  title="Uždaryti asistentą"
+                  title="UÅ¾daryti asistentÄ…"
                   className="p-2 hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X size={20} />
@@ -1375,7 +1398,7 @@ export default function ChatAssistant({
                       </h4>
                       <button
                         onClick={() => setShowMemories(false)}
-                        title="Uždaryti atmintį"
+                        title="UÅ¾daryti atmintÄÆ"
                         className="p-2 bg-slate-50 rounded-full text-slate-400"
                       >
                         <X size={16} />
@@ -1385,7 +1408,7 @@ export default function ChatAssistant({
                     {memories.length === 0 ? (
                       <div className="text-center py-10">
                         <p className="text-xs text-slate-400">
-                          Atmintis tuščia. Pasakykite man kažką svarbaus ir aš tai įsiminsiu.
+                          Atmintis tuÅÄ¨ia. Pasakykite man kaÅ¾kÄ… svarbaus ir aÅ tai ÄÆsiminsiu.
                         </p>
                       </div>
                     ) : (
@@ -1412,7 +1435,7 @@ export default function ChatAssistant({
                                       args: { memoryId: memory.id },
                                     })
                                   }
-                                  title="Ištrinti atminties įrašą"
+                                  title="IÅtrinti atminties ÄÆraÅÄ…"
                                   className="p-2 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
                                 >
                                   <Trash2 size={14} />
@@ -1435,27 +1458,31 @@ export default function ChatAssistant({
                   <div className="space-y-1">
                     <p className="font-bold text-slate-900">Sveiki, vadove!</p>
                     <p className="text-xs text-slate-400 px-10">
-                      Galiu padėti pridėti klientus, užsakymus ar išlaidas. Tiesiog parašykite man.
+                      Galiu padÄ—ti pridÄ—ti klientus, uÅ¾sakymus ar iÅlaidas. Tiesiog paraÅykite
+                      man.
                     </p>
                   </div>
                   <div className="flex flex-wrap justify-center gap-2 pt-4">
-                    {['Pridėk klientą', 'Sukurk užsakymą', 'Įrašyk išlaidas', 'Mano atmintis'].map(
-                      (hint) => (
-                        <button
-                          key={hint}
-                          onClick={() => {
-                            if (hint === 'Mano atmintis') {
-                              setShowMemories(true);
-                            } else {
-                              setInput(hint);
-                            }
-                          }}
-                          className="text-[10px] font-bold bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all"
-                        >
-                          {hint}
-                        </button>
-                      )
-                    )}
+                    {[
+                      'PridÄ—k klientÄ…',
+                      'Sukurk uÅ¾sakymÄ…',
+                      'Ä®raÅyk iÅlaidas',
+                      'Mano atmintis',
+                    ].map((hint) => (
+                      <button
+                        key={hint}
+                        onClick={() => {
+                          if (hint === 'Mano atmintis') {
+                            setShowMemories(true);
+                          } else {
+                            setInput(hint);
+                          }
+                        }}
+                        className="text-[10px] font-bold bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-all"
+                      >
+                        {hint}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1482,6 +1509,43 @@ export default function ChatAssistant({
               />
             </div>
 
+            {/* Transcript Confirmation */}
+            {pendingTranscript && (
+              <div className="p-4 bg-blue-50 border-t border-blue-100">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-blue-900 mb-2">Balsas atpažintas:</div>
+                    <div className="text-sm text-blue-800 bg-white p-3 rounded-lg border border-blue-200">
+                      {pendingTranscript}
+                    </div>
+                    <div className="text-xs text-blue-600 mt-2">
+                      Balsas įvestis veikia per naršyklę ir gali būti nestabili. (beta)
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleConfirmTranscript}
+                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Siųsti
+                    </button>
+                    <button
+                      onClick={handleEditTranscript}
+                      className="px-4 py-2 bg-white text-blue-600 text-sm rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors"
+                    >
+                      Redaguoti
+                    </button>
+                    <button
+                      onClick={handleRetryVoice}
+                      className="px-4 py-2 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                      Bandyti dar kartą
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Input */}
             <div className="p-6 bg-white border-t border-slate-100">
               <div className="relative">
@@ -1503,6 +1567,12 @@ export default function ChatAssistant({
                     onToggle={toggleRecording}
                     onContinueGesture={continueMobileSpeechRecognition}
                     showPreviewMicHint={showPreviewMicHint}
+                    showListeningHint={showListeningHint}
+                    showRetryingHint={showRetryingHint}
+                    showSilenceHint={showSilenceHint}
+                    showNoTranscriptMessage={showNoTranscriptMessage}
+                    showUnsupportedMessage={showUnsupportedMessage}
+                    showPermissionDeniedMessage={showPermissionDeniedMessage}
                   />
 
                   {isLoading ? (
@@ -1511,7 +1581,7 @@ export default function ChatAssistant({
                         setIsLoading(false);
                         setMessages((prev) => [
                           ...prev,
-                          { role: 'model', text: 'Užklausa sustabdyta.', timestamp: Date.now() },
+                          { role: 'model', text: 'UÅ¾klausa sustabdyta.', timestamp: Date.now() },
                         ]);
                       }}
                       className="w-10 bg-red-500 text-white rounded-xl flex items-center justify-center hover:bg-red-600 transition-all"
@@ -1524,7 +1594,7 @@ export default function ChatAssistant({
                       id="chat-send-btn"
                       onClick={() => handleSend()}
                       disabled={!input.trim() || isLoading}
-                      title="Siųsti žinutę"
+                      title="SiÅ³sti Å¾inutÄ™"
                       className="w-10 bg-blue-600 text-white rounded-xl flex items-center justify-center disabled:opacity-50 disabled:scale-95 transition-all"
                     >
                       <Send size={18} />
