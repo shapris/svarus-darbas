@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import dejaVuSansUrl from 'dejavu-fonts-ttf/ttf/DejaVuSans.ttf?url';
 import dejaVuSansBoldUrl from 'dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf?url';
+import { readInvoiceVendorSettingsFromLocalStorage } from './utils/invoiceVendorSettings';
 
 /** Įmonės rekvizitai PDF sąskaitai (galite vėliau perkelti į Nustatymus). */
 const INVOICE_VENDOR = {
@@ -25,6 +26,25 @@ const INVOICE_VENDOR = {
 } as const;
 
 const PDF_FONT = 'DejaVuSans';
+
+type InvoiceVendorResolved = {
+  companyName: string;
+  iban: string;
+  bankName: string;
+};
+
+function resolveInvoiceVendorSettings(settings?: AppSettings): InvoiceVendorResolved {
+  const localVendor = readInvoiceVendorSettingsFromLocalStorage();
+  const companyName = settings?.companyName?.trim() || localVendor.companyName || '';
+  const iban = settings?.iban?.replace(/\s/g, '').toUpperCase() || localVendor.iban || '';
+  const bankName = settings?.bankName?.trim() || localVendor.bankName || '';
+  return { companyName, iban, bankName };
+}
+
+function hasRequiredInvoiceVendorSettings(settings?: AppSettings): boolean {
+  const vendor = resolveInvoiceVendorSettings(settings);
+  return Boolean(vendor.companyName && vendor.iban && vendor.bankName);
+}
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -553,7 +573,11 @@ export async function deliverInvoicePdf(
   };
 }
 
-async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
+async function buildInvoiceJsPdf(
+  order: Order,
+  client: Client,
+  settings?: AppSettings
+): Promise<jsPDF> {
   const fontData = await loadDejaVuFontData();
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   registerDejaVuFontsOnDocument(doc, fontData);
@@ -571,11 +595,12 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   doc.setTextColor(255, 255, 255);
   doc.setFont(PDF_FONT, 'bold');
   doc.setFontSize(15);
-  doc.text('Sąskaita faktūra', pageW / 2, 13, { align: 'center' });
+  doc.text('Sąskaita / pilotinis šablonas', pageW / 2, 13, { align: 'center' });
   doc.setFont(PDF_FONT, 'normal');
   doc.setFontSize(8.5);
   const issueDate = formatDate(new Date().toISOString());
-  const invNo = order.id.replace(/-/g, '').slice(0, 10).toUpperCase();
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const invNo = `INV-${dateStr}-${order.id.slice(-4).toUpperCase()}`;
   doc.text(`Serija SD  ·  Nr. ${invNo}  ·  Išrašymo data: ${issueDate}`, pageW / 2, 18.5, {
     align: 'center',
   });
@@ -603,8 +628,13 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   let yL = y;
   let yR = y;
 
+  const vendor = resolveInvoiceVendorSettings(settings);
+  const vendorName = vendor.companyName || INVOICE_VENDOR.name;
+  const vendorIban = vendor.iban || INVOICE_VENDOR.iban;
+  const vendorBank = vendor.bankName || INVOICE_VENDOR.bank;
+
   doc.setFont(PDF_FONT, 'bold');
-  doc.text(INVOICE_VENDOR.name, leftX, yL);
+  doc.text(vendorName, leftX, yL);
   yL += 5;
   doc.setFont(PDF_FONT, 'normal');
   yL += 2;
@@ -637,6 +667,10 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
 
   const wc = Math.max(1, order.windowCount || 0);
   const unit = order.totalPrice / wc;
+  const vatRate = 0.21; // Default LT VAT rate, pilot only
+  const vatAmount = order.totalPrice * vatRate;
+  const totalWithVat = order.totalPrice + vatAmount;
+
   const tableData: string[][] = [
     [
       'Langų valymas',
@@ -658,6 +692,10 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   if (order.additionalServices.kiti) {
     tableData.push(['Papildomai: kiti paviršiai', '1 pasl.', '—', '—']);
   }
+
+  // VAT rows (pilot template only)
+  tableData.push(['', '', 'PVM (21%)', formatCurrency(vatAmount)]);
+  tableData.push(['', '', 'Iš viso su PVM', formatCurrency(totalWithVat)]);
 
   autoTable(doc, {
     startY: y,
@@ -699,7 +737,7 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   doc.setFont(PDF_FONT, 'bold');
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  const totalLine = `Iš viso mokėti: ${formatCurrency(order.totalPrice)}`;
+  const totalLine = `Iš viso mokėti (su PVM): ${formatCurrency(totalWithVat)}`;
   doc.text(totalLine, pageW - M, totalY, { align: 'right' });
 
   const footTop = 252;
@@ -708,13 +746,13 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
   doc.setTextColor(...muted);
   doc.text('Mokėjimo duomenys', M, footTop);
   doc.setTextColor(0, 0, 0);
-  doc.text(`Gavėjas: ${INVOICE_VENDOR.name}  ·  ${INVOICE_VENDOR.bank}`, M, footTop + 4.5);
-  doc.text(`IBAN: ${INVOICE_VENDOR.iban}  ·  Įm. kodas: ${INVOICE_VENDOR.regCode}`, M, footTop + 9);
+  doc.text(`Gavėjas: ${vendorName}  ·  ${vendorBank}`, M, footTop + 4.5);
+  doc.text(`IBAN: ${vendorIban}  ·  Įm. kodas: ${INVOICE_VENDOR.regCode}`, M, footTop + 9);
 
   doc.setFontSize(7.5);
   doc.setTextColor(100, 116, 139);
   doc.text(
-    'Sąskaitą sugeneravo „Švarus Darbas“ CRM. Dokumentas yra preliminarus — prieš siųsdami klientui patikrinkite rekvizitus.',
+    'Pilotinis šablonas iš „Švarus Darbas“ CRM. Neoficialus dokumentas — prieš naudojimą patikrinkite mokesčių reikalavimus.',
     M,
     footTop + 16,
     { maxWidth: pageW - 2 * M }
@@ -725,9 +763,10 @@ async function buildInvoiceJsPdf(order: Order, client: Client): Promise<jsPDF> {
 
 export async function createInvoicePdfBlob(
   order: Order,
-  client: Client
+  client: Client,
+  settings?: AppSettings
 ): Promise<{ blob: Blob; filename: string }> {
-  const doc = await buildInvoiceJsPdf(order, client);
+  const doc = await buildInvoiceJsPdf(order, client, settings);
   const safeName = (order.clientName || 'klientas').replace(/[^\w\u00C0-\u024f-]+/gi, '_');
   const filename = `saskaita_${safeName}_${order.date}.pdf`;
   return { blob: doc.output('blob'), filename };
@@ -739,9 +778,15 @@ export async function createInvoicePdfBlob(
  */
 export async function generateInvoicePDF(
   order: Order,
-  client: Client
+  client: Client,
+  settings?: AppSettings
 ): Promise<InvoiceDeliveryResult> {
-  const { blob, filename } = await createInvoicePdfBlob(order, client);
+  if (!hasRequiredInvoiceVendorSettings(settings)) {
+    throw new Error(
+      'Prieš generuojant sąskaitą užpildykite įmonės rekvizitus Nustatymuose: gavėjas, IBAN ir bankas.'
+    );
+  }
+  const { blob, filename } = await createInvoicePdfBlob(order, client, settings);
   const base = getInvoiceApiBaseUrl();
 
   const serverTry = await trySendInvoiceEmailViaServer(order, client, blob, filename);
